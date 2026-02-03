@@ -11,6 +11,64 @@ import { Link, useParams } from "wouter";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
 
+// Component to handle forms for a single milestone
+function MilestoneFormSection({ 
+  milestoneId, 
+  milestoneStatus, 
+  isViewOnly, 
+  uploadingMilestone, 
+  onUploadClick, 
+  onDownloadClick, 
+  downloadPending 
+}: { 
+  milestoneId: number; 
+  milestoneStatus: string; 
+  isViewOnly: boolean; 
+  uploadingMilestone: number | null; 
+  onUploadClick: (id: number) => void; 
+  onDownloadClick: (data: { formId: number }) => void; 
+  downloadPending: boolean; 
+}) {
+  const { data: forms } = trpc.forms.getByMilestone.useQuery({ milestoneId });
+  
+  return (
+    <div className="mt-3 space-y-2">
+      {forms && forms.length > 0 && forms.map((form: any) => (
+        <div key={form.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="text-sm">{form.name}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onDownloadClick({ formId: form.id })}
+            disabled={downloadPending}
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      
+      {milestoneStatus === "in_progress" && !isViewOnly && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onUploadClick(milestoneId)}
+          disabled={uploadingMilestone === milestoneId}
+        >
+          {uploadingMilestone === milestoneId ? (
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4 mr-1" />
+          )}
+          Upload Form
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export default function ProjectDetails() {
   const { id } = useParams();
   const projectId = parseInt(id || "0");
@@ -25,11 +83,6 @@ export default function ProjectDetails() {
   const { data: project, isLoading: projectLoading } = trpc.projects.getById.useQuery({ projectId });
   const { data: milestones, isLoading: milestonesLoading, refetch: refetchMilestones } = trpc.milestones.getByProject.useQuery({ projectId });
   const { data: auditTrail, refetch: refetchAudit } = trpc.audit.getByProject.useQuery({ projectId });
-  
-  // Form queries for each milestone
-  const formQueries = milestones?.map(m => 
-    trpc.forms.getByMilestone.useQuery({ milestoneId: m.id })
-  ) || [];
 
   const approveMilestone = trpc.milestones.approve.useMutation({
     onSuccess: () => {
@@ -63,8 +116,6 @@ export default function ProjectDetails() {
     onSuccess: () => {
       toast.success("Form uploaded successfully");
       setUploadingMilestone(null);
-      // Refetch forms for this milestone
-      formQueries.forEach(q => q.refetch());
     },
     onError: (error) => {
       toast.error(error.message);
@@ -232,40 +283,15 @@ export default function ProjectDetails() {
                           </p>
                           
                           {/* Form Upload/Download Section */}
-                          <div className="mt-3 space-y-2">
-                            {formQueries[milestones?.indexOf(milestone) ?? -1]?.data?.map((form: any) => (
-                              <div key={form.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                                <div className="flex items-center gap-2">
-                                  <FileText className="h-4 w-4" />
-                                  <span className="text-sm">{form.name}</span>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => downloadFormMutation.mutate({ formId: form.id })}
-                                  disabled={downloadFormMutation.isPending}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))}
-                            
-                            {milestone.status === "in_progress" && !milestone.is_view_only && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => triggerFileUpload(milestone.id)}
-                                disabled={uploadingMilestone === milestone.id}
-                              >
-                                {uploadingMilestone === milestone.id ? (
-                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                ) : (
-                                  <Upload className="h-4 w-4 mr-1" />
-                                )}
-                                Upload Form
-                              </Button>
-                            )}
-                          </div>
+                          <MilestoneFormSection
+                            milestoneId={milestone.id}
+                            milestoneStatus={milestone.status}
+                            isViewOnly={milestone.is_view_only}
+                            uploadingMilestone={uploadingMilestone}
+                            onUploadClick={triggerFileUpload}
+                            onDownloadClick={downloadFormMutation.mutate}
+                            downloadPending={downloadFormMutation.isPending}
+                          />
                           
                           {canApprove(milestone) && (
                             <div className="flex gap-2 mt-3">
