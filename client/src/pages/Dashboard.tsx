@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { getLoginUrl } from "@/const";
+import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { trpc } from "@/lib/trpc";
 import { Loader2, Plus, Search, Users, LogOut } from "lucide-react";
 import { useState } from "react";
@@ -14,14 +15,15 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 
 export default function Dashboard() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { signOut } = useSupabaseAuth();
+  const { user, loading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [isOem, setIsOem] = useState(false);
 
   const { data: projects, isLoading: projectsLoading, refetch } = trpc.projects.list.useQuery(undefined, {
-    enabled: isAuthenticated,
+    enabled: !!user,
   });
 
   const createProject = trpc.projects.create.useMutation({
@@ -37,11 +39,10 @@ export default function Dashboard() {
     },
   });
 
-  const logout = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      window.location.href = "/";
-    },
-  });
+  const handleLogout = async () => {
+    await signOut();
+    window.location.href = "/";
+  };
 
   if (loading) {
     return (
@@ -51,39 +52,10 @@ export default function Dashboard() {
     );
   }
 
-  if (!isAuthenticated || !user) {
+  if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Multi-Layer Approval System</CardTitle>
-            <CardDescription>Please sign in to continue</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => window.location.href = getLoginUrl()} className="w-full">
-              Sign In
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Check if user email is from @compawnion.co
-  if (user.email && !user.email.endsWith("@compawnion.co")) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-4">
-        <Card className="w-full max-w-md border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Access Denied</CardTitle>
-            <CardDescription>Only @compawnion.co email addresses are allowed to access this system.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => logout.mutate()} variant="outline" className="w-full">
-              Sign Out
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -126,9 +98,8 @@ export default function Dashboard() {
                   <Users className="h-4 w-4 mr-2" />
                   User Management
                 </Button>
-              </Link>
-            )}
-            <Button variant="ghost" size="sm" onClick={() => logout.mutate()}>
+              </Link>            )}
+            <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
             </Button>

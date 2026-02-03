@@ -7,9 +7,10 @@ import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft, UserCheck, UserX } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export default function UserManagement() {
-  const { user } = useAuth();
+  const { user } = useUserRole();
 
   const { data: users, isLoading, refetch } = trpc.users.list.useQuery();
 

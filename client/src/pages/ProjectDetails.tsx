@@ -9,11 +9,12 @@ import { Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle } from "lucide-r
 import { useState } from "react";
 import { Link, useParams } from "wouter";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export default function ProjectDetails() {
   const { id } = useParams();
   const projectId = parseInt(id || "0");
-  const { user } = useAuth();
+  const { user } = useUserRole();
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedMilestone, setSelectedMilestone] = useState<number | null>(null);

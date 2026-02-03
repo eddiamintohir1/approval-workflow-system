@@ -92,3 +92,30 @@
 - [x] Implement Supabase Auth with @compawnion.co restriction
 - [x] Set up Row Level Security (RLS) policies
 - [x] Test authentication and database operations
+
+## Phase 7: Supabase OAuth & Form Template Management
+- [x] Replace Manus OAuth with Supabase OAuth
+- [x] Configure Supabase Auth providers
+- [x] Update authentication flow to use Supabase Auth
+- [x] Implement @compawnion.co email restriction with Supabase Auth
+- [ ] Upload form templates (PR, PAF, MAF) to system
+- [ ] Create form template management interface
+- [ ] Add form template preview functionality
+- [ ] Implement form template download
+
+## Phase 8: Form Upload & AWS S3 Integration
+- [ ] Implement file upload to AWS S3
+- [ ] Add form upload interface to project milestones
+- [ ] Implement form download functionality
+- [ ] Add form version control
+- [ ] Display uploaded forms in project details
+
+## Phase 8: AWS S3 Integration & Form Upload
+- [x] Configure AWS S3 credentials (user's own bucket)
+- [x] Update storage helpers to use user's S3 bucket
+- [x] Test S3 upload and download functionality
+- [ ] Upload form templates (PR, PAF, MAF) to S3
+- [ ] Create form upload interface in project details
+- [ ] Implement form download functionality
+- [ ] Add form preview capability
+- [ ] Create admin form template management page
