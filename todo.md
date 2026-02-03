@@ -119,3 +119,27 @@
 - [ ] Implement form download functionality
 - [ ] Add form preview capability
 - [ ] Create admin form template management page
+
+## Phase 9: Fix Authentication Conflicts
+
+- [ ] Remove Manus OAuth backend dependencies
+- [ ] Update tRPC context to use Supabase session
+- [ ] Fix auth.me endpoint to work with Supabase
+- [ ] Remove getLoginUrl() redirects to Manus OAuth
+- [ ] Test complete authentication flow end-to-end
+
+## Phase 9.5: Additional Features
+
+- [ ] Add form upload interface at each milestone step
+- [ ] Add form download functionality for uploaded forms
+- [ ] Add project deletion feature (admin only)
+- [ ] Make eddie.amintohir@compawnion.co an admin user
+- [ ] Add copyright notice "© Eddie Amintohir. All rights reserved."
+
+## Phase 10: Immediate Feature Additions
+
+- [x] Implement form upload/download backend endpoints with S3 integration
+- [x] Build form upload/download UI at each milestone step in ProjectDetails page
+- [x] Add project deletion functionality (admin only) with audit logging
+- [x] Update eddie.amintohir@compawnion.co to admin role in database
+- [x] Add copyright notice "© Eddie Amintohir. All rights reserved." to application footer

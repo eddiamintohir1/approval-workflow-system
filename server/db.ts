@@ -183,6 +183,18 @@ export async function updateProjectStatus(projectId: number, status: string): Pr
   await supabase.from("projects").update({ status }).eq("id", projectId);
 }
 
+export async function deleteProject(projectId: number): Promise<void> {
+  // Delete related records first (if cascade is not set up)
+  await supabase.from("forms").delete().eq("project_id", projectId);
+  await supabase.from("form_submissions").delete().eq("project_id", projectId);
+  await supabase.from("approvals").delete().eq("project_id", projectId);
+  await supabase.from("milestones").delete().eq("project_id", projectId);
+  // Note: audit_trail is kept for historical records
+  
+  // Finally delete the project
+  await supabase.from("projects").delete().eq("id", projectId);
+}
+
 // ============================================
 // Milestone Management
 // ============================================

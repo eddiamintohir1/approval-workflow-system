@@ -230,6 +230,13 @@ export default function Dashboard() {
           </Card>
         )}
       </main>
+      
+      {/* Copyright Footer */}
+      <footer className="border-t bg-card mt-8">
+        <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
+          © Eddie Amintohir. All rights reserved.
+        </div>
+      </footer>
     </div>
   );
 }

@@ -224,6 +224,30 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+    
+    delete: adminProcedure
+      .input(z.object({
+        projectId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+        
+        // Log before deletion
+        await db.logAudit({
+          user_id: ctx.user.id,
+          project_id: input.projectId,
+          action: "project_deleted",
+          details: { projectName: project.name, sku: project.sku },
+        });
+        
+        // Delete project (cascade will handle related records)
+        await db.deleteProject(input.projectId);
+        
+        return { success: true };
+      }),
   }),
 
   milestones: router({
@@ -347,6 +371,120 @@ export const appRouter = router({
       .input(z.object({ projectId: z.number() }))
       .query(async ({ input }) => {
         return await db.getAuditTrailByProject(input.projectId);
+      }),
+  }),
+
+  forms: router({
+    getByMilestone: protectedProcedure
+      .input(z.object({ milestoneId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getFormsByMilestone(input.milestoneId);
+      }),
+    
+    upload: protectedProcedure
+      .input(z.object({
+        milestoneId: z.number(),
+        fileName: z.string(),
+        fileType: z.string(),
+        fileData: z.string(), // Base64 encoded file data
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const milestone = await db.getMilestoneById(input.milestoneId);
+        if (!milestone) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Milestone not found" });
+        }
+        
+        const { storagePut } = await import("./storage");
+        
+        // Generate a unique S3 key
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(7);
+        const s3Key = `projects/${milestone.project_id}/milestones/${input.milestoneId}/${timestamp}-${randomSuffix}-${input.fileName}`;
+        
+        // Decode base64 and upload to S3
+        const fileBuffer = Buffer.from(input.fileData, 'base64');
+        await storagePut(s3Key, fileBuffer, input.fileType);
+        
+        // Get presigned URL for download
+        const { storageGet } = await import("./storage");
+        const { url } = await storageGet(s3Key, 3600 * 24 * 7); // 7 days expiry
+        
+        // Create form record
+        const formId = await db.createForm({
+          project_id: milestone.project_id,
+          milestone_id: input.milestoneId,
+          name: input.fileName,
+          s3_key: s3Key,
+          s3_url: url,
+          file_size: fileBuffer.length,
+          uploaded_by: ctx.user.id,
+        });
+        
+        await db.logAudit({
+          user_id: ctx.user.id,
+          project_id: milestone.project_id,
+          action: "form_uploaded",
+          details: { formId, milestoneId: input.milestoneId, fileName: input.fileName },
+        });
+        
+        return { formId, s3Key };
+      }),
+    
+    create: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        milestoneId: z.number(),
+        name: z.string(),
+        s3Key: z.string(),
+        fileSize: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { storageGet } = await import("./storage");
+        
+        // Generate presigned URL for the uploaded file
+        const { url } = await storageGet(input.s3Key, 3600 * 24 * 7); // 7 days expiry
+        
+        const formId = await db.createForm({
+          project_id: input.projectId,
+          milestone_id: input.milestoneId,
+          name: input.name,
+          s3_key: input.s3Key,
+          s3_url: url,
+          file_size: input.fileSize,
+          uploaded_by: ctx.user.id,
+        });
+        
+        await db.logAudit({
+          user_id: ctx.user.id,
+          project_id: input.projectId,
+          action: "form_uploaded",
+          details: { formId, milestoneId: input.milestoneId, fileName: input.name },
+        });
+        
+        return { formId };
+      }),
+    
+    download: protectedProcedure
+      .input(z.object({ formId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const forms = await db.getFormsByProject(0); // Get all forms
+        const form = forms.find(f => f.id === input.formId);
+        
+        if (!form) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
+        }
+        
+        const { storageGet } = await import("./storage");
+        const { url } = await storageGet(form.s3_key, 3600); // 1 hour expiry
+        
+        await db.logAudit({
+          user_id: ctx.user.id,
+          project_id: form.project_id,
+          action: "form_downloaded",
+          details: { formId: input.formId, fileName: form.name },
+        });
+        
+        return { url, fileName: form.name };
       }),
   }),
 });

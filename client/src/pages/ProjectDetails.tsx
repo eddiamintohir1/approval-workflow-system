@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { Loader2, ArrowLeft, CheckCircle2, XCircle, AlertCircle, Upload, Download, FileText } from "lucide-react";
+import { useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -19,10 +19,17 @@ export default function ProjectDetails() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedMilestone, setSelectedMilestone] = useState<number | null>(null);
   const [comments, setComments] = useState("");
+  const [uploadingMilestone, setUploadingMilestone] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: project, isLoading: projectLoading } = trpc.projects.getById.useQuery({ projectId });
   const { data: milestones, isLoading: milestonesLoading, refetch: refetchMilestones } = trpc.milestones.getByProject.useQuery({ projectId });
   const { data: auditTrail, refetch: refetchAudit } = trpc.audit.getByProject.useQuery({ projectId });
+  
+  // Form queries for each milestone
+  const formQueries = milestones?.map(m => 
+    trpc.forms.getByMilestone.useQuery({ milestoneId: m.id })
+  ) || [];
 
   const approveMilestone = trpc.milestones.approve.useMutation({
     onSuccess: () => {
@@ -51,6 +58,63 @@ export default function ProjectDetails() {
       toast.error(error.message);
     },
   });
+
+  const uploadFormMutation = trpc.forms.upload.useMutation({
+    onSuccess: () => {
+      toast.success("Form uploaded successfully");
+      setUploadingMilestone(null);
+      // Refetch forms for this milestone
+      formQueries.forEach(q => q.refetch());
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const downloadFormMutation = trpc.forms.download.useMutation({
+    onSuccess: (data) => {
+      // Open the presigned URL in a new tab to download
+      window.open(data.url, '_blank');
+      toast.success("Download started");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleFileUpload = async (milestoneId: number, file: File) => {
+    try {
+      setUploadingMilestone(milestoneId);
+      
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        const base64Content = base64Data.split(',')[1]; // Remove data:mime;base64, prefix
+        
+        // Upload through backend
+        await uploadFormMutation.mutateAsync({
+          milestoneId,
+          fileName: file.name,
+          fileType: file.type,
+          fileData: base64Content,
+        });
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read file");
+        setUploadingMilestone(null);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error("Failed to upload file");
+      setUploadingMilestone(null);
+    }
+  };
+
+  const triggerFileUpload = (milestoneId: number) => {
+    setUploadingMilestone(milestoneId);
+    fileInputRef.current?.click();
+  };
 
   if (projectLoading || milestonesLoading) {
     return (
@@ -166,6 +230,43 @@ export default function ProjectDetails() {
                           <p className="text-sm text-muted-foreground mb-2">
                             {milestone.is_view_only ? "View Only" : `Approver: ${milestone.approver_role.replace("_", " ")}`}
                           </p>
+                          
+                          {/* Form Upload/Download Section */}
+                          <div className="mt-3 space-y-2">
+                            {formQueries[milestones?.indexOf(milestone) ?? -1]?.data?.map((form: any) => (
+                              <div key={form.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4" />
+                                  <span className="text-sm">{form.name}</span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => downloadFormMutation.mutate({ formId: form.id })}
+                                  disabled={downloadFormMutation.isPending}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                            
+                            {milestone.status === "in_progress" && !milestone.is_view_only && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => triggerFileUpload(milestone.id)}
+                                disabled={uploadingMilestone === milestone.id}
+                              >
+                                {uploadingMilestone === milestone.id ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <Upload className="h-4 w-4 mr-1" />
+                                )}
+                                Upload Form
+                              </Button>
+                            )}
+                          </div>
+                          
                           {canApprove(milestone) && (
                             <div className="flex gap-2 mt-3">
                               <Button
@@ -262,6 +363,22 @@ export default function ProjectDetails() {
         </DialogContent>
       </Dialog>
 
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && uploadingMilestone) {
+            handleFileUpload(uploadingMilestone, file);
+          }
+          // Reset the input
+          e.target.value = '';
+        }}
+        accept=".xlsx,.xls,.pdf,.doc,.docx"
+      />
+
       {/* Reject Dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
         <DialogContent>
@@ -296,6 +413,13 @@ export default function ProjectDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Copyright Footer */}
+      <footer className="border-t bg-card mt-8">
+        <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
+          © Eddie Amintohir. All rights reserved.
+        </div>
+      </footer>
     </div>
   );
 }
