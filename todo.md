@@ -147,3 +147,12 @@
 ## Phase 10.1: Bug Fixes
 
 - [x] Fix form queries implementation causing "Cannot read properties of undefined (reading 'length')" error in ProjectDetails
+
+## Phase 10.2: OAuth Callback Bug Fix
+
+- [ ] Fix magic link OAuth callback redirecting to /* (wildcard) causing 404 error
+
+## Phase 10.3: Milestone Button Visibility Bug
+
+- [x] Fix approve/reject buttons remaining visible after milestone is completed
+- [x] Implement rejection cascade - disable all subsequent milestones when one is rejected
