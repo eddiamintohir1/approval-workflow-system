@@ -220,12 +220,20 @@ export default function ProjectDetails() {
     if (!user) return false;
     // Hide buttons if milestone is already completed or rejected
     if (milestone.status === "completed" || milestone.status === "rejected") return false;
+    
     // Check if any previous milestone was rejected - if so, disable this one (even for admins)
     const allMilestones = milestones || [];
     const currentIndex = allMilestones.findIndex(m => m.id === milestone.id);
     const previousMilestones = allMilestones.slice(0, currentIndex);
+    
+    // Check for rejected previous milestones
     const hasRejectedPrevious = previousMilestones.some(m => m.status === "rejected");
     if (hasRejectedPrevious) return false;
+    
+    // Check if ALL previous milestones are completed (sequential approval)
+    const allPreviousCompleted = previousMilestones.every(m => m.status === "completed");
+    if (!allPreviousCompleted && previousMilestones.length > 0) return false;
+    
     // Now check admin/director privileges
     if (user.role === "admin" || user.role === "director") return true;
     if (milestone.is_view_only) return false;

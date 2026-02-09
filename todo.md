@@ -176,3 +176,8 @@
 - [x] Add delete button to project cards on dashboard (admin only)
 - [x] Add confirmation dialog before deleting project
 - [x] Ensure delete button is visible only to admin users
+
+## Phase 10.8: Sequential Approval Validation Bug
+
+- [x] Fix sequential approval logic - stages can be approved before previous stages are completed
+- [x] Ensure all previous stages must be completed before current stage can be approved
