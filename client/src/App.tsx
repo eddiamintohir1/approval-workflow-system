@@ -24,7 +24,7 @@ function ProtectedRoute({ component: Component, ...rest }: { component: React.Co
   }
 
   if (!user) {
-    return <Redirect to="/" />;
+    return <Redirect to="/login" />;
   }
 
   return <Component {...rest} />;
@@ -44,8 +44,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/">
-        {user ? <Redirect to="/dashboard" /> : <Login />}
+        {user ? <Redirect to="/dashboard" /> : <Redirect to="/login" />}
       </Route>
+      <Route path="/login" component={Login} />
       <Route path="/auth/callback" component={AuthCallback} />
       <Route path="/dashboard">
         <ProtectedRoute component={Dashboard} path="/dashboard" />

@@ -156,3 +156,8 @@
 
 - [x] Fix approve/reject buttons remaining visible after milestone is completed
 - [x] Implement rejection cascade - disable all subsequent milestones when one is rejected
+
+## Phase 10.4: Login Screen Preview & Live Link
+
+- [x] Make login screen visible in preview panel for visual editing
+- [x] Ensure login screen links to live deployment URL (not dev server)
