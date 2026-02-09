@@ -7,6 +7,7 @@ interface SupabaseAuthContextType {
   session: Session | null;
   loading: boolean;
   signInWithMagicLink: (email: string) => Promise<{ success: boolean; error?: string }>;
+  signInWithPassword: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -15,6 +16,7 @@ const SupabaseAuthContext = createContext<SupabaseAuthContextType>({
   session: null,
   loading: true,
   signInWithMagicLink: async () => ({ success: false }),
+  signInWithPassword: async () => ({ success: false }),
   signOut: async () => {},
 });
 
@@ -70,6 +72,38 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
     return { success: true };
   };
 
+  const signInWithPassword = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    // Validate email domain
+    if (!email.endsWith("@compawnion.co")) {
+      return {
+        success: false,
+        error: "Only @compawnion.co email addresses are allowed",
+      };
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error("Error signing in with password:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    if (data.session) {
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      error: "Failed to create session",
+    };
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -79,7 +113,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <SupabaseAuthContext.Provider value={{ user, session, loading, signInWithMagicLink, signOut }}>
+    <SupabaseAuthContext.Provider value={{ user, session, loading, signInWithMagicLink, signInWithPassword, signOut }}>
       {children}
     </SupabaseAuthContext.Provider>
   );

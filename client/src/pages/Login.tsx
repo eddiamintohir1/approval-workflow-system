@@ -5,16 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
-import { Mail, Loader2, CheckCircle } from "lucide-react";
+import { Mail, Loader2, CheckCircle, Lock } from "lucide-react";
 
 export default function Login() {
-  const { signInWithMagicLink } = useSupabaseAuth();
+  const { signInWithMagicLink, signInWithPassword } = useSupabaseAuth();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleMagicLinkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(false);
@@ -27,6 +29,22 @@ export default function Login() {
       setEmail("");
     } else {
       setError(result.error || "Failed to send magic link");
+    }
+
+    setLoading(false);
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const result = await signInWithPassword(email, password);
+
+    if (result.success) {
+      // Redirect will happen automatically via auth state change
+    } else {
+      setError(result.error || "Failed to sign in");
     }
 
     setLoading(false);
@@ -50,7 +68,7 @@ export default function Login() {
               </AlertDescription>
             </Alert>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={showPasswordLogin ? handlePasswordSubmit : handleMagicLinkSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
                 <Input
@@ -64,6 +82,21 @@ export default function Login() {
                 />
               </div>
 
+              {showPasswordLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              )}
+
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -74,15 +107,38 @@ export default function Login() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending magic link...
+                    {showPasswordLogin ? "Signing in..." : "Sending magic link..."}
                   </>
                 ) : (
                   <>
-                    <Mail className="mr-2 h-4 w-4" />
-                    Send Magic Link
+                    {showPasswordLogin ? (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        Sign In
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="mr-2 h-4 w-4" />
+                        Send Magic Link
+                      </>
+                    )}
                   </>
                 )}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordLogin(!showPasswordLogin);
+                    setError(null);
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                  disabled={loading}
+                >
+                  {showPasswordLogin ? "Use magic link instead" : "Developer login with password"}
+                </button>
+              </div>
 
               <p className="text-xs text-center text-muted-foreground mt-4">
                 Only @compawnion.co email addresses are allowed to access this system.

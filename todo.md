@@ -161,3 +161,8 @@
 
 - [x] Make login screen visible in preview panel for visual editing
 - [x] Ensure login screen links to live deployment URL (not dev server)
+
+## Phase 10.5: Button Visibility & Super Admin Login
+
+- [x] Fix rejection cascade - buttons still showing on Stage 2+ after Stage 1 rejection
+- [x] Add password-based login for super admin developer account (eddie.amintohir@compawnion.co)
