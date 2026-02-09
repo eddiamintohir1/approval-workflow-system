@@ -166,3 +166,7 @@
 
 - [x] Fix rejection cascade - buttons still showing on Stage 2+ after Stage 1 rejection
 - [x] Add password-based login for super admin developer account (eddie.amintohir@compawnion.co)
+
+## Phase 10.6: Password Login Redirect Bug
+
+- [x] Fix password login not redirecting to dashboard after successful authentication
