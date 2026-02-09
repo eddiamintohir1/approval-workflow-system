@@ -707,14 +707,14 @@ export async function getAllDownloadableTemplates(): Promise<DownloadableTemplat
   return data as DownloadableTemplate[];
 }
 
-export async function getDownloadableTemplateByType(type: "MAF" | "PR" | "CATTO"): Promise<DownloadableTemplate | undefined> {
+export async function getDownloadableTemplateByType(type: "MAF" | "PR" | "CATTO"): Promise<DownloadableTemplate | null> {
   const { data, error } = await supabase
     .from("downloadable_templates")
     .select("*")
     .eq("type", type)
     .single();
 
-  if (error || !data) return undefined;
+  if (error || !data) return null;
   return data as DownloadableTemplate;
 }
 

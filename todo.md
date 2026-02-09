@@ -189,3 +189,7 @@
 - [x] Add template download section in project details page
 - [x] Add admin interface for uploading form templates
 - [ ] Upload initial MAF, PR, and CATTO template files (user needs to upload via /templates page)
+
+## Phase 10.10: Fix Template Query Undefined Error
+
+- [x] Fix getByType endpoint to return null instead of undefined when no template exists
