@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Plus, Search, Users, LogOut } from "lucide-react";
+import { Loader2, Plus, Search, Users, LogOut, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -38,6 +38,34 @@ export default function Dashboard() {
       toast.error(error.message);
     },
   });
+
+  const deleteProject = trpc.projects.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Project deleted successfully");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<{ id: number; name: string } | null>(null);
+
+  const handleDeleteClick = (e: React.MouseEvent, project: { id: number; name: string }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setProjectToDelete(project);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (projectToDelete) {
+      deleteProject.mutate({ projectId: projectToDelete.id });
+      setDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -211,7 +239,19 @@ export default function Dashboard() {
                           SKU: {project.sku} | Stage {project.current_stage}
                         </CardDescription>
                       </div>
-                      {getStatusBadge(project.status)}
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(project.status)}
+                        {user.role === "admin" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => handleDeleteClick(e, { id: project.id, name: project.name })}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                 </Card>
@@ -231,6 +271,31 @@ export default function Dashboard() {
         )}
       </main>
       
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{projectToDelete?.name}"? This action cannot be undone and will permanently delete all project data including milestones, audit logs, and uploaded forms.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteProject.isPending}
+            >
+              {deleteProject.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Copyright Footer */}
       <footer className="border-t bg-card mt-8">
         <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">

@@ -170,3 +170,9 @@
 ## Phase 10.6: Password Login Redirect Bug
 
 - [x] Fix password login not redirecting to dashboard after successful authentication
+
+## Phase 10.7: Delete Project from Dashboard
+
+- [x] Add delete button to project cards on dashboard (admin only)
+- [x] Add confirmation dialog before deleting project
+- [x] Ensure delete button is visible only to admin users
