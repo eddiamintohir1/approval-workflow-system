@@ -669,3 +669,77 @@ export async function generateSequence(type: "sku" | "paf" | "maf", userId: numb
 
   return generatedSequence;
 }
+
+// ============================================
+// Downloadable Template Management
+// ============================================
+
+export interface DownloadableTemplate {
+  id: number;
+  name: string;
+  type: "MAF" | "PR" | "CATTO";
+  s3_key: string;
+  s3_url: string;
+  file_type: string | null;
+  file_size: number | null;
+  uploaded_by: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface InsertDownloadableTemplate {
+  name: string;
+  type: "MAF" | "PR" | "CATTO";
+  s3_key: string;
+  s3_url: string;
+  file_type?: string | null;
+  file_size?: number | null;
+  uploaded_by: number;
+}
+
+export async function getAllDownloadableTemplates(): Promise<DownloadableTemplate[]> {
+  const { data, error } = await supabase
+    .from("downloadable_templates")
+    .select("*")
+    .order("type", { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch templates: ${error.message}`);
+  return data as DownloadableTemplate[];
+}
+
+export async function getDownloadableTemplateByType(type: "MAF" | "PR" | "CATTO"): Promise<DownloadableTemplate | undefined> {
+  const { data, error } = await supabase
+    .from("downloadable_templates")
+    .select("*")
+    .eq("type", type)
+    .single();
+
+  if (error || !data) return undefined;
+  return data as DownloadableTemplate;
+}
+
+export async function upsertDownloadableTemplate(template: InsertDownloadableTemplate): Promise<void> {
+  const existing = await getDownloadableTemplateByType(template.type);
+
+  if (existing) {
+    // Update existing template
+    await supabase
+      .from("downloadable_templates")
+      .update({
+        name: template.name,
+        s3_key: template.s3_key,
+        s3_url: template.s3_url,
+        file_type: template.file_type,
+        file_size: template.file_size,
+        uploaded_by: template.uploaded_by,
+      })
+      .eq("type", template.type);
+  } else {
+    // Insert new template
+    await supabase.from("downloadable_templates").insert(template);
+  }
+}
+
+export async function deleteDownloadableTemplate(type: "MAF" | "PR" | "CATTO"): Promise<void> {
+  await supabase.from("downloadable_templates").delete().eq("type", type);
+}

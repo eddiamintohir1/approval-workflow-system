@@ -11,6 +11,50 @@ import { Link, useParams } from "wouter";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
 
+// Component to download form templates
+function TemplateDownloadCard({ type }: { type: "MAF" | "PR" | "CATTO" }) {
+  const { data: template } = trpc.downloadableTemplates.getByType.useQuery({ type });
+  const downloadMutation = trpc.downloadableTemplates.download.useMutation({
+    onSuccess: (data) => {
+      window.open(data.url, "_blank");
+      toast.success(`${type} template downloaded successfully`);
+    },
+    onError: (error) => {
+      toast.error(`Failed to download ${type} template: ${error.message}`);
+    },
+  });
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex flex-col items-center text-center space-y-3">
+          <FileText className="h-12 w-12 text-primary" />
+          <div>
+            <h3 className="font-semibold">{type} Form</h3>
+            <p className="text-sm text-muted-foreground">
+              {template ? template.name : "Template not available"}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => downloadMutation.mutate({ type })}
+            disabled={!template || downloadMutation.isPending}
+            className="w-full"
+          >
+            {downloadMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            Download Template
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // Component to handle forms for a single milestone
 function MilestoneFormSection({ 
   milestoneId, 
@@ -275,6 +319,21 @@ export default function ProjectDetails() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Form Templates Download Section */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Download Form Templates</CardTitle>
+            <CardDescription>Download blank form templates to fill out before uploading</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {["MAF", "PR", "CATTO"].map((type) => (
+                <TemplateDownloadCard key={type} type={type as "MAF" | "PR" | "CATTO"} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Workflow Timeline */}
           <div className="lg:col-span-2">

@@ -138,6 +138,25 @@ export type FormSubmission = typeof formSubmissions.$inferSelect;
 export type InsertFormSubmission = typeof formSubmissions.$inferInsert;
 
 /**
+ * Downloadable templates table - stores form template files (MAF, PR, CATTO)
+ */
+export const downloadableTemplates = mysqlTable("downloadableTemplates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: mysqlEnum("type", ["MAF", "PR", "CATTO"]).notNull().unique(),
+  s3Key: varchar("s3Key", { length: 500 }).notNull(),
+  s3Url: varchar("s3Url", { length: 1000 }).notNull(),
+  fileType: varchar("fileType", { length: 100 }),
+  fileSize: int("fileSize"),
+  uploadedBy: int("uploadedBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DownloadableTemplate = typeof downloadableTemplates.$inferSelect;
+export type InsertDownloadableTemplate = typeof downloadableTemplates.$inferInsert;
+
+/**
  * Approvals table - logs approval/rejection actions
  */
 export const approvals = mysqlTable("approvals", {

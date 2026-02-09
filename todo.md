@@ -181,3 +181,11 @@
 
 - [x] Fix sequential approval logic - stages can be approved before previous stages are completed
 - [x] Ensure all previous stages must be completed before current stage can be approved
+
+## Phase 10.9: Form Template Download Feature
+
+- [x] Create database schema for form templates (MAF, PR, CATTO)
+- [x] Add backend endpoints for template upload and download
+- [x] Add template download section in project details page
+- [x] Add admin interface for uploading form templates
+- [ ] Upload initial MAF, PR, and CATTO template files (user needs to upload via /templates page)

@@ -10,6 +10,7 @@ import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import ProjectDetails from "./pages/ProjectDetails";
 import UserManagement from "./pages/UserManagement";
+import TemplateManagement from "./pages/TemplateManagement";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
@@ -56,6 +57,9 @@ function Router() {
       </Route>
       <Route path="/users">
         <ProtectedRoute component={UserManagement} path="/users" />
+      </Route>
+      <Route path="/templates">
+        <ProtectedRoute component={TemplateManagement} path="/templates" />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

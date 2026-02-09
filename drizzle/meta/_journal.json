@@ -15,6 +15,13 @@
       "when": 1770137253863,
       "tag": "0001_clumsy_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1770636164920,
+      "tag": "0002_messy_black_panther",
+      "breakpoints": true
     }
   ]
 }

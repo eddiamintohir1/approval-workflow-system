@@ -487,6 +487,97 @@ export const appRouter = router({
         return { url, fileName: form.name };
       }),
   }),
+
+  downloadableTemplates: router({
+    list: protectedProcedure.query(async () => {
+      return await db.getAllDownloadableTemplates();
+    }),
+    
+    getByType: protectedProcedure
+      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO"]) }))
+      .query(async ({ input }) => {
+        return await db.getDownloadableTemplateByType(input.type);
+      }),
+    
+    upload: adminProcedure
+      .input(z.object({
+        name: z.string(),
+        type: z.enum(["MAF", "PR", "CATTO"]),
+        fileName: z.string(),
+        fileType: z.string(),
+        fileData: z.string(), // Base64 encoded file data
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { storagePut } = await import("./storage");
+        
+        // Generate a unique S3 key
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(7);
+        const s3Key = `templates/${input.type}/${timestamp}-${randomSuffix}-${input.fileName}`;
+        
+        // Decode base64 and upload to S3
+        const fileBuffer = Buffer.from(input.fileData, 'base64');
+        await storagePut(s3Key, fileBuffer, input.fileType);
+        
+        // Get presigned URL for download
+        const { storageGet } = await import("./storage");
+        const { url } = await storageGet(s3Key, 3600 * 24 * 365); // 1 year expiry
+        
+        // Upsert template record
+        await db.upsertDownloadableTemplate({
+          name: input.name,
+          type: input.type,
+          s3_key: s3Key,
+          s3_url: url,
+          file_type: input.fileType,
+          file_size: fileBuffer.length,
+          uploaded_by: ctx.user.id,
+        });
+        
+        await db.logAudit({
+          user_id: ctx.user.id,
+          action: "template_uploaded",
+          details: { type: input.type, fileName: input.fileName },
+        });
+        
+        return { success: true };
+      }),
+    
+    download: protectedProcedure
+      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO"]) }))
+      .mutation(async ({ input, ctx }) => {
+        const template = await db.getDownloadableTemplateByType(input.type);
+        
+        if (!template) {
+          throw new TRPCError({ code: "NOT_FOUND", message: `${input.type} template not found` });
+        }
+        
+        const { storageGet } = await import("./storage");
+        const { url } = await storageGet(template.s3_key, 3600); // 1 hour expiry
+        
+        await db.logAudit({
+          user_id: ctx.user.id,
+          action: "template_downloaded",
+          details: { type: input.type, fileName: template.name },
+        });
+        
+        return { url, fileName: template.name };
+      }),
+    
+    delete: adminProcedure
+      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO"]) }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteDownloadableTemplate(input.type);
+        
+        await db.logAudit({
+          user_id: ctx.user.id,
+          action: "template_deleted",
+          details: { type: input.type },
+        });
+        
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
