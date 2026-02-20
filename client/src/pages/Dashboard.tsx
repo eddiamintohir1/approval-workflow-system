@@ -27,9 +27,65 @@ export default function Dashboard() {
   const { signOut } = useCognitoAuth();
   const { user, loading: authLoading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
   const utils = trpc.useUtils();
+
+  // Load filters from localStorage on mount
+  useEffect(() => {
+    const savedFilters = localStorage.getItem("workflowFilters");
+    if (savedFilters) {
+      try {
+        const filters = JSON.parse(savedFilters);
+        setSearchQuery(filters.search || "");
+        setStatusFilter(filters.status || "all");
+        setTypeFilter(filters.type || "all");
+        setDepartmentFilter(filters.department || "all");
+        setDateFrom(filters.dateFrom || "");
+        setDateTo(filters.dateTo || "");
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+  }, []);
+
+  // Save filters to localStorage whenever they change
+  useEffect(() => {
+    const filters = {
+      search: searchQuery,
+      status: statusFilter,
+      type: typeFilter,
+      department: departmentFilter,
+      dateFrom,
+      dateTo,
+    };
+    localStorage.setItem("workflowFilters", JSON.stringify(filters));
+  }, [searchQuery, statusFilter, typeFilter, departmentFilter, dateFrom, dateTo]);
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setDepartmentFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  // Count active filters
+  const activeFilterCount = [
+    searchQuery !== "",
+    statusFilter !== "all",
+    typeFilter !== "all",
+    departmentFilter !== "all",
+    dateFrom !== "",
+    dateTo !== "",
+  ].filter(Boolean).length;
 
   // Fetch workflows with caching
   const { data: workflows, isLoading: workflowsLoading } = trpc.workflows.getAll.useQuery(
@@ -100,11 +156,29 @@ export default function Dashboard() {
     );
   }
 
-  // Filter workflows by search query
-  const filteredWorkflows = workflows?.filter((w) =>
-    w.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    w.workflowNumber.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  // Filter workflows by all criteria
+  const filteredWorkflows = workflows?.filter((w) => {
+    // Search filter (ID or title)
+    const matchesSearch = !searchQuery ||
+      w.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      w.workflowNumber.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Status filter
+    const matchesStatus = statusFilter === "all" || w.overallStatus === statusFilter;
+
+    // Type filter
+    const matchesType = typeFilter === "all" || w.workflowType === typeFilter;
+
+    // Department filter
+    const matchesDepartment = departmentFilter === "all" || w.department === departmentFilter;
+
+    // Date range filter
+    const workflowDate = new Date(w.createdAt);
+    const matchesDateFrom = !dateFrom || workflowDate >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || workflowDate <= new Date(dateTo + "T23:59:59");
+
+    return matchesSearch && matchesStatus && matchesType && matchesDepartment && matchesDateFrom && matchesDateTo;
+  }) || [];
 
   // Calculate statistics
   const stats = {
@@ -262,15 +336,115 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Search Input */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search workflows..."
+                placeholder="Search by workflow ID or title..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
+
+            {/* Filters Row */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {/* Status Filter */}
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="all">All Status</option>
+                  <option value="draft">Draft</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+
+              {/* Type Filter */}
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Type</label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="all">All Types</option>
+                  <option value="MAF">MAF</option>
+                  <option value="PR">PR</option>
+                  <option value="Reimbursement">Reimbursement</option>
+                  <option value="Budget">Budget</option>
+                </select>
+              </div>
+
+              {/* Department Filter */}
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Department</label>
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="all">All Departments</option>
+                  <option value="PPIC">PPIC</option>
+                  <option value="Purchasing">Purchasing</option>
+                  <option value="GA">GA</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Production">Production</option>
+                  <option value="Logistics">Logistics</option>
+                </select>
+              </div>
+
+              {/* Clear Filters Button */}
+              <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  disabled={activeFilterCount === 0}
+                  className="w-full"
+                >
+                  Clear Filters
+                  {activeFilterCount > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Date Range Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">From Date</label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">To Date</label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            </div>
+
+            {/* Results Count */}
+            {activeFilterCount > 0 && (
+              <div className="text-sm text-muted-foreground">
+                Showing {filteredWorkflows.length} of {workflows?.length || 0} workflows
+              </div>
+            )}
 
             {/* Workflows List */}
             {workflowsLoading ? (

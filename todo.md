@@ -620,3 +620,17 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Hide stages not visible to user's department in workflow detail page
 - [x] Test visibility logic with different user roles and departments
 - [x] Ensure approvers can see all necessary information to make decisions
+
+## Phase 25: Workflow Search & Filters
+
+- [x] Add search input component to Dashboard for searching by workflow ID or title
+- [x] Add filter dropdowns for workflow status (draft, pending, approved, rejected)
+- [x] Add filter dropdown for workflow type (MAF, PR, Reimbursement, Budget)
+- [x] Add filter dropdown for department
+- [x] Add date range picker component for filtering by creation date
+- [x] Implement client-side filtering logic that combines all filters
+- [x] Add "Clear Filters" button to reset all filters
+- [x] Add filter count badge showing number of active filters
+- [x] Persist filter state to localStorage
+- [x] Add URL params for shareable filtered views
+- [x] Test all filter combinations
