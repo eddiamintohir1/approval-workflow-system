@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 export default function UserManagement() {
   const { user } = useUserRole();
 
-  const { data: users, isLoading, refetch } = trpc.users.list.useQuery();
+  const { data: users, isLoading, refetch } = trpc.users.getAll.useQuery();
 
   const updateRole = trpc.users.updateRole.useMutation({
     onSuccess: () => {
@@ -34,7 +34,7 @@ export default function UserManagement() {
     },
   });
 
-  if (!user || (user.role !== "admin" && user.role !== "director")) {
+  if (!user || user.role !== "admin") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card>
@@ -100,8 +100,8 @@ export default function UserManagement() {
                   <div key={u.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium">{u.name || "No Name"}</p>
-                        {u.is_active ? (
+                        <p className="font-medium">{u.fullName || u.email}</p>
+                        {u.isActive ? (
                           <Badge variant="outline" className="text-green-600">Active</Badge>
                         ) : (
                           <Badge variant="destructive">Inactive</Badge>
@@ -129,12 +129,12 @@ export default function UserManagement() {
                       </Select>
                       <Button
                         size="sm"
-                        variant={u.is_active ? "destructive" : "default"}
+                        variant={u.isActive ? "destructive" : "default"}
                         onClick={() => {
-                          updateStatus.mutate({ userId: u.id, isActive: !u.is_active });
+                          updateStatus.mutate({ userId: u.id, isActive: !u.isActive });
                         }}
                       >
-                        {u.is_active ? (
+                        {u.isActive ? (
                           <>
                             <UserX className="h-4 w-4 mr-1" />
                             Deactivate

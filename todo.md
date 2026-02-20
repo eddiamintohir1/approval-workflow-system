@@ -249,3 +249,13 @@
 - [ ] Test workflow creation and approval flow
 - [ ] Verify S3 file upload integration
 - [ ] Test email notification system
+
+## Phase 14: Update Frontend for MAF PR Workflow
+
+- [ ] Update Dashboard.tsx to display workflow statistics and list
+- [ ] Create WorkflowCreate.tsx page for MAF/PR creation
+- [ ] Create WorkflowDetail.tsx page to view workflow progress
+- [ ] Create ApprovalInterface.tsx for approving/rejecting stages
+- [ ] Update App.tsx routing for new pages
+- [ ] Fix UserManagement.tsx to use new API
+- [x] Test complete workflow flowtion and approval flow

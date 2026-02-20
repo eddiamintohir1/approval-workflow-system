@@ -1,71 +1,26 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useState } from "react";
+import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { useCognitoAuth } from "@/hooks/useCognitoAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { useCognitoAuth } from "@/hooks/useCognitoAuth";
-import { useUserRole } from "@/hooks/useUserRole";
-import { trpc } from "@/lib/trpc";
-import { Loader2, Plus, Search, Users, LogOut, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { Link } from "wouter";
-import { toast } from "sonner";
+import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users } from "lucide-react";
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
-  const { user, loading } = useUserRole();
+  const { user, loading: authLoading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [isOem, setIsOem] = useState(false);
 
-  const { data: projects, isLoading: projectsLoading, refetch } = trpc.projects.list.useQuery(undefined, {
-    enabled: !!user,
-  });
+  // Fetch workflows
+  const { data: workflows, isLoading: workflowsLoading } = trpc.workflows.getAll.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
 
-  const createProject = trpc.projects.create.useMutation({
-    onSuccess: () => {
-      toast.success("Project created successfully");
-      setCreateDialogOpen(false);
-      setNewProjectName("");
-      setIsOem(false);
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const deleteProject = trpc.projects.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Project deleted successfully");
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<{ id: number; name: string } | null>(null);
-
-  const handleDeleteClick = (e: React.MouseEvent, project: { id: number; name: string }) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setProjectToDelete(project);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = () => {
-    if (projectToDelete) {
-      deleteProject.mutate({ projectId: projectToDelete.id });
-      setDeleteDialogOpen(false);
-      setProjectToDelete(null);
-    }
-  };
+  const loading = authLoading || workflowsLoading;
 
   const handleLogout = async () => {
     await signOut();
@@ -74,7 +29,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -82,32 +37,35 @@ export default function Dashboard() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Authentication Required</CardTitle>
+            <CardDescription>Please sign in to access the dashboard</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/login">
+              <Button className="w-full">Sign In</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const filteredProjects = projects?.filter(project =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter workflows by search query
+  const filteredWorkflows = workflows?.filter((w) =>
+    w.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    w.workflowNumber.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      pending: "secondary",
-      in_progress: "default",
-      completed: "outline",
-      discontinued: "destructive",
-    };
-    return <Badge variant={variants[status] || "default"}>{status.replace("_", " ").toUpperCase()}</Badge>;
-  };
-
+  // Calculate statistics
   const stats = {
-    total: projects?.length || 0,
-    pending: projects?.filter(p => p.status === "pending").length || 0,
-    inProgress: projects?.filter(p => p.status === "in_progress").length || 0,
-    completed: projects?.filter(p => p.status === "completed").length || 0,
+    total: workflows?.length || 0,
+    draft: workflows?.filter((w) => w.overallStatus === "draft").length || 0,
+    inProgress: workflows?.filter((w) => w.overallStatus === "in_progress").length || 0,
+    completed: workflows?.filter((w) => w.overallStatus === "completed").length || 0,
+    rejected: workflows?.filter((w) => w.overallStatus === "rejected").length || 0,
   };
 
   return (
@@ -117,16 +75,17 @@ export default function Dashboard() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Approval Workflow System</h1>
-            <p className="text-sm text-muted-foreground">Welcome, {user.name || user.email}</p>
+            <p className="text-sm text-muted-foreground">Welcome, {user.email?.split("@")[0] || "User"}</p>
           </div>
           <div className="flex items-center gap-2">
-            {(user.role === "admin" || user.role === "director") && (
+            {user.role === "admin" && (
               <Link href="/users">
                 <Button variant="outline" size="sm">
                   <Users className="h-4 w-4 mr-2" />
                   User Management
                 </Button>
-              </Link>            )}
+              </Link>
+            )}
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -135,166 +94,149 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <main className="container mx-auto px-4 py-8 space-y-8">
+        {/* Statistics Cards */}
+        <div className="grid gap-4 md:grid-cols-5">
           <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Projects</CardDescription>
-              <CardTitle className="text-3xl">{stats.total}</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Workflows</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Pending</CardDescription>
-              <CardTitle className="text-3xl">{stats.pending}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>In Progress</CardDescription>
-              <CardTitle className="text-3xl">{stats.inProgress}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Completed</CardDescription>
-              <CardTitle className="text-3xl">{stats.completed}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search projects..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                New Project
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-                <DialogDescription>Enter project details to get started</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Project Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="Enter project name"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="oem" checked={isOem} onCheckedChange={setIsOem} />
-                  <Label htmlFor="oem">OEM Project</Label>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => createProject.mutate({ name: newProjectName, isOem })}
-                  disabled={!newProjectName || createProject.isPending}
-                >
-                  {createProject.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Create Project
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Projects List */}
-        {projectsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : filteredProjects && filteredProjects.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4">
-            {filteredProjects.map((project) => (
-              <Link key={project.id} href={`/projects/${project.id}`}>
-                <Card className="hover:bg-accent transition-colors cursor-pointer">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="flex items-center gap-2">
-                          {project.name}
-                          {project.is_oem && <Badge variant="secondary">OEM</Badge>}
-                        </CardTitle>
-                        <CardDescription className="mt-1">
-                          SKU: {project.sku} | Stage {project.current_stage}
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(project.status)}
-                        {user.role === "admin" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={(e) => handleDeleteClick(e, { id: project.id, name: project.name })}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <p className="text-muted-foreground mb-4">No projects found</p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Project
-              </Button>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
             </CardContent>
           </Card>
-        )}
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Draft</CardTitle>
+              <FileText className="h-4 w-4 text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.draft}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+              <Clock className="h-4 w-4 text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.inProgress}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.completed}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+              <XCircle className="h-4 w-4 text-red-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.rejected}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search and Workflows List */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Workflows</CardTitle>
+                <CardDescription>View and manage your approval workflows</CardDescription>
+              </div>
+              <Link href="/workflows/create">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Workflow
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search workflows..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Workflows List */}
+            {filteredWorkflows.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No workflows found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchQuery ? "Try adjusting your search" : "Create your first workflow to get started"}
+                </p>
+                {!searchQuery && (
+                  <Link href="/workflows/create">
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Workflow
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredWorkflows.map((workflow) => (
+                  <Link key={workflow.id} href={`/workflows/${workflow.id}`}>
+                    <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <Badge variant={workflow.workflowType === "MAF" ? "default" : "secondary"}>
+                                {workflow.workflowType}
+                              </Badge>
+                              <span className="font-mono text-sm text-muted-foreground">
+                                {workflow.workflowNumber}
+                              </span>
+                              <StatusBadge status={workflow.overallStatus} />
+                            </div>
+                            <h3 className="font-semibold text-lg">{workflow.title}</h3>
+                            {workflow.description && (
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                                {workflow.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                              <span>Department: {workflow.department}</span>
+                              {workflow.estimatedAmount && (
+                                <span>
+                                  Amount: {workflow.currency} {parseFloat(workflow.estimatedAmount).toLocaleString()}
+                                </span>
+                              )}
+                              <span>
+                                Created: {new Date(workflow.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
-      
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Project</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{projectToDelete?.name}"? This action cannot be undone and will permanently delete all project data including milestones, audit logs, and uploaded forms.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={deleteProject.isPending}
-            >
-              {deleteProject.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Delete Project
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Copyright Footer */}
       <footer className="border-t bg-card mt-8">
@@ -303,5 +245,25 @@ export default function Dashboard() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
+    draft: { variant: "outline", icon: FileText },
+    in_progress: { variant: "default", icon: Clock },
+    completed: { variant: "secondary", icon: CheckCircle2 },
+    rejected: { variant: "destructive", icon: XCircle },
+    cancelled: { variant: "outline", icon: XCircle },
+  };
+
+  const config = variants[status] || variants.draft;
+  const Icon = config.icon;
+
+  return (
+    <Badge variant={config.variant} className="flex items-center gap-1">
+      <Icon className="h-3 w-3" />
+      {status.replace("_", " ").toUpperCase()}
+    </Badge>
   );
 }
