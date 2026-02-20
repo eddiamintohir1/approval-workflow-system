@@ -11,6 +11,7 @@ export interface CognitoTokenPayload {
   email: string;
   email_verified: boolean;
   "cognito:username": string;
+  "cognito:groups"?: string[];
 }
 
 export async function verifyCognitoToken(token: string): Promise<CognitoTokenPayload | null> {

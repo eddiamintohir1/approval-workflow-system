@@ -43,7 +43,7 @@ async function authenticateCognitoRequest(req: CreateExpressContextOptions["req"
         fullName: existingUser.fullName,
         department: existingUser.department || undefined,
         role: existingUser.role,
-        cognitoGroups: (payload as any)['cognito:groups'] as string[] | undefined,
+        cognitoGroups: undefined,
       });
       
       return existingUser;
@@ -57,7 +57,7 @@ async function authenticateCognitoRequest(req: CreateExpressContextOptions["req"
       fullName: payload.email.split('@')[0],
       department: undefined,
       role: "PPIC", // Default role
-      cognitoGroups: payload['cognito:groups'] as string[] | undefined,
+      cognitoGroups: undefined,
     });
 
     const newUser = await getUserByOpenId(payload.sub);

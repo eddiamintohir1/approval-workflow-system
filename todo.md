@@ -444,3 +444,11 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Check for missing Zod imports in other router files
 - [x] Fix the import issue permanently
 - [x] Test workflow detail page to confirm fix works
+
+## Restore Missing Approval Buttons and Upload Functionality
+- [ ] Investigate why approve/reject buttons disappeared from workflow detail page
+- [ ] Check canUserApproveStage logic in WorkflowDetail.tsx
+- [ ] Fix the logic to properly show action buttons for authorized users
+- [ ] Restore file upload functionality for stages
+- [ ] Test with PPIC role on pending PPIC Review stage
+- [ ] Test with Purchasing role on in-progress Purchasing Review stage

@@ -33,6 +33,11 @@ export const appRouter = router({
   // User Management
   // ============================================
   users: router({
+    // Get current user's profile with role
+    me: protectedProcedure.query(async ({ ctx }) => {
+      return ctx.user;
+    }),
+
     getAll: protectedProcedure.query(async () => {
       return await db.getAllUsers();
     }),

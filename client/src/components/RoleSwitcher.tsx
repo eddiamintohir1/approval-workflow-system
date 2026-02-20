@@ -37,7 +37,7 @@ export function RoleSwitcher() {
 
   const handleRoleChange = (newRole: string) => {
     setIsChanging(true);
-    switchRole.mutate({ role: newRole });
+    switchRole.mutate({ role: newRole as "CEO" | "COO" | "CFO" | "PPIC" | "Purchasing" | "GA" | "Finance" | "Production" | "Logistics" | "admin" });
   };
 
   if (!user) return null;

@@ -17,7 +17,10 @@ import { format } from "date-fns";
 export default function WorkflowDetail() {
   const { id } = useParams();
   const workflowId = id || "";
-  const { user } = useCognitoAuth();
+  const { user: cognitoUser } = useCognitoAuth();
+  const { data: user } = trpc.users.me.useQuery(undefined, {
+    enabled: !!cognitoUser, // Only fetch when Cognito user is available
+  });
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
@@ -148,7 +151,7 @@ export default function WorkflowDetail() {
     return true;
   };
 
-  if (workflowLoading || stagesLoading) {
+  if (workflowLoading || stagesLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
