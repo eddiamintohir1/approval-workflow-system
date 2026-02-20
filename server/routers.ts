@@ -260,6 +260,7 @@ export const appRouter = router({
       .input(
         z.object({
           workflowId: z.string(),
+          stageId: z.string().optional(), // Which stage this file belongs to
           filename: z.string(),
           fileData: z.string(), // base64 encoded
           mimeType: z.string(),
@@ -277,6 +278,7 @@ export const appRouter = router({
         // Save file metadata to database
         await db.createWorkflowFile({
           workflowId: input.workflowId,
+          stageId: input.stageId,
           fileName: input.filename,
           fileType: "attachment",
           s3Bucket: "manus-storage",
@@ -291,7 +293,7 @@ export const appRouter = router({
           entityType: "workflow",
           entityId: input.workflowId.toString(),
           action: "file_uploaded",
-          actionDescription: `File uploaded: ${input.filename}`,
+          actionDescription: `File uploaded: ${input.filename}${input.stageId ? ` for stage ${input.stageId}` : ""}`,
           actorId: ctx.user.id,
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
@@ -357,6 +359,19 @@ export const appRouter = router({
         // Check if user has permission to approve this stage
         if (stage.requiredRole && ctx.user.role !== stage.requiredRole && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to approve this stage" });
+        }
+        
+        // Check if form has been uploaded for this stage (except CEO/CFO who use signatures)
+        if (ctx.user.role !== "CEO" && ctx.user.role !== "CFO") {
+          const stageFiles = await db.getFilesByStage(input.stageId);
+          const userUploadedFile = stageFiles.find(f => f.uploadedBy === ctx.user.id);
+          
+          if (!userUploadedFile) {
+            throw new TRPCError({ 
+              code: "PRECONDITION_FAILED", 
+              message: "You must upload a form before approving this stage" 
+            });
+          }
         }
         
         // Create approval record

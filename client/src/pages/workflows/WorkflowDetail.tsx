@@ -4,13 +4,15 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, FileText, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
-import { FileUpload } from "@/components/FileUpload";
+import { Loader2, ArrowLeft, FileText, CheckCircle2, Clock, XCircle, AlertCircle, Upload, Download } from "lucide-react";
 import { toast } from "sonner";
+import { useState, useRef } from "react";
 
 export default function WorkflowDetail() {
   const { id } = useParams();
   const { user } = useUserRole();
+  const [selectedStageForUpload, setSelectedStageForUpload] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, refetch } = trpc.workflows.getWithDetails.useQuery(
     { id: id! },
@@ -47,6 +49,51 @@ export default function WorkflowDetail() {
     },
   });
 
+  const uploadFile = trpc.workflows.uploadFile.useMutation({
+    onSuccess: () => {
+      toast.success("Form uploaded successfully");
+      setSelectedStageForUpload(null);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to upload form");
+      setSelectedStageForUpload(null);
+    },
+  });
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>, stageId: string) => {
+    const file = event.target.files?.[0];
+    if (!file || !data?.workflow) return;
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        const base64Content = base64Data.split(',')[1];
+
+        await uploadFile.mutateAsync({
+          workflowId: data.workflow.id,
+          stageId,
+          filename: file.name,
+          fileData: base64Content,
+          mimeType: file.type,
+          fileSize: file.size,
+        });
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read file");
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error("Failed to upload file");
+    }
+  };
+
+  const triggerFileUpload = (stageId: string) => {
+    setSelectedStageForUpload(stageId);
+    fileInputRef.current?.click();
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -75,10 +122,45 @@ export default function WorkflowDetail() {
 
   const { workflow, stages, approvals, files, comments } = data;
   const currentStage = stages.find((s) => s.status === "in_progress");
-  const canApprove = currentStage && user && (user.role === currentStage.requiredRole || user.role === "admin");
+  
+  // Check if user can approve current stage
+  const canApprove = (stage: typeof stages[0]) => {
+    if (!user || stage.status !== "in_progress") return false;
+    if (user.role === "admin") return true;
+    return user.role === stage.requiredRole;
+  };
+
+  // Check if user has uploaded a form for this stage
+  const hasUploadedForm = (stageId: string) => {
+    if (!user) return false;
+    return files.some(f => f.stageId === stageId && f.uploadedBy === user.id);
+  };
+
+  // Get files for a specific stage
+  const getStageFiles = (stageId: string) => {
+    return files.filter(f => f.stageId === stageId);
+  };
+
+  // Get all files from previous stages (completed stages)
+  const getPreviousStageFiles = (currentStageOrder: number) => {
+    const previousStages = stages.filter(s => s.stageOrder < currentStageOrder && s.status === "completed");
+    return previousStages.map(stage => ({
+      stage,
+      files: getStageFiles(stage.id)
+    })).filter(item => item.files.length > 0);
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => selectedStageForUpload && handleFileSelect(e, selectedStageForUpload)}
+        accept=".pdf,.xlsx,.xls,.doc,.docx,.jpg,.jpeg,.png"
+      />
+
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
@@ -161,11 +243,16 @@ export default function WorkflowDetail() {
             <CardDescription>Track the progress of approval stages</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-6">
               {stages.map((stage, index) => {
                 const stageApprovals = approvals.filter((a) => a.stageId === stage.id);
                 const isCurrentStage = stage.status === "in_progress";
-                const canApproveThis = isCurrentStage && user && (user.role === stage.requiredRole || user.role === "admin");
+                const canApproveThis = canApprove(stage);
+                const stageFiles = getStageFiles(stage.id);
+                const previousFiles = getPreviousStageFiles(stage.stageOrder);
+                const userHasUploadedForm = hasUploadedForm(stage.id);
+                const isCeoOrCfo = user?.role === "CEO" || user?.role === "CFO";
+                const canApproveWithoutForm = isCeoOrCfo; // CEO/CFO can approve with signature only
 
                 return (
                   <div
@@ -178,24 +265,166 @@ export default function WorkflowDetail() {
                         : ""
                     }`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-sm font-medium text-muted-foreground">
-                            Stage {stage.stageOrder}
-                          </span>
-                          <h3 className="font-semibold">{stage.stageName}</h3>
-                          <StageStatusBadge status={stage.status} />
+                    <div className="space-y-4">
+                      {/* Stage Header */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              Stage {stage.stageOrder}
+                            </span>
+                            <h3 className="font-semibold">{stage.stageName}</h3>
+                            <StageStatusBadge status={stage.status} />
+                          </div>
+                          {stage.requiredRole && (
+                            <p className="text-sm text-muted-foreground">
+                              Required Role: {stage.requiredRole}
+                            </p>
+                          )}
                         </div>
-                        {stage.requiredRole && (
-                          <p className="text-sm text-muted-foreground">
-                            Required Role: {stage.requiredRole}
-                          </p>
+
+                        {/* Approval Actions */}
+                        {canApproveThis && (
+                          <div className="flex items-center gap-2 ml-4">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const comments = prompt("Add comments (optional):");
+                                if (comments !== null) {
+                                  approveStage.mutate({
+                                    stageId: stage.id,
+                                    workflowId: workflow.id,
+                                    comments: comments ? comments : undefined,
+                                  });
+                                }
+                              }}
+                              disabled={approveStage.isPending || (!canApproveWithoutForm && !userHasUploadedForm)}
+                              title={!canApproveWithoutForm && !userHasUploadedForm ? "You must upload a form before approving" : ""}
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1" />
+                              Approve
+                              {isCeoOrCfo && " (Signature)"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                const comments = prompt("Reason for rejection (required):");
+                                if (comments && comments.trim()) {
+                                  rejectStage.mutate({
+                                    stageId: stage.id,
+                                    workflowId: workflow.id,
+                                    comments: comments.trim() || "",
+                                  });
+                                } else if (comments !== null) {
+                                  toast.error("Please provide a reason for rejection");
+                                }
+                              }}
+                              disabled={rejectStage.isPending}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
                         )}
-                        
-                        {/* Stage Approvals */}
-                        {stageApprovals.length > 0 && (
-                          <div className="mt-3 space-y-2">
+                      </div>
+
+                      {/* Previous Stage Forms (Read-only) */}
+                      {isCurrentStage && previousFiles.length > 0 && (
+                        <div className="border-t pt-4">
+                          <h4 className="text-sm font-semibold mb-3">Forms from Previous Stages</h4>
+                          <div className="space-y-3">
+                            {previousFiles.map(({ stage: prevStage, files: prevFiles }) => (
+                              <div key={prevStage.id} className="bg-muted/30 p-3 rounded">
+                                <p className="text-sm font-medium mb-2">
+                                  Stage {prevStage.stageOrder}: {prevStage.stageName}
+                                </p>
+                                <div className="space-y-2">
+                                  {prevFiles.map((file) => (
+                                    <div key={file.id} className="flex items-center justify-between p-2 bg-background rounded text-sm">
+                                      <div className="flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-muted-foreground" />
+                                        <span>{file.fileName}</span>
+                                      </div>
+                                      <Button size="sm" variant="ghost" asChild>
+                                        <a href={file.s3Url || "#"} target="_blank" rel="noopener noreferrer">
+                                          <Download className="h-4 w-4" />
+                                        </a>
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Current Stage Forms */}
+                      {stageFiles.length > 0 && (
+                        <div className="border-t pt-4">
+                          <h4 className="text-sm font-semibold mb-3">Uploaded Forms for This Stage</h4>
+                          <div className="space-y-2">
+                            {stageFiles.map((file) => (
+                              <div key={file.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4" />
+                                  <span className="text-sm">{file.fileName}</span>
+                                  {file.uploadedBy === user?.id && (
+                                    <Badge variant="outline" className="text-xs">Your upload</Badge>
+                                  )}
+                                </div>
+                                <Button size="sm" variant="ghost" asChild>
+                                  <a href={file.s3Url || "#"} target="_blank" rel="noopener noreferrer">
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Upload Form Button */}
+                      {isCurrentStage && canApproveThis && !isCeoOrCfo && (
+                        <div className="border-t pt-4">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => triggerFileUpload(stage.id)}
+                            disabled={uploadFile.isPending}
+                            className="w-full"
+                          >
+                            {uploadFile.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4 mr-2" />
+                            )}
+                            {userHasUploadedForm ? "Upload Another Form" : "Upload Form (Required for Approval)"}
+                          </Button>
+                          {!userHasUploadedForm && (
+                            <p className="text-xs text-muted-foreground mt-2 text-center">
+                              You must upload a form before you can approve this stage
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* CEO/CFO Signature Note */}
+                      {isCurrentStage && canApproveThis && isCeoOrCfo && (
+                        <div className="border-t pt-4">
+                          <p className="text-sm text-muted-foreground text-center">
+                            As {user.role}, you can approve with your signature without uploading a form
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Stage Approvals */}
+                      {stageApprovals.length > 0 && (
+                        <div className="border-t pt-4">
+                          <h4 className="text-sm font-semibold mb-3">Approval History</h4>
+                          <div className="space-y-2">
                             {stageApprovals.map((approval) => (
                               <div
                                 key={approval.id}
@@ -223,50 +452,6 @@ export default function WorkflowDetail() {
                               </div>
                             ))}
                           </div>
-                        )}
-                      </div>
-
-                      {/* Approval Actions */}
-                      {canApproveThis && (
-                        <div className="flex items-center gap-2 ml-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const comments = prompt("Add comments (optional):");
-                              if (comments !== null) {
-                                approveStage.mutate({
-                                  stageId: stage.id,
-                                  workflowId: workflow.id,
-                                  comments: comments ? comments : undefined,
-                                });
-                              }
-                            }}
-                            disabled={approveStage.isPending}
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              const comments = prompt("Reason for rejection (required):");
-                              if (comments && comments.trim()) {
-                                rejectStage.mutate({
-                                  stageId: stage.id,
-                                  workflowId: workflow.id,
-                                  comments: comments.trim() || "",
-                                });
-                              } else if (comments !== null) {
-                                toast.error("Please provide a reason for rejection");
-                              }
-                            }}
-                            disabled={rejectStage.isPending}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </Button>
                         </div>
                       )}
                     </div>
@@ -276,49 +461,6 @@ export default function WorkflowDetail() {
             </div>
           </CardContent>
         </Card>
-
-        {/* File Attachments */}
-        <Card>
-          <CardHeader>
-            <CardTitle>File Attachments</CardTitle>
-            <CardDescription>Upload and manage workflow documents</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FileUpload workflowId={workflow.id} />
-          </CardContent>
-        </Card>
-
-        {/* Files */}
-        {files.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Attached Files</CardTitle>
-              <CardDescription>Documents and files related to this workflow</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {files.map((file) => (
-                  <div key={file.id} className="flex items-center justify-between p-3 border rounded">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{file.fileName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {file.fileSize ? `${(file.fileSize / 1024).toFixed(2)} KB • ` : ""}{new Date(file.uploadedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={file.s3Url || "#"} target="_blank" rel="noopener noreferrer">
-                        Download
-                      </a>
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Comments */}
         {comments.length > 0 && (

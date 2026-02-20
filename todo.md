@@ -295,3 +295,14 @@
 
 ## Phase 19: Fix Missing workflows.getFiles Endpoint
 - [x] Fix missing workflows.getFiles tRPC endpoint error on workflow detail page
+
+## Phase 20: Stage-Based Form Upload Requirements
+- [x] Add signature image storage to users table (for CEO/CFO)
+- [x] Update workflow_files table to track which stage uploaded each file
+- [x] Create backend validation: users must upload form before approving (except CEO/CFO)
+- [x] Update WorkflowDetail UI to display all forms from previous stages (read-only, downloadable)
+- [x] Show current stage's uploaded forms with upload interface
+- [x] Disable Approve button until form is uploaded (except for CEO/CFO roles)
+- [x] Implement CEO/CFO signature-only approval (apply pre-uploaded signature image)
+- [ ] Add signature upload interface for CEO/CFO users in user management
+- [ ] Test complete workflow with form upload requirements at each stage

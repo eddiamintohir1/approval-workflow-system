@@ -32,6 +32,9 @@ export const users = mysqlTable("users", {
   // Cognito groups stored as JSON array
   cognitoGroups: json("cognito_groups").$type<string[]>(),
   
+  // Signature for CEO/CFO approval
+  signatureUrl: text("signature_url"), // S3 URL to signature image
+  
   // Status
   isActive: boolean("is_active").default(true).notNull(),
   
