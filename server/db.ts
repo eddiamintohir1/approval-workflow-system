@@ -836,3 +836,126 @@ export async function updateFormSubmission(id: string, updates: Partial<Omit<sch
 export async function deleteFormSubmission(id: string): Promise<void> {
   await db.delete(schema.formSubmissions).where(eq(schema.formSubmissions.id, id));
 }
+
+// ============================================================================
+// Analytics Functions
+// ============================================================================
+
+export async function getWorkflowAnalytics() {
+  const workflows = await db.select().from(schema.workflows);
+  
+  const total = workflows.length;
+  const inProgress = workflows.filter(w => w.overallStatus === 'in_progress').length;
+  const completed = workflows.filter(w => w.overallStatus === 'completed').length;
+  const rejected = workflows.filter(w => ['rejected', 'cancelled', 'discontinued'].includes(w.overallStatus)).length;
+  const draft = workflows.filter(w => w.overallStatus === 'draft').length;
+  
+  // Calculate average approval time for completed workflows
+  const completedWorkflows = workflows.filter(w => w.overallStatus === 'completed');
+  let avgApprovalTime = 0;
+  if (completedWorkflows.length > 0) {
+    const totalTime = completedWorkflows.reduce((sum, w) => {
+      const created = new Date(w.createdAt).getTime();
+      const updated = new Date(w.updatedAt).getTime();
+      return sum + (updated - created);
+    }, 0);
+    avgApprovalTime = Math.round(totalTime / completedWorkflows.length / (1000 * 60 * 60 * 24)); // Convert to days
+  }
+  
+  return {
+    total,
+    inProgress,
+    completed,
+    rejected,
+    draft,
+    avgApprovalTime,
+  };
+}
+
+export async function getWorkflowsByType() {
+  const workflows = await db.select().from(schema.workflows);
+  
+  const byType: Record<string, number> = {};
+  workflows.forEach(w => {
+    byType[w.type] = (byType[w.type] || 0) + 1;
+  });
+  
+  return Object.entries(byType).map(([type, count]) => ({ type, count }));
+}
+
+export async function getWorkflowsByDepartment() {
+  const workflows = await db.select().from(schema.workflows);
+  
+  const byDept: Record<string, number> = {};
+  workflows.forEach(w => {
+    byDept[w.department] = (byDept[w.department] || 0) + 1;
+  });
+  
+  return Object.entries(byDept).map(([department, count]) => ({ department, count }));
+}
+
+export async function getWorkflowsByStatus() {
+  const workflows = await db.select().from(schema.workflows);
+  
+  const byStatus: Record<string, number> = {};
+  workflows.forEach(w => {
+    byStatus[w.overallStatus] = (byStatus[w.overallStatus] || 0) + 1;
+  });
+  
+  return Object.entries(byStatus).map(([status, count]) => ({ status, count }));
+}
+
+export async function getAvgApprovalTimeByType() {
+  const workflows = await db.select().from(schema.workflows);
+  const completedWorkflows = workflows.filter(w => w.overallStatus === 'completed');
+  
+  const timeByType: Record<string, { total: number; count: number }> = {};
+  
+  completedWorkflows.forEach(w => {
+    const created = new Date(w.createdAt).getTime();
+    const updated = new Date(w.updatedAt).getTime();
+    const days = Math.round((updated - created) / (1000 * 60 * 60 * 24));
+    
+    if (!timeByType[w.type]) {
+      timeByType[w.type] = { total: 0, count: 0 };
+    }
+    timeByType[w.type].total += days;
+    timeByType[w.type].count += 1;
+  });
+  
+  return Object.entries(timeByType).map(([type, data]) => ({
+    type,
+    avgDays: Math.round(data.total / data.count),
+  }));
+}
+
+export async function getWorkflowCompletionTrend(days: number = 30) {
+  const workflows = await db.select().from(schema.workflows);
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  
+  const recentWorkflows = workflows.filter(w => new Date(w.createdAt) >= cutoffDate);
+  
+  // Group by date
+  const byDate: Record<string, { total: number; completed: number }> = {};
+  
+  recentWorkflows.forEach(w => {
+    const date = new Date(w.createdAt).toISOString().split('T')[0];
+    if (!byDate[date]) {
+      byDate[date] = { total: 0, completed: 0 };
+    }
+    byDate[date].total += 1;
+    if (w.overallStatus === 'completed') {
+      byDate[date].completed += 1;
+    }
+  });
+  
+  return Object.entries(byDate)
+    .map(([date, data]) => ({
+      date,
+      total: data.total,
+      completed: data.completed,
+      completionRate: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}

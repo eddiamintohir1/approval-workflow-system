@@ -968,14 +968,44 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ============================================
+  // Analytics
+  // ============================================
+  analytics: router({
+    overview: protectedProcedure.query(async () => {
+      return await db.getWorkflowAnalytics();
+    }),
+
+    byType: protectedProcedure.query(async () => {
+      return await db.getWorkflowsByType();
+    }),
+
+    byDepartment: protectedProcedure.query(async () => {
+      return await db.getWorkflowsByDepartment();
+    }),
+
+    byStatus: protectedProcedure.query(async () => {
+      return await db.getWorkflowsByStatus();
+    }),
+
+    avgTimeByType: protectedProcedure.query(async () => {
+      return await db.getAvgApprovalTimeByType();
+    }),
+
+    completionTrend: protectedProcedure
+      .input(z.object({ days: z.number().optional().default(30) }))
+      .query(async ({ input }) => {
+        return await db.getWorkflowCompletionTrend(input.days);
+      }),
+  }),
 });
 
 // ============================================
 // Helper Functions
 // ============================================
 
-async function createInitialStages(
-  workflowId: string,
+async function createInitialStages(workflowId: string,
   workflowType: "MAF" | "PR" | "CATTO",
   estimatedAmount?: number
 ): Promise<void> {
