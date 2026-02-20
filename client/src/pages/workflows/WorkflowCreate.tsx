@@ -276,7 +276,7 @@ export default function WorkflowCreate() {
                     <h3 className="font-semibold">Form Details</h3>
                   </div>
                   <DynamicFormRenderer
-                    fields={selectedTemplate.fields}
+                    fields={selectedFormTemplate.fields}
                     formData={formData}
                     onChange={handleFormDataChange}
                     errors={formErrors}
