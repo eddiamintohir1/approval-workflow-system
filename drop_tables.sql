@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS sequences;
+DROP TABLE IF EXISTS sequenceConfig;
+DROP TABLE IF EXISTS auditTrail;
+DROP TABLE IF EXISTS approvals;
+DROP TABLE IF EXISTS downloadableTemplates;
+DROP TABLE IF EXISTS formSubmissions;
+DROP TABLE IF EXISTS formTemplates;
+DROP TABLE IF EXISTS forms;
+DROP TABLE IF EXISTS milestones;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS users;

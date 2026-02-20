@@ -1,0 +1,15 @@
+{
+  "query": "CREATE TABLE workflows (\n  id varchar(36) PRIMARY KEY,\n  workflow_number varchar(50) NOT NULL UNIQUE,\n  workflow_type enum('MAF', 'PR') NOT NULL,\n  title varchar(500) NOT NULL,\n  description text,\n  requester_id int NOT NULL,\n  department varchar(100) NOT NULL,\n  estimated_amount decimal(15,2),\n  currency varchar(3) DEFAULT 'IDR',\n  requires_ga boolean DEFAULT false,\n  requires_ppic boolean DEFAULT false,\n  current_stage varchar(100),\n  overall_status enum('draft', 'in_progress', 'completed', 'rejected', 'cancelled') NOT NULL DEFAULT 'draft',\n  submitted_at timestamp NULL,\n  completed_at timestamp NULL,\n  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  metadata json DEFAULT ('{}'),\n  INDEX idx_workflows_number (workflow_number),\n  INDEX idx_workflows_type (workflow_type),\n  INDEX idx_workflows_requester (requester_id),\n  INDEX idx_workflows_status (overall_status),\n  INDEX idx_workflows_submitted (submitted_at),\n  INDEX idx_workflows_current_stage (current_stage)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE workflows (\n  id varchar(36) PRIMARY KEY,\n  workflow_number varchar(50) NOT NULL UNIQUE,\n  workflow_type enum('MAF', 'PR') NOT NULL,\n  title varchar(500) NOT NULL,\n  description text,\n  requester_id int NOT NULL,\n  department varchar(100) NOT NULL,\n  estimated_amount decimal(15,2),\n  currency varchar(3) DEFAULT 'IDR',\n  requires_ga boolean DEFAULT false,\n  requires_ppic boolean DEFAULT false,\n  current_stage varchar(100),\n  overall_status enum('draft', 'in_progress', 'completed', 'rejected', 'cancelled') NOT NULL DEFAULT 'draft',\n  submitted_at timestamp NULL,\n  completed_at timestamp NULL,\n  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  metadata json DEFAULT ('{}'),\n  INDEX idx_workflows_number (workflow_number),\n  INDEX idx_workflows_type (workflow_type),\n  INDEX idx_workflows_requester (requester_id),\n  INDEX idx_workflows_status (overall_status),\n  INDEX idx_workflows_submitted (submitted_at),\n  INDEX idx_workflows_current_stage (current_stage)\n);",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 19 column 30 near \"'{}'),",
+    "  INDEX idx_workflows_number (workflow_number),",
+    "  INDEX idx_workflows_type (workflow_type),",
+    "  INDEX idx_workflows_requester (requester_id),",
+    "  INDEX idx_workflows_status (overall_status),",
+    "  INDEX idx_workflows_submitted (submitted_at),",
+    "  INDEX idx_workflows_current_stage (current_stage)",
+    ")\""
+  ]
+}

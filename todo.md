@@ -227,3 +227,25 @@
 - [ ] Test authentication flow with Cognito on Manus backend
 - [ ] Test CRUD operations with AWS RDS from Manus backend
 - [ ] Verify S3 storage integration works with Manus backend
+
+## Phase 13: Migrate Complete MAF PR Workflow Schema to Manus Database
+
+- [x] Analyze PostgreSQL schema from AWS deployment
+- [x] Convert PostgreSQL-specific features to TiDB-compatible format
+- [x] Create Drizzle ORM schema for all MAF PR workflow tables:
+  - [x] users table (with Cognito integration)
+  - [x] workflows table (MAF, PR)
+  - [x] workflow_stages table
+  - [x] workflow_approvals table
+  - [x] workflow_files table (S3 references)
+  - [x] workflow_comments table
+  - [x] audit_logs table
+  - [x] email_recipients table
+  - [x] sequence_counters table
+- [x] Generate database migrations
+- [x] Apply migrations to Manus TiDB database
+- [x] Update backend db.ts with new query helpers
+- [x] Update routers.ts with MAF PR workflow endpoints
+- [ ] Test workflow creation and approval flow
+- [ ] Verify S3 file upload integration
+- [ ] Test email notification system

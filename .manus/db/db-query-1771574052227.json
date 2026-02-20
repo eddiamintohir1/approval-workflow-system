@@ -1,0 +1,9 @@
+{
+  "query": "DROP TABLE IF EXISTS sequences;\nDROP TABLE IF EXISTS sequenceConfig;\nDROP TABLE IF EXISTS auditTrail;\nDROP TABLE IF EXISTS approvals;\nDROP TABLE IF EXISTS downloadableTemplates;\nDROP TABLE IF EXISTS formSubmissions;\nDROP TABLE IF EXISTS formTemplates;\nDROP TABLE IF EXISTS forms;\nDROP TABLE IF EXISTS milestones;\nDROP TABLE IF EXISTS projects;\nDROP TABLE IF EXISTS users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute DROP TABLE IF EXISTS sequences;\nDROP TABLE IF EXISTS sequenceConfig;\nDROP TABLE IF EXISTS auditTrail;\nDROP TABLE IF EXISTS approvals;\nDROP TABLE IF EXISTS downloadableTemplates;\nDROP TABLE IF EXISTS formSubmissions;\nDROP TABLE IF EXISTS formTemplates;\nDROP TABLE IF EXISTS forms;\nDROP TABLE IF EXISTS milestones;\nDROP TABLE IF EXISTS projects;\nDROP TABLE IF EXISTS users;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 6446
+}

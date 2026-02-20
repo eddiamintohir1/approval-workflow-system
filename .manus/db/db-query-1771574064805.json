@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE users (\n  id int AUTO_INCREMENT PRIMARY KEY,\n  cognito_sub varchar(255) NOT NULL UNIQUE,\n  open_id varchar(64) NOT NULL UNIQUE,\n  email varchar(255) NOT NULL UNIQUE,\n  full_name varchar(255) NOT NULL,\n  department varchar(100),\n  role enum('CEO', 'COO', 'CFO', 'PPIC', 'Purchasing', 'GA', 'Finance', 'Production', 'Logistics', 'admin') NOT NULL DEFAULT 'PPIC',\n  cognito_groups json,\n  is_active boolean NOT NULL DEFAULT true,\n  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  last_login_at timestamp NULL,\n  INDEX idx_users_email (email),\n  INDEX idx_users_cognito_sub (cognito_sub),\n  INDEX idx_users_role (role),\n  INDEX idx_users_is_active (is_active)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE users (\n  id int AUTO_INCREMENT PRIMARY KEY,\n  cognito_sub varchar(255) NOT NULL UNIQUE,\n  open_id varchar(64) NOT NULL UNIQUE,\n  email varchar(255) NOT NULL UNIQUE,\n  full_name varchar(255) NOT NULL,\n  department varchar(100),\n  role enum('CEO', 'COO', 'CFO', 'PPIC', 'Purchasing', 'GA', 'Finance', 'Production', 'Logistics', 'admin') NOT NULL DEFAULT 'PPIC',\n  cognito_groups json,\n  is_active boolean NOT NULL DEFAULT true,\n  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  last_login_at timestamp NULL,\n  INDEX idx_users_email (email),\n  INDEX idx_users_cognito_sub (cognito_sub),\n  INDEX idx_users_role (role),\n  INDEX idx_users_is_active (is_active)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1666
+}

@@ -275,11 +275,13 @@ class SDKServer {
       try {
         const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
         await upsertUser({
-          open_id: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          login_method: userInfo.loginMethod ?? userInfo.platform ?? null,
-          last_signed_in: signedInAt,
+          cognitoSub: userInfo.openId, // Using openId as cognitoSub for Manus OAuth
+          openId: userInfo.openId,
+          email: userInfo.email ?? "",
+          fullName: userInfo.name || userInfo.email || "User",
+          department: undefined,
+          role: undefined,
+          cognitoGroups: undefined,
         });
         user = await getUserByOpenId(userInfo.openId);
       } catch (error) {
@@ -292,10 +294,7 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await upsertUser({
-      open_id: user.open_id,
-      last_signed_in: signedInAt,
-    });
+    // Update last login time is handled in upsertUser
 
     return user;
   }

@@ -29,11 +29,13 @@ export function registerOAuthRoutes(app: Express) {
       }
 
       await upsertUser({
-        open_id: userInfo.openId,
-        name: userInfo.name || null,
-        email: userInfo.email ?? null,
-        login_method: userInfo.loginMethod ?? userInfo.platform ?? null,
-        last_signed_in: new Date(),
+        cognitoSub: userInfo.openId, // Using openId as cognitoSub for Manus OAuth
+        openId: userInfo.openId,
+        email: userInfo.email ?? "",
+        fullName: userInfo.name || userInfo.email || "User",
+        department: undefined,
+        role: undefined,
+        cognitoGroups: undefined,
       });
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {

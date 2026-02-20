@@ -1,221 +1,323 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint } from "drizzle-orm/mysql-core";
 
 /**
- * Core user table backing auth flow.
- * Extended with role field for approval workflow system.
+ * =====================================================
+ * USERS TABLE
+ * Synced from AWS Cognito
+ * =====================================================
  */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
-  name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
+  // Cognito integration
+  cognitoSub: varchar("cognito_sub", { length: 255 }).notNull().unique(),
+  openId: varchar("open_id", { length: 64 }).notNull().unique(), // For Manus compatibility
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  
+  // Organization info
+  department: varchar("department", { length: 100 }),
   role: mysqlEnum("role", [
-    "admin",
-    "brand_manager",
-    "ppic_manager",
-    "production_manager",
-    "purchasing_manager",
-    "sales_manager",
-    "pr_manager",
-    "director"
-  ]).default("brand_manager").notNull(),
-  isActive: boolean("isActive").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+    "CEO",
+    "COO",
+    "CFO",
+    "PPIC",
+    "Purchasing",
+    "GA",
+    "Finance",
+    "Production",
+    "Logistics",
+    "admin"
+  ]).default("PPIC").notNull(),
+  
+  // Cognito groups stored as JSON array
+  cognitoGroups: json("cognito_groups").$type<string[]>(),
+  
+  // Status
+  isActive: boolean("is_active").default(true).notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  lastLoginAt: timestamp("last_login_at"),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 /**
- * Projects table - stores all product development projects
+ * =====================================================
+ * WORKFLOWS TABLE
+ * Main workflow records (MAF, PR)
+ * =====================================================
  */
-export const projects = mysqlTable("projects", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  sku: varchar("sku", { length: 100 }).unique(),
-  pafSequence: varchar("pafSequence", { length: 100 }).unique(),
-  mafSequence: varchar("mafSequence", { length: 100 }).unique(),
-  isOem: boolean("isOem").default(false).notNull(),
+export const workflows = mysqlTable("workflows", {
+  id: varchar("id", { length: 36 }).primaryKey(), // UUID as string
+  workflowNumber: varchar("workflow_number", { length: 50 }).notNull().unique(), // WFMT-MAF-260209-001
+  workflowType: mysqlEnum("workflow_type", ["MAF", "PR"]).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  
+  // Requester information
+  requesterId: int("requester_id").notNull(),
+  department: varchar("department", { length: 100 }).notNull(),
+  
+  // Financial information
+  estimatedAmount: decimal("estimated_amount", { precision: 15, scale: 2 }),
+  currency: varchar("currency", { length: 3 }).default("IDR"),
+  
+  // Routing flags
+  requiresGa: boolean("requires_ga").default(false),
+  requiresPpic: boolean("requires_ppic").default(false),
+  
+  // Workflow status
+  currentStage: varchar("current_stage", { length: 100 }),
+  overallStatus: mysqlEnum("overall_status", [
+    "draft",
+    "in_progress",
+    "completed",
+    "rejected",
+    "cancelled"
+  ]).default("draft").notNull(),
+  
+  // Timestamps
+  submittedAt: timestamp("submitted_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
+});
+
+export type Workflow = typeof workflows.$inferSelect;
+export type InsertWorkflow = typeof workflows.$inferInsert;
+
+/**
+ * =====================================================
+ * WORKFLOW_STAGES TABLE
+ * Track each approval stage with full history
+ * =====================================================
+ */
+export const workflowStages = mysqlTable("workflow_stages", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  
+  // Stage information
+  stageOrder: int("stage_order").notNull(),
+  stageName: varchar("stage_name", { length: 100 }).notNull(),
+  stageType: varchar("stage_type", { length: 50 }).notNull(), // "ceo_coo", "ppic", "purchasing", etc.
+  
+  // Approval requirements
+  requiredRole: varchar("required_role", { length: 50 }),
+  requiresOneOf: json("requires_one_of").$type<string[]>(), // For CEO/COO: ['CEO', 'COO']
+  approvalThreshold: decimal("approval_threshold", { precision: 15, scale: 2 }),
+  
+  // Stage status
   status: mysqlEnum("status", [
     "pending",
     "in_progress",
     "completed",
-    "discontinued"
+    "rejected",
+    "skipped"
   ]).default("pending").notNull(),
-  currentStage: int("currentStage").default(1).notNull(),
-  createdBy: int("createdBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  
+  // Timestamps
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
 });
 
-export type Project = typeof projects.$inferSelect;
-export type InsertProject = typeof projects.$inferInsert;
+export type WorkflowStage = typeof workflowStages.$inferSelect;
+export type InsertWorkflowStage = typeof workflowStages.$inferInsert;
 
 /**
- * Milestones table - defines stages within each project
+ * =====================================================
+ * WORKFLOW_APPROVALS TABLE
+ * Record all approval/rejection actions
+ * =====================================================
  */
-export const milestones = mysqlTable("milestones", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  stage: int("stage").notNull(),
-  status: mysqlEnum("status", [
-    "pending",
-    "in_progress",
-    "completed",
-    "rejected"
-  ]).default("pending").notNull(),
-  approverRole: mysqlEnum("approverRole", [
-    "brand_manager",
-    "ppic_manager",
-    "production_manager",
-    "purchasing_manager",
-    "sales_manager",
-    "pr_manager",
-    "director"
-  ]).notNull(),
-  isViewOnly: boolean("isViewOnly").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
-export type Milestone = typeof milestones.$inferSelect;
-export type InsertMilestone = typeof milestones.$inferInsert;
-
-/**
- * Forms table - stores uploaded form files
- */
-export const forms = mysqlTable("forms", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  milestoneId: int("milestoneId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  s3Key: varchar("s3Key", { length: 500 }).notNull(),
-  s3Url: varchar("s3Url", { length: 1000 }).notNull(),
-  fileType: varchar("fileType", { length: 100 }),
-  fileSize: int("fileSize"),
-  uploadedBy: int("uploadedBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
-export type Form = typeof forms.$inferSelect;
-export type InsertForm = typeof forms.$inferInsert;
-
-/**
- * Form templates table - admin-created fillable form templates
- */
-export const formTemplates = mysqlTable("formTemplates", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  fields: json("fields").notNull(), // Array of field definitions
-  createdBy: int("createdBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
-export type FormTemplate = typeof formTemplates.$inferSelect;
-export type InsertFormTemplate = typeof formTemplates.$inferInsert;
-
-/**
- * Form submissions table - data from fillable forms
- */
-export const formSubmissions = mysqlTable("formSubmissions", {
-  id: int("id").autoincrement().primaryKey(),
-  projectId: int("projectId").notNull(),
-  milestoneId: int("milestoneId").notNull(),
-  templateId: int("templateId").notNull(),
-  data: json("data").notNull(), // Form field values
-  submittedBy: int("submittedBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
-export type FormSubmission = typeof formSubmissions.$inferSelect;
-export type InsertFormSubmission = typeof formSubmissions.$inferInsert;
-
-/**
- * Downloadable templates table - stores form template files (MAF, PR, CATTO)
- */
-export const downloadableTemplates = mysqlTable("downloadableTemplates", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
-  type: mysqlEnum("type", ["MAF", "PR", "CATTO"]).notNull().unique(),
-  s3Key: varchar("s3Key", { length: 500 }).notNull(),
-  s3Url: varchar("s3Url", { length: 1000 }).notNull(),
-  fileType: varchar("fileType", { length: 100 }),
-  fileSize: int("fileSize"),
-  uploadedBy: int("uploadedBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-
-export type DownloadableTemplate = typeof downloadableTemplates.$inferSelect;
-export type InsertDownloadableTemplate = typeof downloadableTemplates.$inferInsert;
-
-/**
- * Approvals table - logs approval/rejection actions
- */
-export const approvals = mysqlTable("approvals", {
-  id: int("id").autoincrement().primaryKey(),
-  milestoneId: int("milestoneId").notNull(),
-  projectId: int("projectId").notNull(),
-  approverId: int("approverId").notNull(),
-  status: mysqlEnum("status", ["approved", "rejected"]).notNull(),
+export const workflowApprovals = mysqlTable("workflow_approvals", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  stageId: varchar("stage_id", { length: 36 }).notNull(),
+  
+  // Approver information
+  approverId: int("approver_id").notNull(),
+  approverRole: varchar("approver_role", { length: 50 }).notNull(),
+  
+  // Action details
+  action: mysqlEnum("action", ["approved", "rejected", "commented"]).notNull(),
   comments: text("comments"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
 });
 
-export type Approval = typeof approvals.$inferSelect;
-export type InsertApproval = typeof approvals.$inferInsert;
+export type WorkflowApproval = typeof workflowApprovals.$inferSelect;
+export type InsertWorkflowApproval = typeof workflowApprovals.$inferInsert;
 
 /**
- * Audit trail table - logs all significant actions
+ * =====================================================
+ * WORKFLOW_FILES TABLE
+ * Store S3 file references
+ * =====================================================
  */
-export const auditTrail = mysqlTable("auditTrail", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  projectId: int("projectId"),
-  action: varchar("action", { length: 255 }).notNull(),
-  details: json("details"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const workflowFiles = mysqlTable("workflow_files", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  stageId: varchar("stage_id", { length: 36 }),
+  
+  // File information
+  fileName: varchar("file_name", { length: 500 }).notNull(),
+  fileType: varchar("file_type", { length: 50 }).notNull(), // "maf_form", "pr_form", "forecast", etc.
+  fileCategory: varchar("file_category", { length: 50 }), // "submission", "approval", "supporting"
+  
+  // S3 storage
+  s3Bucket: varchar("s3_bucket", { length: 255 }).notNull(),
+  s3Key: varchar("s3_key", { length: 1000 }).notNull(),
+  s3Url: text("s3_url"),
+  
+  // File metadata
+  fileSize: bigint("file_size", { mode: "number" }),
+  mimeType: varchar("mime_type", { length: 100 }),
+  
+  // Upload information
+  uploadedBy: int("uploaded_by").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
 });
 
-export type AuditTrail = typeof auditTrail.$inferSelect;
-export type InsertAuditTrail = typeof auditTrail.$inferInsert;
+export type WorkflowFile = typeof workflowFiles.$inferSelect;
+export type InsertWorkflowFile = typeof workflowFiles.$inferInsert;
 
 /**
- * Sequences table - tracks generated sequences
+ * =====================================================
+ * WORKFLOW_COMMENTS TABLE
+ * Comments and feedback throughout workflow
+ * =====================================================
  */
-export const sequences = mysqlTable("sequences", {
-  id: int("id").autoincrement().primaryKey(),
-  type: mysqlEnum("type", ["sku", "paf", "maf"]).notNull(),
-  sequence: varchar("sequence", { length: 100 }).notNull().unique(),
-  projectId: int("projectId"),
-  generatedBy: int("generatedBy").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const workflowComments = mysqlTable("workflow_comments", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  stageId: varchar("stage_id", { length: 36 }),
+  
+  // Comment details
+  commentText: text("comment_text").notNull(),
+  commentType: varchar("comment_type", { length: 50 }).default("general"), // "general", "approval", "rejection", "revision_request"
+  
+  // Author information
+  authorId: int("author_id").notNull(),
+  authorRole: varchar("author_role", { length: 50 }),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
 });
 
-export type Sequence = typeof sequences.$inferSelect;
-export type InsertSequence = typeof sequences.$inferInsert;
+export type WorkflowComment = typeof workflowComments.$inferSelect;
+export type InsertWorkflowComment = typeof workflowComments.$inferInsert;
 
 /**
- * Sequence config table - admin settings for sequence generators
+ * =====================================================
+ * AUDIT_LOGS TABLE
+ * Complete audit trail of all actions
+ * =====================================================
  */
-export const sequenceConfig = mysqlTable("sequenceConfig", {
-  id: int("id").autoincrement().primaryKey(),
-  type: mysqlEnum("type", ["sku", "paf", "maf"]).notNull().unique(),
-  prefix: varchar("prefix", { length: 50 }).default("").notNull(),
-  suffix: varchar("suffix", { length: 50 }).default("").notNull(),
-  currentNumber: int("currentNumber").default(1).notNull(),
-  maxPerMonth: int("maxPerMonth"),
-  resetFrequency: mysqlEnum("resetFrequency", ["monthly", "yearly", "never"]).default("never").notNull(),
-  lastReset: timestamp("lastReset"),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const auditLogs = mysqlTable("audit_logs", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // Entity information
+  entityType: varchar("entity_type", { length: 50 }).notNull(), // "workflow", "stage", "approval", "file", "user"
+  entityId: varchar("entity_id", { length: 36 }).notNull(),
+  
+  // Action details
+  action: varchar("action", { length: 100 }).notNull(), // "created", "updated", "approved", "rejected", etc.
+  actionDescription: text("action_description"),
+  
+  // Actor information
+  actorId: int("actor_id"),
+  actorEmail: varchar("actor_email", { length: 255 }),
+  actorRole: varchar("actor_role", { length: 50 }),
+  
+  // Changes tracking
+  oldValues: json("old_values").$type<Record<string, any>>(),
+  newValues: json("new_values").$type<Record<string, any>>(),
+  
+  // Request metadata
+  ipAddress: varchar("ip_address", { length: 45 }), // IPv6 max length
+  userAgent: text("user_agent"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
 });
 
-export type SequenceConfig = typeof sequenceConfig.$inferSelect;
-export type InsertSequenceConfig = typeof sequenceConfig.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+/**
+ * =====================================================
+ * EMAIL_RECIPIENTS TABLE
+ * Configurable email notification lists
+ * =====================================================
+ */
+export const emailRecipients = mysqlTable("email_recipients", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // Recipient grouping
+  recipientGroup: varchar("recipient_group", { length: 100 }).notNull(), // "ceo_coo", "finance", "ppic", etc.
+  
+  // Recipient information
+  userId: int("user_id"),
+  email: varchar("email", { length: 255 }).notNull(),
+  fullName: varchar("full_name", { length: 255 }),
+  
+  // Notification preferences
+  isActive: boolean("is_active").default(true),
+  notificationTypes: json("notification_types").$type<string[]>(), // ["approval_request", "approval_granted", etc.]
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmailRecipient = typeof emailRecipients.$inferSelect;
+export type InsertEmailRecipient = typeof emailRecipients.$inferInsert;
+
+/**
+ * =====================================================
+ * SEQUENCE_COUNTERS TABLE
+ * Generate WFMT sequence numbers
+ * =====================================================
+ */
+export const sequenceCounters = mysqlTable("sequence_counters", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // Sequence identification
+  sequenceType: mysqlEnum("sequence_type", ["MAF", "PR"]).notNull(),
+  sequenceDate: varchar("sequence_date", { length: 10 }).notNull(), // YYYY-MM-DD format
+  
+  // Counter
+  currentCounter: int("current_counter").default(0).notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SequenceCounter = typeof sequenceCounters.$inferSelect;
+export type InsertSequenceCounter = typeof sequenceCounters.$inferInsert;

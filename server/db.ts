@@ -1,745 +1,606 @@
-import { supabase } from "./supabase";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import { eq, and, desc, sql } from "drizzle-orm";
+import * as schema from "../drizzle/schema";
+import { randomUUID } from "crypto";
+
+// Re-export types for convenience
+export type User = schema.User;
+export type Workflow = schema.Workflow;
+export type WorkflowStage = schema.WorkflowStage;
+export type WorkflowApproval = schema.WorkflowApproval;
+export type WorkflowFile = schema.WorkflowFile;
+export type WorkflowComment = schema.WorkflowComment;
+export type AuditLog = schema.AuditLog;
+export type EmailRecipient = schema.EmailRecipient;
+export type SequenceCounter = schema.SequenceCounter;
+
+// Database connection
+const connection = mysql.createPool(process.env.DATABASE_URL!);
+export const db = drizzle(connection, { schema, mode: "default" });
 
 // ============================================
 // User Management
 // ============================================
 
-export interface User {
-  id: number;
-  open_id: string;
-  name: string | null;
-  email: string | null;
-  login_method: string | null;
-  role: string;
-  is_active: boolean;
-  created_at: Date;
-  updated_at: Date;
-  last_signed_in: Date;
-}
-
-export interface InsertUser {
-  open_id: string;
-  name?: string | null;
-  email?: string | null;
-  login_method?: string | null;
-  role?: string;
-  is_active?: boolean;
-  last_signed_in?: Date;
-}
-
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.open_id) {
-    throw new Error("User open_id is required for upsert");
-  }
-
-  const { data: existingUser } = await supabase
-    .from("users")
-    .select("*")
-    .eq("open_id", user.open_id)
-    .single();
+export async function upsertUser(user: {
+  cognitoSub: string;
+  openId: string;
+  email: string;
+  fullName: string;
+  department?: string;
+  role?: typeof schema.users.$inferSelect.role;
+  cognitoGroups?: string[];
+}): Promise<schema.User> {
+  // Check if user exists by cognito_sub
+  const [existingUser] = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.cognitoSub, user.cognitoSub))
+    .limit(1);
 
   if (existingUser) {
     // Update existing user
-    const updates: any = {};
-    if (user.name !== undefined) updates.name = user.name;
-    if (user.email !== undefined) updates.email = user.email;
-    if (user.login_method !== undefined) updates.login_method = user.login_method;
-    if (user.role !== undefined) updates.role = user.role;
-    if (user.is_active !== undefined) updates.is_active = user.is_active;
-    updates.last_signed_in = user.last_signed_in || new Date();
-
-    await supabase.from("users").update(updates).eq("open_id", user.open_id);
+    await db
+      .update(schema.users)
+      .set({
+        email: user.email,
+        fullName: user.fullName,
+        department: user.department,
+        role: user.role || existingUser.role,
+        cognitoGroups: user.cognitoGroups,
+        lastLoginAt: new Date(),
+      })
+      .where(eq(schema.users.id, existingUser.id));
+    
+    // Fetch and return updated user
+    const [updated] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, existingUser.id))
+      .limit(1);
+    
+    return updated;
   } else {
     // Insert new user
-    await supabase.from("users").insert({
-      open_id: user.open_id,
-      name: user.name || null,
-      email: user.email || null,
-      login_method: user.login_method || null,
-      role: user.role || "brand_manager",
-      is_active: user.is_active !== undefined ? user.is_active : true,
-      last_signed_in: user.last_signed_in || new Date(),
-    });
+    const result = await db
+      .insert(schema.users)
+      .values({
+        cognitoSub: user.cognitoSub,
+        openId: user.openId,
+        email: user.email,
+        fullName: user.fullName,
+        department: user.department,
+        role: user.role || "PPIC",
+        cognitoGroups: user.cognitoGroups,
+        isActive: true,
+        lastLoginAt: new Date(),
+      });
+    
+    // Fetch and return the newly created user
+    const [newUser] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.cognitoSub, user.cognitoSub))
+      .limit(1);
+    
+    return newUser;
   }
 }
 
-export async function getUserByOpenId(openId: string): Promise<User | undefined> {
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("open_id", openId)
-    .single();
-
-  if (error || !data) return undefined;
-  return data as User;
+export async function getUserByOpenId(openId: string): Promise<schema.User | undefined> {
+  const [user] = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.openId, openId))
+    .limit(1);
+  
+  return user;
 }
 
-export async function getUserById(id: number): Promise<User | undefined> {
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error || !data) return undefined;
-  return data as User;
+export async function getUserById(id: number): Promise<schema.User | undefined> {
+  const [user] = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.id, id))
+    .limit(1);
+  
+  return user;
 }
 
-export async function getAllUsers(): Promise<User[]> {
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as User[];
+export async function getUserByCognitoSub(cognitoSub: string): Promise<schema.User | undefined> {
+  const [user] = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.cognitoSub, cognitoSub))
+    .limit(1);
+  
+  return user;
 }
 
-export async function updateUserRole(userId: number, role: string): Promise<void> {
-  await supabase.from("users").update({ role }).eq("id", userId);
+export async function getAllUsers(): Promise<schema.User[]> {
+  return await db
+    .select()
+    .from(schema.users)
+    .orderBy(desc(schema.users.createdAt));
+}
+
+export async function updateUserRole(
+  userId: number,
+  role: typeof schema.users.$inferSelect.role
+): Promise<void> {
+  await db
+    .update(schema.users)
+    .set({ role })
+    .where(eq(schema.users.id, userId));
 }
 
 export async function updateUserStatus(userId: number, isActive: boolean): Promise<void> {
-  await supabase.from("users").update({ is_active: isActive }).eq("id", userId);
+  await db
+    .update(schema.users)
+    .set({ isActive })
+    .where(eq(schema.users.id, userId));
 }
 
 // ============================================
-// Project Management
+// Workflow Management
 // ============================================
 
-export interface Project {
-  id: number;
-  name: string;
-  sku: string | null;
-  paf_sequence: string | null;
-  maf_sequence: string | null;
-  is_oem: boolean;
-  status: string;
-  current_stage: number;
-  created_by: number;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface InsertProject {
-  name: string;
-  sku?: string | null;
-  paf_sequence?: string | null;
-  maf_sequence?: string | null;
-  is_oem: boolean;
-  status?: string;
-  current_stage?: number;
-  created_by: number;
-}
-
-export async function createProject(project: InsertProject): Promise<number> {
-  const { data, error } = await supabase
-    .from("projects")
-    .insert(project)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data.id;
-}
-
-export async function getProjectById(projectId: number): Promise<Project | undefined> {
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", projectId)
-    .single();
-
-  if (error || !data) return undefined;
-  return data as Project;
-}
-
-export async function getProjectsByUser(userId: number): Promise<Project[]> {
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("created_by", userId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as Project[];
-}
-
-export async function getAllProjects(): Promise<Project[]> {
-  const { data, error } = await supabase
-    .from("projects")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as Project[];
-}
-
-export async function updateProject(projectId: number, updates: Partial<InsertProject>): Promise<void> {
-  await supabase.from("projects").update(updates).eq("id", projectId);
-}
-
-export async function updateProjectStatus(projectId: number, status: string): Promise<void> {
-  await supabase.from("projects").update({ status }).eq("id", projectId);
-}
-
-export async function deleteProject(projectId: number): Promise<void> {
-  // Delete related records first (if cascade is not set up)
-  await supabase.from("forms").delete().eq("project_id", projectId);
-  await supabase.from("form_submissions").delete().eq("project_id", projectId);
-  await supabase.from("approvals").delete().eq("project_id", projectId);
-  await supabase.from("milestones").delete().eq("project_id", projectId);
-  // Note: audit_trail is kept for historical records
+export async function createWorkflow(workflow: {
+  workflowType: "MAF" | "PR";
+  title: string;
+  description?: string;
+  requesterId: number;
+  department: string;
+  estimatedAmount?: number;
+  currency?: string;
+  requiresGa?: boolean;
+  requiresPpic?: boolean;
+}): Promise<schema.Workflow> {
+  const workflowId = randomUUID();
+  const workflowNumber = await generateWorkflowNumber(workflow.workflowType);
   
-  // Finally delete the project
-  await supabase.from("projects").delete().eq("id", projectId);
-}
-
-// ============================================
-// Milestone Management
-// ============================================
-
-export interface Milestone {
-  id: number;
-  project_id: number;
-  name: string;
-  stage: number;
-  status: string;
-  approver_role: string;
-  is_view_only: boolean;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface InsertMilestone {
-  project_id: number;
-  name: string;
-  stage: number;
-  status?: string;
-  approver_role: string;
-  is_view_only: boolean;
-}
-
-export async function createMilestone(milestone: InsertMilestone): Promise<number> {
-  const { data, error } = await supabase
-    .from("milestones")
-    .insert(milestone)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data.id;
-}
-
-export async function getMilestonesByProject(projectId: number): Promise<Milestone[]> {
-  const { data, error } = await supabase
-    .from("milestones")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("stage", { ascending: true });
-
-  if (error || !data) return [];
-  return data as Milestone[];
-}
-
-export async function getMilestoneById(milestoneId: number): Promise<Milestone | undefined> {
-  const { data, error } = await supabase
-    .from("milestones")
-    .select("*")
-    .eq("id", milestoneId)
-    .single();
-
-  if (error || !data) return undefined;
-  return data as Milestone;
-}
-
-export async function updateMilestoneStatus(milestoneId: number, status: string): Promise<void> {
-  await supabase.from("milestones").update({ status }).eq("id", milestoneId);
-}
-
-// ============================================
-// Form Management
-// ============================================
-
-export interface Form {
-  id: number;
-  project_id: number;
-  milestone_id: number;
-  name: string;
-  s3_key: string;
-  s3_url: string;
-  file_type: string | null;
-  file_size: number | null;
-  uploaded_by: number;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface InsertForm {
-  project_id: number;
-  milestone_id: number;
-  name: string;
-  s3_key: string;
-  s3_url: string;
-  file_type?: string | null;
-  file_size?: number | null;
-  uploaded_by: number;
-}
-
-export async function createForm(form: InsertForm): Promise<number> {
-  const { data, error } = await supabase
-    .from("forms")
-    .insert(form)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data.id;
-}
-
-export async function getFormsByMilestone(milestoneId: number): Promise<Form[]> {
-  const { data, error } = await supabase
-    .from("forms")
-    .select("*")
-    .eq("milestone_id", milestoneId);
-
-  if (error || !data) return [];
-  return data as Form[];
-}
-
-export async function getFormsByProject(projectId: number): Promise<Form[]> {
-  const { data, error } = await supabase
-    .from("forms")
-    .select("*")
-    .eq("project_id", projectId);
-
-  if (error || !data) return [];
-  return data as Form[];
-}
-
-// ============================================
-// Form Template Management
-// ============================================
-
-export interface FormTemplate {
-  id: number;
-  name: string;
-  fields: any;
-  created_by: number;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface InsertFormTemplate {
-  name: string;
-  fields: any;
-  created_by: number;
-}
-
-export async function createFormTemplate(template: InsertFormTemplate): Promise<number> {
-  const { data, error } = await supabase
-    .from("form_templates")
-    .insert(template)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data.id;
-}
-
-export async function getAllFormTemplates(): Promise<FormTemplate[]> {
-  const { data, error } = await supabase
-    .from("form_templates")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as FormTemplate[];
-}
-
-export async function getFormTemplateById(templateId: number): Promise<FormTemplate | undefined> {
-  const { data, error } = await supabase
-    .from("form_templates")
-    .select("*")
-    .eq("id", templateId)
-    .single();
-
-  if (error || !data) return undefined;
-  return data as FormTemplate;
-}
-
-export async function updateFormTemplate(templateId: number, updates: Partial<InsertFormTemplate>): Promise<void> {
-  await supabase.from("form_templates").update(updates).eq("id", templateId);
-}
-
-export async function deleteFormTemplate(templateId: number): Promise<void> {
-  await supabase.from("form_templates").delete().eq("id", templateId);
-}
-
-// ============================================
-// Form Submission Management
-// ============================================
-
-export interface FormSubmission {
-  id: number;
-  project_id: number;
-  milestone_id: number;
-  template_id: number;
-  data: any;
-  submitted_by: number;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface InsertFormSubmission {
-  project_id: number;
-  milestone_id: number;
-  template_id: number;
-  data: any;
-  submitted_by: number;
-}
-
-export async function createFormSubmission(submission: InsertFormSubmission): Promise<number> {
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .insert(submission)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data.id;
-}
-
-export async function getFormSubmissionsByMilestone(milestoneId: number): Promise<FormSubmission[]> {
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select("*")
-    .eq("milestone_id", milestoneId);
-
-  if (error || !data) return [];
-  return data as FormSubmission[];
-}
-
-// ============================================
-// Approval Management
-// ============================================
-
-export interface Approval {
-  id: number;
-  milestone_id: number;
-  project_id: number;
-  approver_id: number;
-  status: string;
-  comments: string | null;
-  created_at: Date;
-}
-
-export interface InsertApproval {
-  milestone_id: number;
-  project_id: number;
-  approver_id: number;
-  status: string;
-  comments?: string | null;
-}
-
-export async function createApproval(approval: InsertApproval): Promise<number> {
-  const { data, error } = await supabase
-    .from("approvals")
-    .insert(approval)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data.id;
-}
-
-export async function getApprovalsByMilestone(milestoneId: number): Promise<Approval[]> {
-  const { data, error } = await supabase
-    .from("approvals")
-    .select("*")
-    .eq("milestone_id", milestoneId);
-
-  if (error || !data) return [];
-  return data as Approval[];
-}
-
-export async function getApprovalsByProject(projectId: number): Promise<Approval[]> {
-  const { data, error } = await supabase
-    .from("approvals")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as Approval[];
-}
-
-// ============================================
-// Audit Trail
-// ============================================
-
-export interface AuditTrail {
-  id: number;
-  user_id: number;
-  project_id: number | null;
-  action: string;
-  details: any;
-  created_at: Date;
-}
-
-export interface InsertAuditTrail {
-  user_id: number;
-  project_id?: number | null;
-  action: string;
-  details?: any;
-}
-
-export async function logAudit(audit: InsertAuditTrail): Promise<void> {
-  await supabase.from("audit_trail").insert(audit);
-}
-
-export async function getAuditTrailByProject(projectId: number): Promise<AuditTrail[]> {
-  const { data, error } = await supabase
-    .from("audit_trail")
-    .select("*")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as AuditTrail[];
-}
-
-export async function getAuditTrailByUser(userId: number): Promise<AuditTrail[]> {
-  const { data, error } = await supabase
-    .from("audit_trail")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as AuditTrail[];
-}
-
-// ============================================
-// Sequence Management
-// ============================================
-
-export interface Sequence {
-  id: number;
-  type: string;
-  sequence: string;
-  project_id: number | null;
-  generated_by: number;
-  created_at: Date;
-}
-
-export interface InsertSequence {
-  type: string;
-  sequence: string;
-  project_id?: number | null;
-  generated_by: number;
-}
-
-export async function createSequence(sequence: InsertSequence): Promise<number> {
-  const { data, error } = await supabase
-    .from("sequences")
-    .insert(sequence)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data.id;
-}
-
-export async function getSequencesByType(type: "sku" | "paf" | "maf"): Promise<Sequence[]> {
-  const { data, error } = await supabase
-    .from("sequences")
-    .select("*")
-    .eq("type", type)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as Sequence[];
-}
-
-export async function getAllSequences(): Promise<Sequence[]> {
-  const { data, error } = await supabase
-    .from("sequences")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-  return data as Sequence[];
-}
-
-// ============================================
-// Sequence Config Management
-// ============================================
-
-export interface SequenceConfig {
-  id: number;
-  type: string;
-  prefix: string;
-  suffix: string;
-  current_number: number;
-  max_per_month: number | null;
-  reset_frequency: string;
-  last_reset: Date | null;
-  updated_at: Date;
-}
-
-export interface InsertSequenceConfig {
-  type: string;
-  prefix?: string;
-  suffix?: string;
-  current_number?: number;
-  max_per_month?: number | null;
-  reset_frequency?: string;
-  last_reset?: Date | null;
-}
-
-export async function getSequenceConfig(type: "sku" | "paf" | "maf"): Promise<SequenceConfig | undefined> {
-  const { data, error } = await supabase
-    .from("sequence_config")
-    .select("*")
-    .eq("type", type)
-    .single();
-
-  if (error || !data) return undefined;
-  return data as SequenceConfig;
-}
-
-export async function upsertSequenceConfig(config: InsertSequenceConfig): Promise<void> {
-  const { data: existing } = await supabase
-    .from("sequence_config")
-    .select("*")
-    .eq("type", config.type)
-    .single();
-
-  if (existing) {
-    await supabase.from("sequence_config").update(config).eq("type", config.type);
-  } else {
-    await supabase.from("sequence_config").insert({
-      type: config.type,
-      prefix: config.prefix || "",
-      suffix: config.suffix || "",
-      current_number: config.current_number || 1,
-      reset_frequency: config.reset_frequency || "never",
+  await db
+    .insert(schema.workflows)
+    .values({
+      id: workflowId,
+      workflowNumber,
+      workflowType: workflow.workflowType,
+      title: workflow.title,
+      description: workflow.description,
+      requesterId: workflow.requesterId,
+      department: workflow.department,
+      estimatedAmount: workflow.estimatedAmount?.toString(),
+      currency: workflow.currency || "IDR",
+      requiresGa: workflow.requiresGa || false,
+      requiresPpic: workflow.requiresPpic || false,
+      overallStatus: "draft",
     });
-  }
+  
+  // Fetch and return the newly created workflow
+  const [newWorkflow] = await db
+    .select()
+    .from(schema.workflows)
+    .where(eq(schema.workflows.id, workflowId))
+    .limit(1);
+  
+  return newWorkflow;
 }
 
-export async function incrementSequenceNumber(type: "sku" | "paf" | "maf"): Promise<void> {
-  const config = await getSequenceConfig(type);
-  if (config) {
-    await supabase
-      .from("sequence_config")
-      .update({ current_number: config.current_number + 1 })
-      .eq("type", type);
-  }
+export async function getWorkflowById(workflowId: string): Promise<schema.Workflow | undefined> {
+  const [workflow] = await db
+    .select()
+    .from(schema.workflows)
+    .where(eq(schema.workflows.id, workflowId))
+    .limit(1);
+  
+  return workflow;
 }
 
-export async function generateSequence(type: "sku" | "paf" | "maf", userId: number, projectId?: number): Promise<string> {
-  let config = await getSequenceConfig(type);
+export async function getWorkflowsByRequester(requesterId: number): Promise<schema.Workflow[]> {
+  return await db
+    .select()
+    .from(schema.workflows)
+    .where(eq(schema.workflows.requesterId, requesterId))
+    .orderBy(desc(schema.workflows.createdAt));
+}
 
-  if (!config) {
-    await upsertSequenceConfig({
-      type,
-      prefix: type.toUpperCase() + "-",
-      suffix: "",
-      current_number: 1,
-      reset_frequency: "never",
+export async function getAllWorkflows(): Promise<schema.Workflow[]> {
+  return await db
+    .select()
+    .from(schema.workflows)
+    .orderBy(desc(schema.workflows.createdAt));
+}
+
+export async function updateWorkflowStatus(
+  workflowId: string,
+  status: typeof schema.workflows.$inferSelect.overallStatus
+): Promise<void> {
+  await db
+    .update(schema.workflows)
+    .set({ overallStatus: status })
+    .where(eq(schema.workflows.id, workflowId));
+}
+
+export async function submitWorkflow(workflowId: string): Promise<void> {
+  await db
+    .update(schema.workflows)
+    .set({
+      overallStatus: "in_progress",
+      submittedAt: new Date(),
+    })
+    .where(eq(schema.workflows.id, workflowId));
+}
+
+// ============================================
+// Workflow Stage Management
+// ============================================
+
+export async function createWorkflowStage(stage: {
+  workflowId: string;
+  stageOrder: number;
+  stageName: string;
+  stageType: string;
+  requiredRole?: string;
+  requiresOneOf?: string[];
+  approvalThreshold?: number;
+}): Promise<schema.WorkflowStage> {
+  const stageId = randomUUID();
+  
+  await db
+    .insert(schema.workflowStages)
+    .values({
+      id: stageId,
+      workflowId: stage.workflowId,
+      stageOrder: stage.stageOrder,
+      stageName: stage.stageName,
+      stageType: stage.stageType,
+      requiredRole: stage.requiredRole,
+      requiresOneOf: stage.requiresOneOf,
+      approvalThreshold: stage.approvalThreshold?.toString(),
+      status: "pending",
     });
-    config = await getSequenceConfig(type);
-    if (!config) throw new Error("Failed to create sequence config");
+  
+  // Fetch and return the newly created stage
+  const [newStage] = await db
+    .select()
+    .from(schema.workflowStages)
+    .where(eq(schema.workflowStages.id, stageId))
+    .limit(1);
+  
+  return newStage;
+}
+
+export async function getStagesByWorkflow(workflowId: string): Promise<schema.WorkflowStage[]> {
+  return await db
+    .select()
+    .from(schema.workflowStages)
+    .where(eq(schema.workflowStages.workflowId, workflowId))
+    .orderBy(schema.workflowStages.stageOrder);
+}
+
+export async function getStageById(stageId: string): Promise<schema.WorkflowStage | undefined> {
+  const [stage] = await db
+    .select()
+    .from(schema.workflowStages)
+    .where(eq(schema.workflowStages.id, stageId))
+    .limit(1);
+  
+  return stage;
+}
+
+export async function updateStageStatus(
+  stageId: string,
+  status: typeof schema.workflowStages.$inferSelect.status
+): Promise<void> {
+  const updates: any = { status };
+  
+  if (status === "in_progress") {
+    updates.startedAt = new Date();
+  } else if (status === "completed" || status === "rejected") {
+    updates.completedAt = new Date();
   }
-
-  const year = new Date().getFullYear();
-  const sequenceNumber = String(config.current_number).padStart(3, "0");
-  const generatedSequence = `${config.prefix}${year}-${sequenceNumber}${config.suffix}`;
-
-  await createSequence({
-    type,
-    sequence: generatedSequence,
-    project_id: projectId,
-    generated_by: userId,
-  });
-
-  await incrementSequenceNumber(type);
-
-  return generatedSequence;
+  
+  await db
+    .update(schema.workflowStages)
+    .set(updates)
+    .where(eq(schema.workflowStages.id, stageId));
 }
 
 // ============================================
-// Downloadable Template Management
+// Workflow Approval Management
 // ============================================
 
-export interface DownloadableTemplate {
-  id: number;
-  name: string;
-  type: "MAF" | "PR" | "CATTO";
-  s3_key: string;
-  s3_url: string;
-  file_type: string | null;
-  file_size: number | null;
-  uploaded_by: number;
-  created_at: Date;
-  updated_at: Date;
+export async function createApproval(approval: {
+  workflowId: string;
+  stageId: string;
+  approverId: number;
+  approverRole: string;
+  action: "approved" | "rejected" | "commented";
+  comments?: string;
+}): Promise<schema.WorkflowApproval> {
+  const approvalId = randomUUID();
+  
+  await db
+    .insert(schema.workflowApprovals)
+    .values({
+      id: approvalId,
+      workflowId: approval.workflowId,
+      stageId: approval.stageId,
+      approverId: approval.approverId,
+      approverRole: approval.approverRole,
+      action: approval.action,
+      comments: approval.comments,
+    });
+  
+  // Fetch and return the newly created approval
+  const [newApproval] = await db
+    .select()
+    .from(schema.workflowApprovals)
+    .where(eq(schema.workflowApprovals.id, approvalId))
+    .limit(1);
+  
+  return newApproval;
 }
 
-export interface InsertDownloadableTemplate {
-  name: string;
-  type: "MAF" | "PR" | "CATTO";
-  s3_key: string;
-  s3_url: string;
-  file_type?: string | null;
-  file_size?: number | null;
-  uploaded_by: number;
+export async function getApprovalsByWorkflow(workflowId: string): Promise<schema.WorkflowApproval[]> {
+  return await db
+    .select()
+    .from(schema.workflowApprovals)
+    .where(eq(schema.workflowApprovals.workflowId, workflowId))
+    .orderBy(desc(schema.workflowApprovals.createdAt));
 }
 
-export async function getAllDownloadableTemplates(): Promise<DownloadableTemplate[]> {
-  const { data, error } = await supabase
-    .from("downloadable_templates")
-    .select("*")
-    .order("type", { ascending: true });
-
-  if (error) throw new Error(`Failed to fetch templates: ${error.message}`);
-  return data as DownloadableTemplate[];
+export async function getApprovalsByStage(stageId: string): Promise<schema.WorkflowApproval[]> {
+  return await db
+    .select()
+    .from(schema.workflowApprovals)
+    .where(eq(schema.workflowApprovals.stageId, stageId))
+    .orderBy(desc(schema.workflowApprovals.createdAt));
 }
 
-export async function getDownloadableTemplateByType(type: "MAF" | "PR" | "CATTO"): Promise<DownloadableTemplate | null> {
-  const { data, error } = await supabase
-    .from("downloadable_templates")
-    .select("*")
-    .eq("type", type)
-    .single();
+// ============================================
+// Workflow File Management
+// ============================================
 
-  if (error || !data) return null;
-  return data as DownloadableTemplate;
+export async function createWorkflowFile(file: {
+  workflowId: string;
+  stageId?: string;
+  fileName: string;
+  fileType: string;
+  fileCategory?: string;
+  s3Bucket: string;
+  s3Key: string;
+  s3Url: string;
+  fileSize?: number;
+  mimeType?: string;
+  uploadedBy: number;
+}): Promise<schema.WorkflowFile> {
+  const fileId = randomUUID();
+  
+  await db
+    .insert(schema.workflowFiles)
+    .values({
+      id: fileId,
+      workflowId: file.workflowId,
+      stageId: file.stageId,
+      fileName: file.fileName,
+      fileType: file.fileType,
+      fileCategory: file.fileCategory,
+      s3Bucket: file.s3Bucket,
+      s3Key: file.s3Key,
+      s3Url: file.s3Url,
+      fileSize: file.fileSize,
+      mimeType: file.mimeType,
+      uploadedBy: file.uploadedBy,
+    });
+  
+  // Fetch and return the newly created file
+  const [newFile] = await db
+    .select()
+    .from(schema.workflowFiles)
+    .where(eq(schema.workflowFiles.id, fileId))
+    .limit(1);
+  
+  return newFile;
 }
 
-export async function upsertDownloadableTemplate(template: InsertDownloadableTemplate): Promise<void> {
-  const existing = await getDownloadableTemplateByType(template.type);
+export async function getFilesByWorkflow(workflowId: string): Promise<schema.WorkflowFile[]> {
+  return await db
+    .select()
+    .from(schema.workflowFiles)
+    .where(eq(schema.workflowFiles.workflowId, workflowId))
+    .orderBy(desc(schema.workflowFiles.uploadedAt));
+}
 
-  if (existing) {
-    // Update existing template
-    await supabase
-      .from("downloadable_templates")
-      .update({
-        name: template.name,
-        s3_key: template.s3_key,
-        s3_url: template.s3_url,
-        file_type: template.file_type,
-        file_size: template.file_size,
-        uploaded_by: template.uploaded_by,
-      })
-      .eq("type", template.type);
+export async function getFilesByStage(stageId: string): Promise<schema.WorkflowFile[]> {
+  return await db
+    .select()
+    .from(schema.workflowFiles)
+    .where(eq(schema.workflowFiles.stageId, stageId))
+    .orderBy(desc(schema.workflowFiles.uploadedAt));
+}
+
+// ============================================
+// Workflow Comment Management
+// ============================================
+
+export async function createComment(comment: {
+  workflowId: string;
+  stageId?: string;
+  commentText: string;
+  commentType?: string;
+  authorId: number;
+  authorRole?: string;
+}): Promise<schema.WorkflowComment> {
+  const commentId = randomUUID();
+  
+  await db
+    .insert(schema.workflowComments)
+    .values({
+      id: commentId,
+      workflowId: comment.workflowId,
+      stageId: comment.stageId,
+      commentText: comment.commentText,
+      commentType: comment.commentType || "general",
+      authorId: comment.authorId,
+      authorRole: comment.authorRole,
+    });
+  
+  // Fetch and return the newly created comment
+  const [newComment] = await db
+    .select()
+    .from(schema.workflowComments)
+    .where(eq(schema.workflowComments.id, commentId))
+    .limit(1);
+  
+  return newComment;
+}
+
+export async function getCommentsByWorkflow(workflowId: string): Promise<schema.WorkflowComment[]> {
+  return await db
+    .select()
+    .from(schema.workflowComments)
+    .where(eq(schema.workflowComments.workflowId, workflowId))
+    .orderBy(desc(schema.workflowComments.createdAt));
+}
+
+export async function getCommentsByStage(stageId: string): Promise<schema.WorkflowComment[]> {
+  return await db
+    .select()
+    .from(schema.workflowComments)
+    .where(eq(schema.workflowComments.stageId, stageId))
+    .orderBy(desc(schema.workflowComments.createdAt));
+}
+
+// ============================================
+// Audit Log Management
+// ============================================
+
+export async function createAuditLog(log: {
+  entityType: string;
+  entityId: string;
+  action: string;
+  actionDescription?: string;
+  actorId?: number;
+  actorEmail?: string;
+  actorRole?: string;
+  oldValues?: Record<string, any>;
+  newValues?: Record<string, any>;
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<schema.AuditLog> {
+  const logId = randomUUID();
+  
+  await db
+    .insert(schema.auditLogs)
+    .values({
+      id: logId,
+      entityType: log.entityType,
+      entityId: log.entityId,
+      action: log.action,
+      actionDescription: log.actionDescription,
+      actorId: log.actorId,
+      actorEmail: log.actorEmail,
+      actorRole: log.actorRole,
+      oldValues: log.oldValues,
+      newValues: log.newValues,
+      ipAddress: log.ipAddress,
+      userAgent: log.userAgent,
+    });
+  
+  // Fetch and return the newly created log
+  const [newLog] = await db
+    .select()
+    .from(schema.auditLogs)
+    .where(eq(schema.auditLogs.id, logId))
+    .limit(1);
+  
+  return newLog;
+}
+
+export async function getAuditLogsByEntity(
+  entityType: string,
+  entityId: string
+): Promise<schema.AuditLog[]> {
+  return await db
+    .select()
+    .from(schema.auditLogs)
+    .where(
+      and(
+        eq(schema.auditLogs.entityType, entityType),
+        eq(schema.auditLogs.entityId, entityId)
+      )
+    )
+    .orderBy(desc(schema.auditLogs.createdAt));
+}
+
+// ============================================
+// Sequence Number Generation
+// ============================================
+
+async function generateWorkflowNumber(type: "MAF" | "PR"): Promise<string> {
+  const today = new Date();
+  const dateStr = today.toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
+  
+  // Try to get existing counter for today
+  const [counter] = await db
+    .select()
+    .from(schema.sequenceCounters)
+    .where(
+      and(
+        eq(schema.sequenceCounters.sequenceType, type),
+        eq(schema.sequenceCounters.sequenceDate, dateStr)
+      )
+    )
+    .limit(1);
+  
+  let nextCounter: number;
+  
+  if (counter) {
+    // Increment existing counter
+    nextCounter = counter.currentCounter + 1;
+    await db
+      .update(schema.sequenceCounters)
+      .set({ currentCounter: nextCounter })
+      .where(eq(schema.sequenceCounters.id, counter.id));
   } else {
-    // Insert new template
-    await supabase.from("downloadable_templates").insert(template);
+    // Create new counter for today
+    nextCounter = 1;
+    await db
+      .insert(schema.sequenceCounters)
+      .values({
+        id: randomUUID(),
+        sequenceType: type,
+        sequenceDate: dateStr,
+        currentCounter: nextCounter,
+      });
   }
+  
+  // Format: WFMT-MAF-260209-001
+  const paddedCounter = nextCounter.toString().padStart(3, "0");
+  return `WFMT-${type}-${dateStr}-${paddedCounter}`;
 }
 
-export async function deleteDownloadableTemplate(type: "MAF" | "PR" | "CATTO"): Promise<void> {
-  await supabase.from("downloadable_templates").delete().eq("type", type);
+// ============================================
+// Email Recipient Management
+// ============================================
+
+export async function getEmailRecipientsByGroup(group: string): Promise<schema.EmailRecipient[]> {
+  return await db
+    .select()
+    .from(schema.emailRecipients)
+    .where(
+      and(
+        eq(schema.emailRecipients.recipientGroup, group),
+        eq(schema.emailRecipients.isActive, true)
+      )
+    );
+}
+
+export async function getAllEmailRecipients(): Promise<schema.EmailRecipient[]> {
+  return await db
+    .select()
+    .from(schema.emailRecipients)
+    .where(eq(schema.emailRecipients.isActive, true));
 }

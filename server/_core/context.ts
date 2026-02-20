@@ -37,13 +37,13 @@ async function authenticateCognitoRequest(req: CreateExpressContextOptions["req"
     if (existingUser) {
       // Update last signed in timestamp
       await upsertUser({
-        open_id: payload.sub,
+        cognitoSub: payload.sub,
+        openId: existingUser.openId,
         email: payload.email,
-        name: existingUser.name,
+        fullName: existingUser.fullName,
+        department: existingUser.department || undefined,
         role: existingUser.role,
-        is_active: existingUser.is_active,
-        login_method: 'cognito',
-        last_signed_in: new Date(),
+        cognitoGroups: (payload as any)['cognito:groups'] as string[] | undefined,
       });
       
       return existingUser;
@@ -51,13 +51,13 @@ async function authenticateCognitoRequest(req: CreateExpressContextOptions["req"
 
     // Create new user if doesn't exist
     await upsertUser({
-      open_id: payload.sub,
+      cognitoSub: payload.sub,
+      openId: payload.sub,
       email: payload.email,
-      name: payload.email.split('@')[0],
-      login_method: 'cognito',
-      role: 'brand_manager',
-      is_active: true,
-      last_signed_in: new Date(),
+      fullName: payload.email.split('@')[0],
+      department: undefined,
+      role: "PPIC", // Default role
+      cognitoGroups: payload['cognito:groups'] as string[] | undefined,
     });
 
     const newUser = await getUserByOpenId(payload.sub);

@@ -1,14 +1,14 @@
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
-import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { systemRouter } from "./_core/systemRouter";
 import * as db from "./db";
+import { storagePut, storageGet } from "./storage";
+import { randomUUID } from "crypto";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== "admin" && ctx.user.role !== "director") {
+  if (ctx.user.role !== "admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
   }
   return next({ ctx });
@@ -17,567 +17,526 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 export const appRouter = router({
   system: systemRouter,
   
+  // ============================================
+  // Authentication
+  // ============================================
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
+    
+    logout: publicProcedure.mutation(async () => {
+      // Cognito logout is handled on the frontend
+      return { success: true };
     }),
   }),
 
+  // ============================================
+  // User Management
+  // ============================================
   users: router({
-    list: adminProcedure.query(async () => {
+    getAll: protectedProcedure.query(async () => {
       return await db.getAllUsers();
     }),
-    
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getUserById(input.id);
+      }),
+
     updateRole: adminProcedure
-      .input(z.object({
-        userId: z.number(),
-        role: z.enum([
-          "admin",
-          "brand_manager",
-          "ppic_manager",
-          "production_manager",
-          "purchasing_manager",
-          "sales_manager",
-          "pr_manager",
-          "director"
-        ]),
-      }))
+      .input(
+        z.object({
+          userId: z.number(),
+          role: z.enum(["CEO", "COO", "CFO", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "admin"]),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         await db.updateUserRole(input.userId, input.role);
-        await db.logAudit({
-          user_id: ctx.user.id,
-          action: "user_role_updated",
-          details: { targetUserId: input.userId, newRole: input.role },
+        
+        await db.createAuditLog({
+          entityType: "user",
+          entityId: input.userId.toString(),
+          action: "role_updated",
+          actionDescription: `Role updated to ${input.role}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
+        
         return { success: true };
       }),
-    
+
     updateStatus: adminProcedure
-      .input(z.object({
-        userId: z.number(),
-        isActive: z.boolean(),
-      }))
+      .input(
+        z.object({
+          userId: z.number(),
+          isActive: z.boolean(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         await db.updateUserStatus(input.userId, input.isActive);
-        await db.logAudit({
-          user_id: ctx.user.id,
-          action: "user_status_updated",
-          details: { targetUserId: input.userId, isActive: input.isActive },
+        
+        await db.createAuditLog({
+          entityType: "user",
+          entityId: input.userId.toString(),
+          action: "status_updated",
+          actionDescription: `Status updated to ${input.isActive ? "active" : "inactive"}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
+        
         return { success: true };
       }),
   }),
 
-  projects: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      // Admins and directors see all projects
-      if (ctx.user.role === "admin" || ctx.user.role === "director") {
-        return await db.getAllProjects();
-      }
-      // Others see only their assigned projects
-      return await db.getProjectsByUser(ctx.user.id);
-    }),
-    
-    getById: protectedProcedure
-      .input(z.object({ projectId: z.number() }))
-      .query(async ({ input }) => {
-        const project = await db.getProjectById(input.projectId);
-        if (!project) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
-        }
-        return project;
-      }),
-    
+  // ============================================
+  // Workflow Management
+  // ============================================
+  workflows: router({
     create: protectedProcedure
-      .input(z.object({
-        name: z.string().min(1),
-        isOem: z.boolean(),
-      }))
+      .input(
+        z.object({
+          workflowType: z.enum(["MAF", "PR"]),
+          title: z.string(),
+          description: z.string().optional(),
+          department: z.string(),
+          estimatedAmount: z.number().optional(),
+          currency: z.string().optional(),
+          requiresGa: z.boolean().optional(),
+          requiresPpic: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
-        // Generate sequences
-        const sku = await db.generateSequence("sku", ctx.user.id);
-        const pafSequence = input.isOem ? await db.generateSequence("paf", ctx.user.id) : undefined;
-        const mafSequence = !input.isOem ? await db.generateSequence("maf", ctx.user.id) : undefined;
-        
-        const projectId = await db.createProject({
-          name: input.name,
-          is_oem: input.isOem,
-          sku,
-          paf_sequence: pafSequence,
-          maf_sequence: mafSequence,
-          created_by: ctx.user.id,
-          status: "in_progress",
+        const workflow = await db.createWorkflow({
+          ...input,
+          requesterId: ctx.user.id,
         });
         
-        // Create milestones based on workflow type
-        if (input.isOem) {
-          // OEM Workflow: Brand (PAF) → PR → PPIC → Production/Sales
-          await db.createMilestone({
-            project_id: projectId,
-            name: "PAF Submission",
-            stage: 1,
-            approver_role: "brand_manager",
-            status: "in_progress",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "PR Review",
-            stage: 2,
-            approver_role: "pr_manager",
-            status: "pending",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "PPIC Review",
-            stage: 3,
-            approver_role: "ppic_manager",
-            status: "pending",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "Production Complete",
-            stage: 4,
-            approver_role: "production_manager",
-            status: "pending",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "Sales View",
-            stage: 4,
-            approver_role: "sales_manager",
-            status: "pending",
-            is_view_only: true,
-          });
-        } else {
-          // Standard Workflow: Brand (PR & MAF) → PPIC → Production/Purchasing/Sales
-          await db.createMilestone({
-            project_id: projectId,
-            name: "Brand PR & MAF",
-            stage: 1,
-            approver_role: "brand_manager",
-            status: "in_progress",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "PPIC Review",
-            stage: 2,
-            approver_role: "ppic_manager",
-            status: "pending",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "Production Approval",
-            stage: 3,
-            approver_role: "production_manager",
-            status: "pending",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "Purchasing Approval",
-            stage: 3,
-            approver_role: "purchasing_manager",
-            status: "pending",
-            is_view_only: false,
-          });
-          await db.createMilestone({
-            project_id: projectId,
-            name: "Sales View",
-            stage: 3,
-            approver_role: "sales_manager",
-            status: "pending",
-            is_view_only: true,
-          });
+        // Create initial stages based on workflow type
+        await createInitialStages(workflow.id, input.workflowType, input.estimatedAmount);
+        
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: workflow.id,
+          action: "created",
+          actionDescription: `${input.workflowType} workflow created: ${input.title}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return workflow;
+      }),
+
+    getAll: protectedProcedure.query(async ({ ctx }) => {
+      // Admin sees all workflows, others see only their own
+      if (ctx.user.role === "admin") {
+        return await db.getAllWorkflows();
+      } else {
+        return await db.getWorkflowsByRequester(ctx.user.id);
+      }
+    }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        const workflow = await db.getWorkflowById(input.id);
+        if (!workflow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+        }
+        return workflow;
+      }),
+
+    getWithDetails: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        const workflow = await db.getWorkflowById(input.id);
+        if (!workflow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
         }
         
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: projectId,
-          action: "project_created",
-          details: { name: input.name, isOem: input.isOem, sku },
+        const stages = await db.getStagesByWorkflow(input.id);
+        const approvals = await db.getApprovalsByWorkflow(input.id);
+        const files = await db.getFilesByWorkflow(input.id);
+        const comments = await db.getCommentsByWorkflow(input.id);
+        
+        return {
+          workflow,
+          stages,
+          approvals,
+          files,
+          comments,
+        };
+      }),
+
+    submit: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const workflow = await db.getWorkflowById(input.id);
+        if (!workflow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+        }
+        
+        if (workflow.requesterId !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
+        }
+        
+        await db.submitWorkflow(input.id);
+        
+        // Update first stage to in_progress
+        const stages = await db.getStagesByWorkflow(input.id);
+        if (stages.length > 0) {
+          await db.updateStageStatus(stages[0].id, "in_progress");
+        }
+        
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: input.id,
+          action: "submitted",
+          actionDescription: "Workflow submitted for approval",
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
         
-        return { projectId, sku };
-      }),
-    
-    discontinue: protectedProcedure
-      .input(z.object({
-        projectId: z.number(),
-        reason: z.string().optional(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        await db.updateProjectStatus(input.projectId, "discontinued");
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: input.projectId,
-          action: "project_discontinued",
-          details: { reason: input.reason },
-        });
+        // TODO: Send email notifications to approvers
+        
         return { success: true };
       }),
-    
-    delete: adminProcedure
-      .input(z.object({
-        projectId: z.number(),
-      }))
+
+    updateStatus: protectedProcedure
+      .input(
+        z.object({
+          id: z.string(),
+          status: z.enum(["draft", "in_progress", "completed", "rejected", "cancelled"]),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
-        const project = await db.getProjectById(input.projectId);
-        if (!project) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
-        }
+        await db.updateWorkflowStatus(input.id, input.status);
         
-        // Log before deletion
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: input.projectId,
-          action: "project_deleted",
-          details: { projectName: project.name, sku: project.sku },
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: input.id,
+          action: "status_updated",
+          actionDescription: `Status updated to ${input.status}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
-        
-        // Delete project (cascade will handle related records)
-        await db.deleteProject(input.projectId);
         
         return { success: true };
       }),
   }),
 
-  milestones: router({
-    getByProject: protectedProcedure
-      .input(z.object({ projectId: z.number() }))
+  // ============================================
+  // Workflow Stage Management
+  // ============================================
+  stages: router({
+    getByWorkflow: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
-        return await db.getMilestonesByProject(input.projectId);
+        return await db.getStagesByWorkflow(input.workflowId);
       }),
-    
+
     approve: protectedProcedure
-      .input(z.object({
-        milestoneId: z.number(),
-        comments: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          stageId: z.string(),
+          workflowId: z.string(),
+          comments: z.string().optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
-        const milestone = await db.getMilestoneById(input.milestoneId);
-        if (!milestone) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Milestone not found" });
+        const stage = await db.getStageById(input.stageId);
+        if (!stage) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Stage not found" });
         }
         
-        // Check if user has permission to approve this milestone
-        if (milestone.approver_role !== ctx.user.role && ctx.user.role !== "admin" && ctx.user.role !== "director") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "You don't have permission to approve this milestone" });
+        // Check if user has permission to approve this stage
+        if (stage.requiredRole && ctx.user.role !== stage.requiredRole && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to approve this stage" });
         }
         
         // Create approval record
         await db.createApproval({
-          milestone_id: input.milestoneId,
-          project_id: milestone.project_id,
-          approver_id: ctx.user.id,
-          status: "approved",
+          workflowId: input.workflowId,
+          stageId: input.stageId,
+          approverId: ctx.user.id,
+          approverRole: ctx.user.role,
+          action: "approved",
           comments: input.comments,
         });
         
-        // Update milestone status
-        await db.updateMilestoneStatus(input.milestoneId, "completed");
+        // Update stage status
+        await db.updateStageStatus(input.stageId, "completed");
         
-        // Check if all milestones in the same stage are completed
-        const allMilestones = await db.getMilestonesByProject(milestone.project_id);
-        const sameStageMilestones = allMilestones.filter(m => m.stage === milestone.stage && !m.is_view_only);
-        const allCompleted = sameStageMilestones.every(m => m.id === input.milestoneId || m.status === "completed");
+        // Check if this was the last stage
+        const stages = await db.getStagesByWorkflow(input.workflowId);
+        const currentStageIndex = stages.findIndex(s => s.id === input.stageId);
         
-        if (allCompleted) {
+        if (currentStageIndex < stages.length - 1) {
           // Move to next stage
-          const nextStageMilestones = allMilestones.filter(m => m.stage === milestone.stage + 1);
-          for (const nextMilestone of nextStageMilestones) {
-            await db.updateMilestoneStatus(nextMilestone.id, "in_progress");
-          }
-          
-          // Update project stage
-          await db.updateProject(milestone.project_id, { current_stage: milestone.stage + 1 });
-          
-          // Check if project is complete
-          const maxStage = Math.max(...allMilestones.map(m => m.stage));
-          if (milestone.stage === maxStage) {
-            await db.updateProjectStatus(milestone.project_id, "completed");
-          }
+          await db.updateStageStatus(stages[currentStageIndex + 1].id, "in_progress");
+        } else {
+          // Workflow completed
+          await db.updateWorkflowStatus(input.workflowId, "completed");
         }
         
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: milestone.project_id,
-          action: "milestone_approved",
-          details: { milestoneId: input.milestoneId, milestoneName: milestone.name, comments: input.comments },
+        await db.createAuditLog({
+          entityType: "stage",
+          entityId: input.stageId,
+          action: "approved",
+          actionDescription: `Stage approved: ${stage.stageName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
         
         return { success: true };
       }),
-    
+
     reject: protectedProcedure
-      .input(z.object({
-        milestoneId: z.number(),
-        comments: z.string().min(1, "Comments are required for rejection"),
-      }))
+      .input(
+        z.object({
+          stageId: z.string(),
+          workflowId: z.string(),
+          comments: z.string(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
-        const milestone = await db.getMilestoneById(input.milestoneId);
-        if (!milestone) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Milestone not found" });
+        const stage = await db.getStageById(input.stageId);
+        if (!stage) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Stage not found" });
         }
         
-        // Check if user has permission to reject this milestone
-        if (milestone.approver_role !== ctx.user.role && ctx.user.role !== "admin" && ctx.user.role !== "director") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "You don't have permission to reject this milestone" });
+        // Check if user has permission to reject this stage
+        if (stage.requiredRole && ctx.user.role !== stage.requiredRole && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to reject this stage" });
         }
         
-        // Create approval record with rejected status
+        // Create rejection record
         await db.createApproval({
-          milestone_id: input.milestoneId,
-          project_id: milestone.project_id,
-          approver_id: ctx.user.id,
-          status: "rejected",
+          workflowId: input.workflowId,
+          stageId: input.stageId,
+          approverId: ctx.user.id,
+          approverRole: ctx.user.role,
+          action: "rejected",
           comments: input.comments,
         });
         
-        // Update milestone status
-        await db.updateMilestoneStatus(input.milestoneId, "rejected");
+        // Update stage and workflow status
+        await db.updateStageStatus(input.stageId, "rejected");
+        await db.updateWorkflowStatus(input.workflowId, "rejected");
         
-        // Move back to previous stage
-        if (milestone.stage > 1) {
-          const allMilestones = await db.getMilestonesByProject(milestone.project_id);
-          const prevStageMilestones = allMilestones.filter(m => m.stage === milestone.stage - 1);
-          for (const prevMilestone of prevStageMilestones) {
-            await db.updateMilestoneStatus(prevMilestone.id, "in_progress");
-          }
-          await db.updateProject(milestone.project_id, { current_stage: milestone.stage - 1 });
-        }
-        
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: milestone.project_id,
-          action: "milestone_rejected",
-          details: { milestoneId: input.milestoneId, milestoneName: milestone.name, comments: input.comments },
+        await db.createAuditLog({
+          entityType: "stage",
+          entityId: input.stageId,
+          action: "rejected",
+          actionDescription: `Stage rejected: ${stage.stageName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
         
         return { success: true };
       }),
   }),
 
-  audit: router({
-    getByProject: protectedProcedure
-      .input(z.object({ projectId: z.number() }))
-      .query(async ({ input }) => {
-        return await db.getAuditTrailByProject(input.projectId);
-      }),
-  }),
-
-  forms: router({
-    getByMilestone: protectedProcedure
-      .input(z.object({ milestoneId: z.number() }))
-      .query(async ({ input }) => {
-        return await db.getFormsByMilestone(input.milestoneId);
-      }),
-    
+  // ============================================
+  // File Management
+  // ============================================
+  files: router({
     upload: protectedProcedure
-      .input(z.object({
-        milestoneId: z.number(),
-        fileName: z.string(),
-        fileType: z.string(),
-        fileData: z.string(), // Base64 encoded file data
-      }))
+      .input(
+        z.object({
+          workflowId: z.string(),
+          stageId: z.string().optional(),
+          fileName: z.string(),
+          fileType: z.string(),
+          fileCategory: z.string().optional(),
+          fileData: z.string(), // base64 encoded
+          mimeType: z.string(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
-        const milestone = await db.getMilestoneById(input.milestoneId);
-        if (!milestone) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Milestone not found" });
-        }
+        // Decode base64 file data
+        const fileBuffer = Buffer.from(input.fileData, "base64");
         
-        const { storagePut } = await import("./storage");
+        // Upload to S3
+        const s3Key = `workflows/${input.workflowId}/${randomUUID()}-${input.fileName}`;
+        const { url } = await storagePut(s3Key, fileBuffer, input.mimeType);
         
-        // Generate a unique S3 key
-        const timestamp = Date.now();
-        const randomSuffix = Math.random().toString(36).substring(7);
-        const s3Key = `projects/${milestone.project_id}/milestones/${input.milestoneId}/${timestamp}-${randomSuffix}-${input.fileName}`;
-        
-        // Decode base64 and upload to S3
-        const fileBuffer = Buffer.from(input.fileData, 'base64');
-        await storagePut(s3Key, fileBuffer, input.fileType);
-        
-        // Get presigned URL for download
-        const { storageGet } = await import("./storage");
-        const { url } = await storageGet(s3Key, 3600 * 24 * 7); // 7 days expiry
-        
-        // Create form record
-        const formId = await db.createForm({
-          project_id: milestone.project_id,
-          milestone_id: input.milestoneId,
-          name: input.fileName,
-          s3_key: s3Key,
-          s3_url: url,
-          file_size: fileBuffer.length,
-          uploaded_by: ctx.user.id,
+        // Create file record
+        const file = await db.createWorkflowFile({
+          workflowId: input.workflowId,
+          stageId: input.stageId,
+          fileName: input.fileName,
+          fileType: input.fileType,
+          fileCategory: input.fileCategory,
+          s3Bucket: process.env.AWS_S3_BUCKET!,
+          s3Key,
+          s3Url: url,
+          fileSize: fileBuffer.length,
+          mimeType: input.mimeType,
+          uploadedBy: ctx.user.id,
         });
         
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: milestone.project_id,
-          action: "form_uploaded",
-          details: { formId, milestoneId: input.milestoneId, fileName: input.fileName },
+        await db.createAuditLog({
+          entityType: "file",
+          entityId: file.id,
+          action: "uploaded",
+          actionDescription: `File uploaded: ${input.fileName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
         
-        return { formId, s3Key };
+        return file;
       }),
-    
-    create: protectedProcedure
-      .input(z.object({
-        projectId: z.number(),
-        milestoneId: z.number(),
-        name: z.string(),
-        s3Key: z.string(),
-        fileSize: z.number().optional(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        const { storageGet } = await import("./storage");
-        
-        // Generate presigned URL for the uploaded file
-        const { url } = await storageGet(input.s3Key, 3600 * 24 * 7); // 7 days expiry
-        
-        const formId = await db.createForm({
-          project_id: input.projectId,
-          milestone_id: input.milestoneId,
-          name: input.name,
-          s3_key: input.s3Key,
-          s3_url: url,
-          file_size: input.fileSize,
-          uploaded_by: ctx.user.id,
-        });
-        
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: input.projectId,
-          action: "form_uploaded",
-          details: { formId, milestoneId: input.milestoneId, fileName: input.name },
-        });
-        
-        return { formId };
+
+    getByWorkflow: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getFilesByWorkflow(input.workflowId);
       }),
-    
-    download: protectedProcedure
-      .input(z.object({ formId: z.number() }))
-      .mutation(async ({ input, ctx }) => {
-        const forms = await db.getFormsByProject(0); // Get all forms
-        const form = forms.find(f => f.id === input.formId);
-        
-        if (!form) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
-        }
-        
-        const { storageGet } = await import("./storage");
-        const { url } = await storageGet(form.s3_key, 3600); // 1 hour expiry
-        
-        await db.logAudit({
-          user_id: ctx.user.id,
-          project_id: form.project_id,
-          action: "form_downloaded",
-          details: { formId: input.formId, fileName: form.name },
-        });
-        
-        return { url, fileName: form.name };
+
+    getByStage: protectedProcedure
+      .input(z.object({ stageId: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getFilesByStage(input.stageId);
       }),
   }),
 
-  downloadableTemplates: router({
-    list: protectedProcedure.query(async () => {
-      return await db.getAllDownloadableTemplates();
-    }),
-    
-    getByType: protectedProcedure
-      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO"]) }))
+  // ============================================
+  // Comment Management
+  // ============================================
+  comments: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          workflowId: z.string(),
+          stageId: z.string().optional(),
+          commentText: z.string(),
+          commentType: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const comment = await db.createComment({
+          ...input,
+          authorId: ctx.user.id,
+          authorRole: ctx.user.role,
+        });
+        
+        await db.createAuditLog({
+          entityType: "comment",
+          entityId: comment.id,
+          action: "created",
+          actionDescription: "Comment added",
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return comment;
+      }),
+
+    getByWorkflow: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
-        return await db.getDownloadableTemplateByType(input.type);
+        return await db.getCommentsByWorkflow(input.workflowId);
       }),
-    
-    upload: adminProcedure
-      .input(z.object({
-        name: z.string(),
-        type: z.enum(["MAF", "PR", "CATTO"]),
-        fileName: z.string(),
-        fileType: z.string(),
-        fileData: z.string(), // Base64 encoded file data
-      }))
-      .mutation(async ({ input, ctx }) => {
-        const { storagePut } = await import("./storage");
-        
-        // Generate a unique S3 key
-        const timestamp = Date.now();
-        const randomSuffix = Math.random().toString(36).substring(7);
-        const s3Key = `templates/${input.type}/${timestamp}-${randomSuffix}-${input.fileName}`;
-        
-        // Decode base64 and upload to S3
-        const fileBuffer = Buffer.from(input.fileData, 'base64');
-        await storagePut(s3Key, fileBuffer, input.fileType);
-        
-        // Get presigned URL for download
-        const { storageGet } = await import("./storage");
-        const { url } = await storageGet(s3Key, 3600 * 24 * 365); // 1 year expiry
-        
-        // Upsert template record
-        await db.upsertDownloadableTemplate({
-          name: input.name,
-          type: input.type,
-          s3_key: s3Key,
-          s3_url: url,
-          file_type: input.fileType,
-          file_size: fileBuffer.length,
-          uploaded_by: ctx.user.id,
-        });
-        
-        await db.logAudit({
-          user_id: ctx.user.id,
-          action: "template_uploaded",
-          details: { type: input.type, fileName: input.fileName },
-        });
-        
-        return { success: true };
+
+    getByStage: protectedProcedure
+      .input(z.object({ stageId: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getCommentsByStage(input.stageId);
       }),
-    
-    download: protectedProcedure
-      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO"]) }))
-      .mutation(async ({ input, ctx }) => {
-        const template = await db.getDownloadableTemplateByType(input.type);
-        
-        if (!template) {
-          throw new TRPCError({ code: "NOT_FOUND", message: `${input.type} template not found` });
-        }
-        
-        const { storageGet } = await import("./storage");
-        const { url } = await storageGet(template.s3_key, 3600); // 1 hour expiry
-        
-        await db.logAudit({
-          user_id: ctx.user.id,
-          action: "template_downloaded",
-          details: { type: input.type, fileName: template.name },
-        });
-        
-        return { url, fileName: template.name };
+  }),
+
+  // ============================================
+  // Audit Logs
+  // ============================================
+  auditLogs: router({
+    getByEntity: protectedProcedure
+      .input(
+        z.object({
+          entityType: z.string(),
+          entityId: z.string(),
+        })
+      )
+      .query(async ({ input }) => {
+        return await db.getAuditLogsByEntity(input.entityType, input.entityId);
       }),
-    
-    delete: adminProcedure
-      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO"]) }))
-      .mutation(async ({ input, ctx }) => {
-        await db.deleteDownloadableTemplate(input.type);
-        
-        await db.logAudit({
-          user_id: ctx.user.id,
-          action: "template_deleted",
-          details: { type: input.type },
-        });
-        
-        return { success: true };
+  }),
+
+  // ============================================
+  // Email Recipients
+  // ============================================
+  emailRecipients: router({
+    getByGroup: adminProcedure
+      .input(z.object({ group: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getEmailRecipientsByGroup(input.group);
       }),
+
+    getAll: adminProcedure.query(async () => {
+      return await db.getAllEmailRecipients();
+    }),
   }),
 });
+
+// ============================================
+// Helper Functions
+// ============================================
+
+async function createInitialStages(
+  workflowId: string,
+  workflowType: "MAF" | "PR",
+  estimatedAmount?: number
+): Promise<void> {
+  if (workflowType === "MAF") {
+    // MAF workflow stages
+    const stages = [
+      { order: 1, name: "PPIC Review", type: "approval", role: "PPIC" },
+      { order: 2, name: "Purchasing Review", type: "approval", role: "Purchasing" },
+    ];
+    
+    // Add financial approval stages based on amount
+    if (estimatedAmount && estimatedAmount > 5000000) {
+      stages.push({ order: 3, name: "CFO Approval", type: "approval", role: "CFO" });
+      stages.push({ order: 4, name: "CEO/COO Approval", type: "approval", role: "CEO" });
+    } else if (estimatedAmount && estimatedAmount > 1000000) {
+      stages.push({ order: 3, name: "CFO Approval", type: "approval", role: "CFO" });
+    }
+    
+    for (const stage of stages) {
+      await db.createWorkflowStage({
+        workflowId,
+        stageOrder: stage.order,
+        stageName: stage.name,
+        stageType: stage.type,
+        requiredRole: stage.role,
+      });
+    }
+  } else if (workflowType === "PR") {
+    // PR workflow stages
+    const stages = [
+      { order: 1, name: "Department Head Review", type: "approval", role: "admin" },
+      { order: 2, name: "Finance Review", type: "approval", role: "Finance" },
+      { order: 3, name: "CFO Approval", type: "approval", role: "CFO" },
+    ];
+    
+    for (const stage of stages) {
+      await db.createWorkflowStage({
+        workflowId,
+        stageOrder: stage.order,
+        stageName: stage.name,
+        stageType: stage.type,
+        requiredRole: stage.role,
+      });
+    }
+  }
+}
 
 export type AppRouter = typeof appRouter;

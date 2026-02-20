@@ -1,0 +1,13 @@
+{
+  "query": "CREATE TABLE workflow_stages (\n  id varchar(36) PRIMARY KEY,\n  workflow_id varchar(36) NOT NULL,\n  stage_order int NOT NULL,\n  stage_name varchar(100) NOT NULL,\n  stage_type varchar(50) NOT NULL,\n  required_role varchar(50),\n  requires_one_of json,\n  approval_threshold decimal(15,2),\n  status enum('pending', 'in_progress', 'completed', 'rejected', 'skipped') NOT NULL DEFAULT 'pending',\n  started_at timestamp NULL,\n  completed_at timestamp NULL,\n  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  metadata json DEFAULT ('{}'),\n  INDEX idx_stages_workflow (workflow_id),\n  INDEX idx_stages_status (status),\n  INDEX idx_stages_order (workflow_id, stage_order),\n  UNIQUE KEY unique_workflow_stage (workflow_id, stage_order)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE workflow_stages (\n  id varchar(36) PRIMARY KEY,\n  workflow_id varchar(36) NOT NULL,\n  stage_order int NOT NULL,\n  stage_name varchar(100) NOT NULL,\n  stage_type varchar(50) NOT NULL,\n  required_role varchar(50),\n  requires_one_of json,\n  approval_threshold decimal(15,2),\n  status enum('pending', 'in_progress', 'completed', 'rejected', 'skipped') NOT NULL DEFAULT 'pending',\n  started_at timestamp NULL,\n  completed_at timestamp NULL,\n  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  metadata json DEFAULT ('{}'),\n  INDEX idx_stages_workflow (workflow_id),\n  INDEX idx_stages_status (status),\n  INDEX idx_stages_order (workflow_id, stage_order),\n  UNIQUE KEY unique_workflow_stage (workflow_id, stage_order)\n);",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 15 column 30 near \"'{}'),",
+    "  INDEX idx_stages_workflow (workflow_id),",
+    "  INDEX idx_stages_status (status),",
+    "  INDEX idx_stages_order (workflow_id, stage_order),",
+    "  UNIQUE KEY unique_workflow_stage (workflow_id, stage_order)",
+    ")\""
+  ]
+}
