@@ -352,3 +352,10 @@
 - [x] Investigate why users see second auth screen after login
 - [x] Fix Dashboard component to properly handle loading state
 - [x] Test complete login flow from start to dashboard
+
+## Phase 25: Fix CORS Issue on Production Domain
+- [x] Investigate why auth.me API calls return status 0 on production
+- [x] Check tRPC client configuration for backend URL
+- [x] Remove VITE_API_URL to use same-origin for published version
+- [ ] Republish with updated environment variables
+- [ ] Test authentication flow on wfmt.compawnion.id domain
