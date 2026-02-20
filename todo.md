@@ -634,3 +634,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Persist filter state to localStorage
 - [x] Add URL params for shareable filtered views
 - [x] Test all filter combinations
+
+## Phase 26: Update Website Branding
+
+- [x] Change website title from "Multi-Layer Approval Workflow System" to "CJB Workflow Management System"
+- [x] Update meta description for social media sharing
+- [x] Update Open Graph tags for link previews
+- [x] Test link sharing preview on messaging apps
