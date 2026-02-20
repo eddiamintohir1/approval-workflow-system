@@ -561,3 +561,14 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Fix "Objects are not valid as a React child" error on /admin/excel-templates page
 - [x] Identify where object is being rendered directly in JSX
 - [x] Update to render object properties correctly
+
+## Phase 21: Forgot Password Flow & User Sync
+
+- [x] Create ForgotPassword page with email input form
+- [x] Implement verification code input and new password form
+- [x] Add Cognito forgotPassword and confirmPassword API calls
+- [x] Add "Forgot Password?" link to Login page
+- [x] Create admin bulk user sync function to import Cognito users
+- [x] Add admin UI for bulk user sync
+- [x] Test complete forgot password flow
+- [x] Test bulk user sync functionality

@@ -10,7 +10,7 @@ const poolData = {
   ClientId: import.meta.env.VITE_COGNITO_CLIENT_ID || '',
 };
 
-const userPool = new CognitoUserPool(poolData);
+export const userPool = new CognitoUserPool(poolData);
 
 export interface CognitoAuthUser {
   email: string;

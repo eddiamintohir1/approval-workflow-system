@@ -215,6 +215,72 @@ export const appRouter = router({
         
         return { success: true };
       }),
+
+    // Bulk sync users from Cognito to database
+    syncFromCognito: adminProcedure
+      .mutation(async ({ ctx }) => {
+        const { CognitoIdentityProviderClient, ListUsersCommand } = await import("@aws-sdk/client-cognito-identity-provider");
+        
+        const client = new CognitoIdentityProviderClient({
+          region: process.env.VITE_COGNITO_REGION!,
+        });
+
+        const userPoolId = process.env.VITE_COGNITO_USER_POOL_ID!;
+        let syncedCount = 0;
+        let paginationToken: string | undefined;
+
+        try {
+          do {
+            const command = new ListUsersCommand({
+              UserPoolId: userPoolId,
+              Limit: 60,
+              PaginationToken: paginationToken,
+            });
+
+            const response = await client.send(command);
+            
+            if (response.Users) {
+              for (const cognitoUser of response.Users) {
+                const email = cognitoUser.Attributes?.find(attr => attr.Name === "email")?.Value;
+                const sub = cognitoUser.Attributes?.find(attr => attr.Name === "sub")?.Value;
+                const name = cognitoUser.Attributes?.find(attr => attr.Name === "name")?.Value;
+                
+                if (email && sub && email.endsWith("@compawnion.co")) {
+                  // Upsert user to database
+                  await db.upsertUser({
+                    cognitoSub: sub,
+                    openId: sub, // Use sub as openId for Cognito users
+                    email: email,
+                    fullName: name || email.split("@")[0],
+                    role: email === "eddie.amintohir@compawnion.co" ? "admin" : "PPIC", // Default role
+                  });
+                  syncedCount++;
+                }
+              }
+            }
+
+            paginationToken = response.PaginationToken;
+          } while (paginationToken);
+
+          await db.createAuditLog({
+            entityType: "user",
+            entityId: "bulk",
+            action: "bulk_sync",
+            actionDescription: `Synced ${syncedCount} users from Cognito`,
+            actorId: ctx.user.id,
+            actorEmail: ctx.user.email,
+            actorRole: ctx.user.role,
+          });
+
+          return { success: true, syncedCount };
+        } catch (error: any) {
+          console.error("Cognito sync error:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Failed to sync users from Cognito: ${error.message}`,
+          });
+        }
+      }),
   }),
 
   // ============================================

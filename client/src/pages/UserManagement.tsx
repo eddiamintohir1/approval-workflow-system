@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ArrowLeft, UserCheck, UserX } from "lucide-react";
+import { Loader2, ArrowLeft, UserCheck, UserX, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -27,6 +27,16 @@ export default function UserManagement() {
   const updateStatus = trpc.users.updateStatus.useMutation({
     onSuccess: () => {
       toast.success("User status updated successfully");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const syncFromCognito = trpc.users.syncFromCognito.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Successfully synced ${data.syncedCount} users from Cognito`);
       refetch();
     },
     onError: (error) => {
@@ -90,8 +100,29 @@ export default function UserManagement() {
       <main className="container mx-auto px-4 py-8">
         <Card>
           <CardHeader>
-            <CardTitle>Users</CardTitle>
-            <CardDescription>Manage user roles and activation status</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Users</CardTitle>
+                <CardDescription>Manage user roles and activation status</CardDescription>
+              </div>
+              <Button
+                onClick={() => syncFromCognito.mutate()}
+                disabled={syncFromCognito.isPending}
+                variant="outline"
+              >
+                {syncFromCognito.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sync from Cognito
+                  </>
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {users && users.length > 0 ? (

@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useCognitoAuth } from "@/hooks/useCognitoAuth";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
 import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
@@ -55,6 +56,7 @@ function Router() {
         {user ? <Redirect to="/dashboard" /> : <Redirect to="/login" />}
       </Route>
       <Route path="/login" component={Login} />
+      <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/auth/callback" component={AuthCallback} />
       <Route path="/dashboard">
         <ProtectedRoute component={Dashboard} path="/dashboard" />
