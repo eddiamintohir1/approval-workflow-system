@@ -209,3 +209,11 @@
 - [ ] Add Manus hosting URL to Cognito logout URLs
 - [ ] Test authentication flow end-to-end
 - [ ] Verify workflow creation works with hybrid setup
+
+## Phase 11.1: Fix Frontend Architecture for Hybrid Deployment
+
+- [x] Remove direct Supabase client calls from frontend components
+- [x] Update useUserRole hook to call EC2 backend API instead of Supabase
+- [x] Ensure all database operations go through tRPC to EC2 backend
+- [ ] Fix blank screen after login in preview environment
+- [ ] Test dashboard loads correctly after Cognito authentication

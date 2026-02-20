@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
+import { useCognitoAuth } from "@/hooks/useCognitoAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { trpc } from "@/lib/trpc";
 import { Loader2, Plus, Search, Users, LogOut, Trash2 } from "lucide-react";
@@ -15,7 +15,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 
 export default function Dashboard() {
-  const { signOut } = useSupabaseAuth();
+  const { signOut } = useCognitoAuth();
   const { user, loading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
