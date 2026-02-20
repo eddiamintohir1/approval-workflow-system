@@ -4,7 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { SupabaseAuthProvider, useSupabaseAuth } from "./contexts/SupabaseAuthContext";
+import { useCognitoAuth } from "@/hooks/useCognitoAuth";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
@@ -14,7 +14,7 @@ import TemplateManagement from "./pages/TemplateManagement";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
-  const { user, loading } = useSupabaseAuth();
+  const { user, loading } = useCognitoAuth();
 
   if (loading) {
     return (
@@ -32,7 +32,7 @@ function ProtectedRoute({ component: Component, ...rest }: { component: React.Co
 }
 
 function Router() {
-  const { user, loading } = useSupabaseAuth();
+  const { user, loading } = useCognitoAuth();
 
   if (loading) {
     return (
@@ -71,12 +71,10 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <SupabaseAuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </SupabaseAuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

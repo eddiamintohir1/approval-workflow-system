@@ -1,11 +1,7 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../db";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { verifyCognitoToken } from "../cognito-auth";
+import { getUserByOpenId, upsertUser } from "../db";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -13,9 +9,9 @@ export type TrpcContext = {
   user: User | null;
 };
 
-async function authenticateSupabaseRequest(req: CreateExpressContextOptions["req"]): Promise<User | null> {
-  // Extract the authorization header
+async function authenticateCognitoRequest(req: CreateExpressContextOptions["req"]): Promise<User | null> {
   const authHeader = req.headers.authorization;
+  console.log("🔐 Auth header:", authHeader ? "Bearer token present" : "No auth header");
   
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
@@ -24,27 +20,51 @@ async function authenticateSupabaseRequest(req: CreateExpressContextOptions["req
   const token = authHeader.substring(7);
 
   try {
-    // Verify the JWT token with Supabase
-    const { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
-
-    if (error || !supabaseUser) {
+    console.log("🔍 Verifying Cognito token...");
+    // Verify Cognito JWT token
+    const payload = await verifyCognitoToken(token);
+    
+    if (!payload) {
+      console.log("❌ Token verification failed");
       return null;
     }
+    console.log("✅ Token verified for user:", payload.email);
 
-    // Fetch the user from our database
-    const { data: dbUser, error: dbError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("open_id", supabaseUser.id)
-      .single();
+    // Check if user exists in database
+    console.log("🔎 Looking up user by open_id:", payload.sub);
+    const existingUser = await getUserByOpenId(payload.sub);
 
-    if (dbError || !dbUser) {
-      return null;
+    if (existingUser) {
+      // Update last signed in timestamp
+      await upsertUser({
+        open_id: payload.sub,
+        email: payload.email,
+        name: existingUser.name,
+        role: existingUser.role,
+        is_active: existingUser.is_active,
+        login_method: 'cognito',
+        last_signed_in: new Date(),
+      });
+      
+      return existingUser;
     }
 
-    return dbUser as User;
+    // Create new user if doesn't exist
+    await upsertUser({
+      open_id: payload.sub,
+      email: payload.email,
+      name: payload.email.split('@')[0],
+      login_method: 'cognito',
+      role: 'brand_manager',
+      is_active: true,
+      last_signed_in: new Date(),
+    });
+
+    const newUser = await getUserByOpenId(payload.sub);
+    console.log("✅ New user created:", newUser?.email);
+    return newUser || null;
   } catch (error) {
-    console.error("Error authenticating Supabase request:", error);
+    console.error("❌ Error authenticating Cognito request:", error);
     return null;
   }
 }
@@ -55,9 +75,9 @@ export async function createContext(
   let user: User | null = null;
 
   try {
-    user = await authenticateSupabaseRequest(opts.req);
+    user = await authenticateCognitoRequest(opts.req);
   } catch (error) {
-    // Authentication is optional for public procedures.
+    // Authentication is optional for public procedures
     user = null;
   }
 

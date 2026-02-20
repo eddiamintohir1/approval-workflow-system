@@ -26,13 +26,17 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submitted with email:', email);
     setError(null);
     setLoading(true);
 
     try {
-      await cognitoAuth.signIn(email, password);
+      console.log('Attempting Cognito sign in...');
+      const result = await cognitoAuth.signIn(email, password);
+      console.log('Sign in successful:', result);
       setLocation("/dashboard");
     } catch (err: any) {
+      console.error('Sign in error:', err);
       setError(err.message || "Failed to sign in");
     }
 

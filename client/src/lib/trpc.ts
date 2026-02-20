@@ -5,8 +5,9 @@ import { cognitoAuth } from './cognito';
 
 export const trpc = createTRPCReact<AppRouter>();
 
-// API endpoint - use EC2 backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://54.169.119.79:3000';
+// API endpoint - use same origin (Manus hosting)
+const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
+console.log('🌐 API_URL:', API_URL, '| VITE_API_URL:', import.meta.env.VITE_API_URL, '| origin:', window.location.origin);
 
 export const trpcClient = trpc.createClient({
   links: [

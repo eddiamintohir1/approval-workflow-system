@@ -8,12 +8,15 @@ export function useCognitoAuth() {
   useEffect(() => {
     const checkUser = async () => {
       try {
+        console.log('🔍 Checking Cognito user...');
         const currentUser = await cognitoAuth.getCurrentUser();
+        console.log('👤 Current user:', currentUser ? currentUser.email : 'null');
         setUser(currentUser);
       } catch (error) {
-        console.error('Error checking Cognito user:', error);
+        console.error('❌ Error checking Cognito user:', error);
         setUser(null);
       } finally {
+        console.log('✅ Auth loading complete, user:', user ? 'present' : 'null');
         setLoading(false);
       }
     };

@@ -217,3 +217,13 @@
 - [x] Ensure all database operations go through tRPC to EC2 backend
 - [ ] Fix blank screen after login in preview environment
 - [ ] Test dashboard loads correctly after Cognito authentication
+
+## Phase 12: Migrate to Manus Backend with AWS Resources
+
+- [ ] Update DATABASE_URL secret to point to AWS RDS PostgreSQL
+- [ ] Install aws-jwt-verify package for Cognito JWT verification
+- [ ] Update server context to verify Cognito tokens
+- [ ] Update server/routers.ts to match AWS database schema (cognito_sub, full_name, etc.)
+- [ ] Test authentication flow with Cognito on Manus backend
+- [ ] Test CRUD operations with AWS RDS from Manus backend
+- [ ] Verify S3 storage integration works with Manus backend
