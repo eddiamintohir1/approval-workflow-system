@@ -174,14 +174,14 @@ export function StageEditor({ stage, onSave, onCancel }: StageEditorProps) {
             <div>
               <Label htmlFor="requiredRole">Required Role (Single)</Label>
               <Select
-                value={formData.requiredRole || ""}
-                onValueChange={(value) => setFormData({ ...formData, requiredRole: value })}
+                value={formData.requiredRole || "none"}
+                onValueChange={(value) => setFormData({ ...formData, requiredRole: value === "none" ? undefined : value })}
               >
                 <SelectTrigger id="requiredRole">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {ROLES.map((role) => (
                     <SelectItem key={role} value={role}>
                       {role}
