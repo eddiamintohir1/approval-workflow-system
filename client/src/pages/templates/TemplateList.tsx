@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { Plus, Edit, Trash2, Eye, Search, CheckCircle, Upload, Mail, EyeIcon } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Search, CheckCircle, Upload, Mail, EyeIcon, Home } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -72,6 +72,12 @@ export default function TemplateList() {
 
   return (
     <div className="container py-6">
+      <Link href="/">
+        <Button variant="outline" size="sm" className="mb-4">
+          <Home className="h-4 w-4 mr-2" />
+          Home
+        </Button>
+      </Link>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

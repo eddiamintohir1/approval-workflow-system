@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical, Home } from "lucide-react";
 import { toast } from "sonner";
 
 type FieldType = "text" | "number" | "date" | "dropdown" | "textarea" | "file" | "checkbox" | "email";
@@ -90,6 +90,12 @@ export default function FormTemplateBuilder() {
   return (
     <div className="container max-w-4xl py-8">
       <div className="mb-6">
+        <Link href="/">
+          <Button variant="outline" size="sm" className="mb-4">
+            <Home className="h-4 w-4 mr-2" />
+            Home
+          </Button>
+        </Link>
         <h1 className="text-3xl font-bold">Create Form Template</h1>
         <p className="text-muted-foreground mt-2">
           Build custom forms with configurable fields and validation rules

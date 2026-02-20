@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Trash2 } from "lucide-react";
+import { Plus, FileText, Trash2, Home } from "lucide-react";
 import { toast } from "sonner";
 
 export default function FormTemplateList() {
@@ -37,6 +37,12 @@ export default function FormTemplateList() {
 
   return (
     <div className="container py-8">
+      <Link href="/">
+        <Button variant="outline" size="sm" className="mb-4">
+          <Home className="h-4 w-4 mr-2" />
+          Home
+        </Button>
+      </Link>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Form Templates</h1>

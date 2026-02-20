@@ -517,3 +517,17 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Add home/back navigation button to Form Template pages
 - [ ] Add home/back navigation button to Workflow Template pages
 - [ ] Push code to GitHub repository: https://github.com/eddiamintohir1/approval-workflow-system.git
+
+
+## Phase 35: Budget Analytics Dashboard & Navigation Completion
+- [x] Add home buttons to FormTemplateBuilder page
+- [x] Add home buttons to FormTemplateList page
+- [x] Add home buttons to TemplateList page
+- [x] Create budget management backend API (create, read, update, delete budgets)
+- [ ] Build admin budget management UI to set department budgets
+- [x] Extract actual cost data from form submissions
+- [x] Create metered bar chart component for budget visualization
+- [x] Build budget analytics dashboard with department filter
+- [x] Add monthly/quarterly/yearly view toggles
+- [x] Display spending vs allocated budget with percentage indicators
+- [x] Add budget overspend warnings (red indicators)

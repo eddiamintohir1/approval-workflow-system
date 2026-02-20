@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { BarChart3, TrendingUp, CheckCircle2, XCircle, Clock, FileText, DollarSign, Calendar, Home, ArrowLeft } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { WorkflowGanttChart } from "@/components/WorkflowGanttChart";
+import { BudgetAnalytics } from "@/components/BudgetAnalytics";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -208,6 +209,11 @@ export default function Analytics() {
           </CardContent>
         </Card>
         </div>
+      )}
+
+      {/* Budget vs Spending Analysis (shown when department is selected) */}
+      {selectedDepartment !== "All" && (
+        <BudgetAnalytics department={selectedDepartment} />
       )}
 
       {/* Department Cost Breakdown (shown when department is selected) */}

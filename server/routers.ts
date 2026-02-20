@@ -1171,6 +1171,65 @@ export const appRouter = router({
   }),
 
   // ============================================
+  // Budget Management
+  // ============================================
+  budgets: router({
+    create: protectedProcedure
+      .input(z.object({
+        department: z.string(),
+        year: z.number(),
+        month: z.number().optional(),
+        quarter: z.number().optional(),
+        allocatedAmount: z.number(),
+        period: z.enum(['monthly', 'quarterly', 'yearly']),
+      }))
+      .mutation(async ({ input }) => {
+        return await db.createBudget(input);
+      }),
+
+    getByDepartment: protectedProcedure
+      .input(z.object({
+        department: z.string(),
+        year: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await db.getBudgetsByDepartment(input.department, input.year);
+      }),
+
+    getAll: protectedProcedure
+      .input(z.object({ year: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getAllBudgets(input.year);
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.string(),
+        allocatedAmount: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        return await db.updateBudget(input.id, input.allocatedAmount);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input }) => {
+        await db.deleteBudget(input.id);
+        return { success: true };
+      }),
+
+    analytics: protectedProcedure
+      .input(z.object({
+        department: z.string(),
+        year: z.number(),
+        period: z.enum(['monthly', 'quarterly', 'yearly']),
+      }))
+      .query(async ({ input }) => {
+        return await db.getDepartmentBudgetAnalytics(input.department, input.year, input.period);
+      }),
+  }),
+
+  // ============================================
   // Workflow Templates
   // ============================================
   templates: templatesRouter,

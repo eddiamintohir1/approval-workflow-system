@@ -1393,3 +1393,139 @@ export async function getDepartmentCostBreakdown(department: string, period: 'mo
 
   return costData.sort((a, b) => a.period.localeCompare(b.period));
 }
+
+// Budget Management Functions
+export async function createBudget(data: {
+  department: string;
+  year: number;
+  month?: number;
+  quarter?: number;
+  allocatedAmount: number;
+  period: 'monthly' | 'quarterly' | 'yearly';
+}) {
+  const [budget] = await db.insert(departmentBudgets).values({
+    id: generateId(),
+    department: data.department,
+    year: data.year,
+    month: data.month || null,
+    quarter: data.quarter || null,
+    allocatedAmount: data.allocatedAmount,
+    period: data.period,
+    createdAt: new Date(),
+  }).returning();
+  return budget;
+}
+
+export async function getBudgetsByDepartment(department: string, year: number) {
+  return await db.select().from(departmentBudgets)
+    .where(and(
+      eq(departmentBudgets.department, department),
+      eq(departmentBudgets.year, year)
+    ))
+    .orderBy(departmentBudgets.period, departmentBudgets.month);
+}
+
+export async function getAllBudgets(year: number) {
+  return await db.select().from(departmentBudgets)
+    .where(eq(departmentBudgets.year, year))
+    .orderBy(departmentBudgets.department, departmentBudgets.period);
+}
+
+export async function updateBudget(id: string, allocatedAmount: number) {
+  const [budget] = await db.update(departmentBudgets)
+    .set({ allocatedAmount, updatedAt: new Date() })
+    .where(eq(departmentBudgets.id, id))
+    .returning();
+  return budget;
+}
+
+export async function deleteBudget(id: string) {
+  await db.delete(departmentBudgets).where(eq(departmentBudgets.id, id));
+}
+
+// Get department spending vs budget
+export async function getDepartmentBudgetAnalytics(department: string, year: number, period: 'monthly' | 'quarterly' | 'yearly') {
+  // Get budgets for the department
+  const budgets = await db.select().from(departmentBudgets)
+    .where(and(
+      eq(departmentBudgets.department, department),
+      eq(departmentBudgets.year, year),
+      eq(departmentBudgets.period, period)
+    ));
+
+  // Get actual spending from form submissions
+  const workflows = await db.select().from(workflowsTable)
+    .where(eq(workflowsTable.department, department));
+
+  const workflowIds = workflows.map(w => w.id);
+  
+  const submissions = workflowIds.length > 0 
+    ? await db.select().from(formSubmissions)
+        .where(sql`${formSubmissions.workflowId} IN ${workflowIds}`)
+    : [];
+
+  // Calculate spending by period
+  const spendingMap = new Map<string, number>();
+  
+  for (const submission of submissions) {
+    const formData = submission.formData as any;
+    let cost = 0;
+    
+    if (formData) {
+      const costFields = ['actualCost', 'price', 'amount', 'cost', 'total', 'totalAmount', 'totalCost'];
+      for (const field of costFields) {
+        if (formData[field] && !isNaN(Number(formData[field]))) {
+          cost = Number(formData[field]);
+          break;
+        }
+      }
+    }
+
+    if (cost > 0 && submission.submittedAt) {
+      const date = new Date(submission.submittedAt);
+      if (date.getFullYear() !== year) continue;
+
+      let periodKey: string;
+      if (period === 'monthly') {
+        periodKey = String(date.getMonth() + 1);
+      } else if (period === 'quarterly') {
+        periodKey = String(Math.floor(date.getMonth() / 3) + 1);
+      } else {
+        periodKey = 'year';
+      }
+
+      spendingMap.set(periodKey, (spendingMap.get(periodKey) || 0) + cost);
+    }
+  }
+
+  // Combine budgets with actual spending
+  const analytics = budgets.map(budget => {
+    let periodKey: string;
+    if (period === 'monthly') {
+      periodKey = String(budget.month);
+    } else if (period === 'quarterly') {
+      periodKey = String(budget.quarter);
+    } else {
+      periodKey = 'year';
+    }
+
+    const actualSpending = spendingMap.get(periodKey) || 0;
+    const percentage = budget.allocatedAmount > 0 
+      ? Math.round((actualSpending / budget.allocatedAmount) * 100)
+      : 0;
+
+    return {
+      id: budget.id,
+      period: periodKey,
+      periodLabel: period === 'monthly' ? `Month ${budget.month}` : 
+                   period === 'quarterly' ? `Q${budget.quarter}` : 
+                   `Year ${year}`,
+      allocatedAmount: budget.allocatedAmount,
+      actualSpending: Math.round(actualSpending),
+      percentage,
+      isOverBudget: actualSpending > budget.allocatedAmount,
+    };
+  });
+
+  return analytics;
+}
