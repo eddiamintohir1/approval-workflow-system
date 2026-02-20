@@ -88,6 +88,34 @@ export const appRouter = router({
         
         return { success: true };
       }),
+
+    // Switch role for test user only
+    switchRole: protectedProcedure
+      .input(
+        z.object({
+          role: z.enum(["CEO", "COO", "CFO", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "admin"]),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Only allow test user to switch roles
+        if (ctx.user.email !== "test@compawnion.co") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Role switching is only available for test user" });
+        }
+        
+        await db.updateUserRole(ctx.user.id, input.role);
+        
+        await db.createAuditLog({
+          entityType: "user",
+          entityId: ctx.user.id.toString(),
+          action: "role_switched",
+          actionDescription: `Test user switched role to ${input.role}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: input.role,
+        });
+        
+        return { success: true };
+      }),
   }),
 
   // ============================================

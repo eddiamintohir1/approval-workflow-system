@@ -21,8 +21,7 @@ export default function WorkflowCreate() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [department, setDepartment] = useState("");
-  const [estimatedAmount, setEstimatedAmount] = useState("");
-  const [currency, setCurrency] = useState("IDR");
+  // Price fields removed - will be added later by GA when receiving vendor quotes
   const [requiresGa, setRequiresGa] = useState(false);
   const [requiresPpic, setRequiresPpic] = useState(false);
 
@@ -54,8 +53,7 @@ export default function WorkflowCreate() {
       title: title.trim(),
       description: description.trim() || undefined,
       department: department.trim(),
-      estimatedAmount: estimatedAmount ? parseFloat(estimatedAmount) : undefined,
-      currency,
+      // Price fields will be added later by GA
       requiresGa,
       requiresPpic,
     });
@@ -164,35 +162,7 @@ export default function WorkflowCreate() {
                 </Select>
               </div>
 
-              {/* Estimated Amount */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="estimatedAmount">Estimated Amount</Label>
-                  <Input
-                    id="estimatedAmount"
-                    type="number"
-                    placeholder="0.00"
-                    value={estimatedAmount}
-                    onChange={(e) => setEstimatedAmount(e.target.value)}
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
-                  <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger id="currency">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="IDR">IDR</SelectItem>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="SGD">SGD</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              {/* Price fields removed - will be added later by GA when receiving vendor quotes */}
 
               {/* Additional Options */}
               <div className="space-y-4">

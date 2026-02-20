@@ -271,3 +271,11 @@
 - [x] Update MySQL connection pool with proper configuration (connection limit, keep-alive, wait for connections)
 - [x] Restart dev server and verify fix
 - [x] Test dashboard loads without API errors
+
+## Phase 17: Workflow Creation Revisions
+- [x] Remove "Estimated Amount" and "Currency" fields from WorkflowCreate form
+- [x] Update workflow schema to make price fields optional (added later by GA)
+- [x] Add role switcher UI component for test user
+- [x] Create backend endpoint to switch user role temporarily
+- [x] Test role switching functionality for all roles (admin, Finance, CFO, PPIC, Purchasing, GA, etc.)
+- [x] Verify approval permissions work correctly for each role

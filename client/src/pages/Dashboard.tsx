@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users } from "lucide-react";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
@@ -70,6 +71,8 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Role Switcher for test user */}
+      <RoleSwitcher />
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
