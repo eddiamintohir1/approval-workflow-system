@@ -1,0 +1,9 @@
+{
+  "query": "-- Add indexes for frequently queried fields in workflows table\nCREATE INDEX IF NOT EXISTS idx_workflows_requester_id ON workflows(requester_id);\nCREATE INDEX IF NOT EXISTS idx_workflows_overall_status ON workflows(overall_status);\nCREATE INDEX IF NOT EXISTS idx_workflows_created_at ON workflows(created_at DESC);\nCREATE INDEX IF NOT EXISTS idx_workflows_department ON workflows(department);\nCREATE INDEX IF NOT EXISTS idx_workflows_workflow_type ON workflows(workflow_type);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute -- Add indexes for frequently queried fields in workflows table\nCREATE INDEX IF NOT EXISTS idx_workflows_requester_id ON workflows(requester_id);\nCREATE INDEX IF NOT EXISTS idx_workflows_overall_status ON workflows(overall_status);\nCREATE INDEX IF NOT EXISTS idx_workflows_created_at ON workflows(created_at DESC);\nCREATE INDEX IF NOT EXISTS idx_workflows_department ON workflows(department);\nCREATE INDEX IF NOT EXISTS idx_workflows_workflow_type ON workflows(workflow_type);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 4522
+}

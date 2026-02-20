@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users } from "lucide-react";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { HelpButton } from "@/components/HelpButton";
+import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
@@ -27,13 +28,9 @@ export default function Dashboard() {
     window.location.href = "/";
   };
 
-  // Show loading spinner while auth is loading OR while user data is loading
+  // Show loading skeleton while auth is loading OR while user data is loading
   if (authLoading || workflowsLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // Only show auth required screen if auth is complete AND user is null

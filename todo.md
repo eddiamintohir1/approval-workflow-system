@@ -401,3 +401,9 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add breadcrumb trail to top of WorkflowDetail page
 - [x] Test Gantt chart visualization with workflow data
 - [x] Test breadcrumb trail showing current and next stages
+
+## Performance Optimization
+- [x] Analyze slow database queries and API endpoints
+- [x] Add database indexes for frequently queried fields (workflows table)
+- [x] Add loading skeleton for better perceived performance
+- [x] Test performance improvements
