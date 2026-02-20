@@ -125,7 +125,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          workflowType: z.enum(["MAF", "PR"]),
+          workflowType: z.enum(["MAF", "PR", "CATTO"]),
           title: z.string(),
           description: z.string().optional(),
           department: z.string(),
@@ -849,6 +849,61 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ============================================
+  // Sequence Generators
+  // ============================================
+  sequences: router({    getAll: adminProcedure.query(async () => {
+      return await db.getAllSequenceCounters();
+    }),
+
+    getByType: adminProcedure
+      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]) }))
+      .query(async ({ input }) => {
+        return await db.getSequenceCountersByType(input.type);
+      }),
+
+    generate: protectedProcedure
+      .input(z.object({ type: z.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]) }))
+      .mutation(async ({ input, ctx }) => {
+        const sequenceNumber = await db.generateSequenceNumber(input.type);
+        
+        await db.createAuditLog({
+          entityType: "sequence",
+          entityId: sequenceNumber,
+          action: "generated",
+          actionDescription: `${input.type} sequence number generated: ${sequenceNumber}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { sequenceNumber };
+      }),
+
+    reset: adminProcedure
+      .input(
+        z.object({
+          type: z.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]),
+          date: z.string(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.resetSequenceCounter(input.type, input.date);
+        
+        await db.createAuditLog({
+          entityType: "sequence",
+          entityId: `${input.type}-${input.date}`,
+          action: "reset",
+          actionDescription: `${input.type} sequence counter reset for ${input.date}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+  }),
 });
 
 // ============================================
@@ -857,7 +912,7 @@ export const appRouter = router({
 
 async function createInitialStages(
   workflowId: string,
-  workflowType: "MAF" | "PR",
+  workflowType: "MAF" | "PR" | "CATTO",
   estimatedAmount?: number
 ): Promise<void> {
   if (workflowType === "MAF") {
@@ -890,6 +945,23 @@ async function createInitialStages(
       { order: 1, name: "Department Head Review", type: "approval", role: "admin" },
       { order: 2, name: "Finance Review", type: "approval", role: "Finance" },
       { order: 3, name: "CFO Approval", type: "approval", role: "CFO" },
+    ];
+    
+    for (const stage of stages) {
+      await db.createWorkflowStage({
+        workflowId,
+        stageOrder: stage.order,
+        stageName: stage.name,
+        stageType: stage.type,
+        requiredRole: stage.role,
+      });
+    }
+  } else if (workflowType === "CATTO") {
+    // CATTO (Capital Approval) workflow stages
+    const stages = [
+      { order: 1, name: "Finance Review", type: "approval", role: "Finance" },
+      { order: 2, name: "CFO Approval", type: "approval", role: "CFO" },
+      { order: 3, name: "CEO Approval", type: "approval", role: "CEO" },
     ];
     
     for (const stage of stages) {

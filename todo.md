@@ -40,12 +40,12 @@
 - [x] Implement form download functionality
 
 ## Phase 6: Sequence Generators
-- [ ] Build SKU sequence generator with custom restrictions
-- [ ] Build PAF sequence generator with custom restrictions
-- [ ] Build MAF sequence generator with custom restrictions
-- [ ] Implement CSV export for sequences
-- [ ] Create sequence history tracking
-- [ ] Add auto-generation on project creation
+- [x] Build SKU sequence generator with custom restrictions
+- [x] Build PAF sequence generator with custom restrictions
+- [x] Build MAF sequence generator with custom restrictions
+- [x] Implement CSV export for sequences
+- [x] Create sequence history tracking
+- [x] Add auto-generation on workflow creation
 
 ## Phase 7: Email Notifications
 - [ ] Set up Resend API integration

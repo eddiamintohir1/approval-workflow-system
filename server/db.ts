@@ -154,7 +154,7 @@ export async function updateUserStatus(userId: number, isActive: boolean): Promi
 // ============================================
 
 export async function createWorkflow(workflow: {
-  workflowType: "MAF" | "PR";
+  workflowType: "MAF" | "PR" | "CATTO";
   title: string;
   description?: string;
   requesterId: number;
@@ -546,7 +546,7 @@ export async function getAuditLogsByEntity(
 // Sequence Number Generation
 // ============================================
 
-async function generateWorkflowNumber(type: "MAF" | "PR"): Promise<string> {
+async function generateWorkflowNumber(type: "MAF" | "PR" | "CATTO" | "SKU" | "PAF"): Promise<string> {
   const today = new Date();
   const dateStr = today.toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
   
@@ -610,6 +610,49 @@ export async function getAllEmailRecipients(): Promise<schema.EmailRecipient[]> 
     .select()
     .from(schema.emailRecipients)
     .where(eq(schema.emailRecipients.isActive, true));
+}
+
+// ============================================
+// Sequence Management (Public API)
+// ============================================
+
+export async function getAllSequenceCounters() {
+  return await db
+    .select()
+    .from(schema.sequenceCounters)
+    .orderBy(desc(schema.sequenceCounters.createdAt));
+}
+
+export async function getSequenceCountersByType(type: "MAF" | "PR" | "CATTO" | "SKU" | "PAF") {
+  return await db
+    .select()
+    .from(schema.sequenceCounters)
+    .where(eq(schema.sequenceCounters.sequenceType, type))
+    .orderBy(desc(schema.sequenceCounters.sequenceDate));
+}
+
+export async function generateSequenceNumber(type: "MAF" | "PR" | "CATTO" | "SKU" | "PAF"): Promise<string> {
+  return await generateWorkflowNumber(type);
+}
+
+export async function resetSequenceCounter(type: "MAF" | "PR" | "CATTO" | "SKU" | "PAF", date: string) {
+  const [counter] = await db
+    .select()
+    .from(schema.sequenceCounters)
+    .where(
+      and(
+        eq(schema.sequenceCounters.sequenceType, type),
+        eq(schema.sequenceCounters.sequenceDate, date)
+      )
+    )
+    .limit(1);
+
+  if (counter) {
+    await db
+      .update(schema.sequenceCounters)
+      .set({ currentCounter: 0 })
+      .where(eq(schema.sequenceCounters.id, counter.id));
+  }
 }
 
 // ============================================

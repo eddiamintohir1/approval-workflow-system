@@ -311,7 +311,7 @@ export const sequenceCounters = mysqlTable("sequence_counters", {
   id: varchar("id", { length: 36 }).primaryKey(),
   
   // Sequence identification
-  sequenceType: mysqlEnum("sequence_type", ["MAF", "PR"]).notNull(),
+  sequenceType: mysqlEnum("sequence_type", ["MAF", "PR", "CATTO", "SKU", "PAF"]).notNull(),
   sequenceDate: varchar("sequence_date", { length: 10 }).notNull(), // YYYY-MM-DD format
   
   // Counter
