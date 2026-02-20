@@ -16,7 +16,14 @@ export type EmailRecipient = schema.EmailRecipient;
 export type SequenceCounter = schema.SequenceCounter;
 
 // Database connection
-const connection = mysql.createPool(process.env.DATABASE_URL!);
+const connection = mysql.createPool({
+  uri: process.env.DATABASE_URL!,
+  connectionLimit: 10,
+  waitForConnections: true,
+  queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0,
+});
 export const db = drizzle(connection, { schema, mode: "default" });
 
 // ============================================

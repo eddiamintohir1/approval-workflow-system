@@ -265,3 +265,9 @@
 - [x] Upload PR02.2026.xlsx to S3 storage
 - [x] Update WorkflowCreate.tsx to show download buttons for form templates
 - [x] Test form download functionality
+
+## Phase 16: Fix tRPC API Error (ECONNRESET)
+- [x] Diagnose database connection reset error
+- [x] Update MySQL connection pool with proper configuration (connection limit, keep-alive, wait for connections)
+- [x] Restart dev server and verify fix
+- [x] Test dashboard loads without API errors
