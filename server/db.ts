@@ -263,6 +263,27 @@ export async function archiveWorkflow(workflowId: string): Promise<void> {
     .where(eq(schema.workflows.id, workflowId));
 }
 
+export async function deleteWorkflow(workflowId: string): Promise<void> {
+  // Delete all related data first (cascade delete)
+  // 1. Delete workflow files
+  await db.delete(schema.workflowFiles).where(eq(schema.workflowFiles.workflowId, workflowId));
+  
+  // 2. Delete workflow comments
+  await db.delete(schema.workflowComments).where(eq(schema.workflowComments.workflowId, workflowId));
+  
+  // 3. Delete workflow approvals
+  await db.delete(schema.workflowApprovals).where(eq(schema.workflowApprovals.workflowId, workflowId));
+  
+  // 4. Delete form submissions
+  await db.delete(schema.formSubmissions).where(eq(schema.formSubmissions.workflowId, workflowId));
+  
+  // 5. Delete workflow stages
+  await db.delete(schema.workflowStages).where(eq(schema.workflowStages.workflowId, workflowId));
+  
+  // 6. Finally delete the workflow itself
+  await db.delete(schema.workflows).where(eq(schema.workflows.id, workflowId));
+}
+
 // ============================================
 // Workflow Stage Management
 // ============================================

@@ -486,3 +486,20 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add yearly cost breakdown by department (from form price fields)
 - [x] Display completion time metrics with visual charts
 - [x] Display cost metrics with visual charts
+
+
+## Phase 33: Admin Workflow Deletion
+- [ ] Create delete workflow backend endpoint (admin-only)
+- [ ] Add cascade delete for related data (stages, files, approvals, comments, audit logs)
+- [ ] Add delete button to workflow list (visible only to admin)
+- [ ] Add confirmation dialog before deletion
+- [ ] Show success/error toast after deletion
+- [ ] Refresh workflow list after deletion
+
+
+## Phase 33: Admin Workflow Deletion
+- [x] Add delete workflow backend endpoint (admin-only)
+- [x] Create deleteWorkflow function in db.ts with cascade deletion
+- [x] Add delete button to workflow list (visible to admin only)
+- [x] Add confirmation dialog before deletion
+- [x] Show success/error toast messages

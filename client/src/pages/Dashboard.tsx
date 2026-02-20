@@ -7,7 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit } from "lucide-react";
+import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { HelpButton } from "@/components/HelpButton";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
@@ -16,12 +27,45 @@ export default function Dashboard() {
   const { signOut } = useCognitoAuth();
   const { user, loading: authLoading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
+  const utils = trpc.useUtils();
 
   // Fetch workflows
   const { data: workflows, isLoading: workflowsLoading } = trpc.workflows.getAll.useQuery(
     undefined,
     { enabled: !!user }
   );
+
+  // Delete workflow mutation
+  const deleteWorkflow = trpc.workflows.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Workflow deleted", {
+        description: "The workflow has been permanently deleted.",
+      });
+      utils.workflows.getAll.invalidate();
+      setDeleteDialogOpen(false);
+      setWorkflowToDelete(null);
+    },
+    onError: (error) => {
+      toast.error("Error", {
+        description: error.message,
+      });
+    },
+  });
+
+  const handleDeleteClick = (e: React.MouseEvent, workflowId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setWorkflowToDelete(workflowId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (workflowToDelete) {
+      deleteWorkflow.mutate({ id: workflowToDelete });
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -238,11 +282,11 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {filteredWorkflows.map((workflow) => (
-                  <Link key={workflow.id} href={`/workflows/${workflow.id}`}>
-                    <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
+                  <Card key={workflow.id} className="hover:bg-accent/50 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <Link href={`/workflows/${workflow.id}`} className="flex-1 cursor-pointer">
+                          <div>
                             <div className="flex items-center gap-3 mb-2">
                               <Badge variant={workflow.workflowType === "MAF" ? "default" : "secondary"}>
                                 {workflow.workflowType}
@@ -270,10 +314,20 @@ export default function Dashboard() {
                               </span>
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                        </Link>
+                        {user.role === "admin" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => handleDeleteClick(e, workflow.id)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}
@@ -287,6 +341,34 @@ export default function Dashboard() {
           © Eddie Amintohir. All rights reserved.
         </div>
       </footer>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Workflow?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the workflow and all related data (stages, files, approvals, comments).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteWorkflow.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Help Button */}
       <HelpButton />

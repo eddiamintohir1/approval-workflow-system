@@ -418,6 +418,35 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        // Only admin can delete workflows
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can delete workflows" });
+        }
+        
+        const workflow = await db.getWorkflowById(input.id);
+        if (!workflow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+        }
+        
+        // Delete workflow and all related data (cascade)
+        await db.deleteWorkflow(input.id);
+        
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: input.id,
+          action: "deleted",
+          actionDescription: `Workflow permanently deleted: ${workflow.title}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+
     updateStatus: protectedProcedure
       .input(
         z.object({
