@@ -289,18 +289,30 @@ export default function WorkflowDetail() {
                           <p className="text-sm font-medium">Uploaded Files:</p>
                           {files && files.filter(f => f.stageId === stage.id).length > 0 ? (
                             files.filter(f => f.stageId === stage.id).map((file) => (
-                              <div key={file.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                                <div className="flex items-center gap-2">
-                                  <FileText className="h-4 w-4" />
-                                  <span className="text-sm">{file.fileName}</span>
+                              <div key={file.id} className="p-3 bg-muted/50 rounded border">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium">{file.fileName}</p>
+                                      <div className="flex items-center gap-3 mt-1">
+                                        <span className="text-xs text-muted-foreground">
+                                          Uploaded by {(file as any).uploaderName || 'Unknown'}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {format(new Date(file.uploadedAt), "MMM dd, yyyy h:mm a")}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => window.open(file.s3Url || '', "_blank")}
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => window.open(file.fileUrl, "_blank")}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
                               </div>
                             ))
                           ) : (
@@ -330,7 +342,7 @@ export default function WorkflowDetail() {
                                 ) : (
                                   <Upload className="h-4 w-4 mr-1" />
                                 )}
-                                Upload File
+                                {files && files.filter(f => f.stageId === stage.id).length > 0 ? 'Add Another File' : 'Upload File'}
                               </Button>
                               <Button
                                 size="sm"

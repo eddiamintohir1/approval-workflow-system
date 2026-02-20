@@ -436,12 +436,26 @@ export async function createWorkflowFile(file: {
   return newFile;
 }
 
-export async function getFilesByWorkflow(workflowId: string): Promise<schema.WorkflowFile[]> {
-  return await db
-    .select()
+export async function getFilesByWorkflow(workflowId: string) {
+  const files = await db
+    .select({
+      file: schema.workflowFiles,
+      uploader: {
+        id: schema.users.id,
+        fullName: schema.users.fullName,
+        email: schema.users.email,
+      },
+    })
     .from(schema.workflowFiles)
+    .leftJoin(schema.users, eq(schema.workflowFiles.uploadedBy, schema.users.id))
     .where(eq(schema.workflowFiles.workflowId, workflowId))
     .orderBy(desc(schema.workflowFiles.uploadedAt));
+  
+  return files.map(({ file, uploader }) => ({
+    ...file,
+    uploaderName: uploader?.fullName || uploader?.email || 'Unknown',
+    uploaderEmail: uploader?.email,
+  }));
 }
 
 export async function getFilesByStage(stageId: string): Promise<schema.WorkflowFile[]> {
