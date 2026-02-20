@@ -407,3 +407,9 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add database indexes for frequently queried fields (workflows table)
 - [x] Add loading skeleton for better perceived performance
 - [x] Test performance improvements
+
+## Fix tRPC Mutation Error on Workflow Detail Page
+- [x] Investigate the error and identify which mutation is failing
+- [x] Check Zod schema validation in the problematic endpoint
+- [x] Fix the schema validation issue (added missing Zod import)
+- [x] Test the fix on workflow detail page
