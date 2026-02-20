@@ -1235,42 +1235,140 @@ export const appRouter = router({
   templates: templatesRouter,
 
   // ============================================
-  // Excel Template Download
+  // Excel Template Management
   // ============================================
-  excel: router({
-    downloadTemplate: protectedProcedure
-      .input(z.object({ workflowType: z.enum(["MAF", "PR", "CATTO"]) }))
+  excelTemplates: router({
+    create: protectedProcedure
+      .input(z.object({
+        workflowType: z.string(),
+        templateName: z.string(),
+        description: z.string().optional(),
+        fileUrl: z.string(),
+        fileKey: z.string(),
+        fileName: z.string(),
+        fileSize: z.number().optional(),
+      }))
       .mutation(async ({ input, ctx }) => {
-        const fs = await import("fs/promises");
-        const path = await import("path");
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         
-        let templateFile: string;
-        if (input.workflowType === "MAF") {
-          templateFile = "MAF02.2026.xlsx";
-        } else if (input.workflowType === "PR") {
-          templateFile = "PR02.2026.xlsx";
-        } else {
-          templateFile = "CattoPAF02.2026.xlsx";
-        }
-        
-        const templatePath = path.join(process.cwd(), "templates", templateFile);
-        const buffer = await fs.readFile(templatePath);
-        const base64 = buffer.toString("base64");
+        const result = await db.createExcelTemplate({
+          ...input,
+          uploadedBy: ctx.user.id,
+        });
         
         await db.createAuditLog({
-          entityType: "template",
-          entityId: input.workflowType,
-          action: "template_downloaded",
-          actionDescription: `${input.workflowType} template downloaded`,
+          entityType: "excel_template",
+          entityId: result.insertId?.toString() || "unknown",
+          action: "created",
+          actionDescription: `Excel template created: ${input.templateName}`,
           actorId: ctx.user.id,
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
         
-        return {
-          filename: templateFile,
-          data: base64,
-        };
+        return result;
+      }),
+
+    getAll: protectedProcedure
+      .query(async () => {
+        return await db.getAllExcelTemplates();
+      }),
+
+    getActive: protectedProcedure
+      .query(async () => {
+        return await db.getActiveExcelTemplates();
+      }),
+
+    getByWorkflowType: protectedProcedure
+      .input(z.object({ workflowType: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getExcelTemplateByWorkflowType(input.workflowType);
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        templateName: z.string().optional(),
+        description: z.string().optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...updates } = input;
+        await db.updateExcelTemplate(id, updates);
+        
+        await db.createAuditLog({
+          entityType: "excel_template",
+          entityId: id.toString(),
+          action: "updated",
+          actionDescription: `Excel template updated`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteExcelTemplate(input.id);
+        
+        await db.createAuditLog({
+          entityType: "excel_template",
+          entityId: input.id.toString(),
+          action: "deleted",
+          actionDescription: `Excel template deleted`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+
+    uploadFile: protectedProcedure
+      .input(z.object({
+        workflowType: z.string(),
+        templateName: z.string(),
+        description: z.string().optional(),
+        filename: z.string(),
+        fileData: z.string(), // base64 encoded
+        fileSize: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+        
+        // Convert base64 to buffer
+        const fileBuffer = Buffer.from(input.fileData, "base64");
+        
+        // Upload to S3
+        const fileKey = `excel-templates/${input.workflowType}/${Date.now()}-${input.filename}`;
+        const { url } = await storagePut(fileKey, fileBuffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        
+        // Save to database
+        const result = await db.createExcelTemplate({
+          workflowType: input.workflowType,
+          templateName: input.templateName,
+          description: input.description,
+          fileUrl: url,
+          fileKey: fileKey,
+          fileName: input.filename,
+          fileSize: input.fileSize,
+          uploadedBy: ctx.user.id,
+        });
+        
+        await db.createAuditLog({
+          entityType: "excel_template",
+          entityId: result.insertId?.toString() || "unknown",
+          action: "uploaded",
+          actionDescription: `Excel template uploaded: ${input.templateName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true, url };
       }),
   }),
 });

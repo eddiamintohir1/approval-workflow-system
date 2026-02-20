@@ -1529,3 +1529,102 @@ export async function getDepartmentBudgetAnalytics(department: string, year: num
 
   return analytics;
 }
+
+
+// ============================================
+// Excel Template Management
+// ============================================
+
+export async function createExcelTemplate(template: {
+  workflowType: string;
+  templateName: string;
+  description?: string;
+  fileUrl: string;
+  fileKey: string;
+  fileName: string;
+  fileSize?: number;
+  uploadedBy: number;
+}) {
+  const [result] = await db.insert(schema.excelTemplates).values({
+    ...template,
+    uploadedAt: new Date(),
+    isActive: true,
+  });
+  return result;
+}
+
+export async function getAllExcelTemplates() {
+  return await db
+    .select({
+      id: schema.excelTemplates.id,
+      workflowType: schema.excelTemplates.workflowType,
+      templateName: schema.excelTemplates.templateName,
+      description: schema.excelTemplates.description,
+      fileUrl: schema.excelTemplates.fileUrl,
+      fileKey: schema.excelTemplates.fileKey,
+      fileName: schema.excelTemplates.fileName,
+      fileSize: schema.excelTemplates.fileSize,
+      uploadedAt: schema.excelTemplates.uploadedAt,
+      isActive: schema.excelTemplates.isActive,
+      uploaderName: schema.users.fullName,
+      uploaderEmail: schema.users.email,
+    })
+    .from(schema.excelTemplates)
+    .leftJoin(schema.users, eq(schema.excelTemplates.uploadedBy, schema.users.id))
+    .orderBy(desc(schema.excelTemplates.uploadedAt));
+}
+
+export async function getActiveExcelTemplates() {
+  return await db
+    .select({
+      id: schema.excelTemplates.id,
+      workflowType: schema.excelTemplates.workflowType,
+      templateName: schema.excelTemplates.templateName,
+      description: schema.excelTemplates.description,
+      fileUrl: schema.excelTemplates.fileUrl,
+      fileName: schema.excelTemplates.fileName,
+      fileSize: schema.excelTemplates.fileSize,
+      uploadedAt: schema.excelTemplates.uploadedAt,
+      isActive: schema.excelTemplates.isActive,
+    })
+    .from(schema.excelTemplates)
+    .where(eq(schema.excelTemplates.isActive, true))
+    .orderBy(desc(schema.excelTemplates.uploadedAt));
+}
+
+export async function getExcelTemplateByWorkflowType(workflowType: string) {
+  const [template] = await db
+    .select()
+    .from(schema.excelTemplates)
+    .where(and(
+      eq(schema.excelTemplates.workflowType, workflowType),
+      eq(schema.excelTemplates.isActive, true)
+    ))
+    .orderBy(desc(schema.excelTemplates.uploadedAt))
+    .limit(1);
+  return template || null;
+}
+
+export async function getExcelTemplateById(id: number) {
+  const [template] = await db
+    .select()
+    .from(schema.excelTemplates)
+    .where(eq(schema.excelTemplates.id, id))
+    .limit(1);
+  return template || null;
+}
+
+export async function updateExcelTemplate(id: number, updates: {
+  templateName?: string;
+  description?: string;
+  isActive?: boolean;
+}) {
+  await db
+    .update(schema.excelTemplates)
+    .set(updates)
+    .where(eq(schema.excelTemplates.id, id));
+}
+
+export async function deleteExcelTemplate(id: number) {
+  await db.delete(schema.excelTemplates).where(eq(schema.excelTemplates.id, id));
+}

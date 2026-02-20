@@ -17,6 +17,7 @@ import SequenceGenerator from "./pages/admin/SequenceGenerator";
 import Analytics from "./pages/Analytics";
 import TemplateBuilder from "./pages/templates/TemplateBuilder";
 import TemplateList from "./pages/templates/TemplateList";
+import ExcelTemplates from "./pages/ExcelTemplates";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
@@ -80,6 +81,9 @@ function Router() {
       </Route>
       <Route path="/templates/builder">
         <ProtectedRoute component={TemplateBuilder} path="/templates/builder" />
+      </Route>
+      <Route path="/admin/excel-templates">
+        <ProtectedRoute component={ExcelTemplates} path="/admin/excel-templates" />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

@@ -70,30 +70,20 @@ export default function WorkflowDetail() {
     },
   });
 
-  const downloadTemplate = trpc.excel.downloadTemplate.useMutation({
-    onSuccess: (data) => {
-      // Convert base64 to blob and download
-      const byteCharacters = atob(data.data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = data.filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success("Template downloaded successfully");
-    },
-    onError: (error) => {
-      toast.error(`Download failed: ${error.message}`);
-    },
-  });
+  // Query to get Excel template for this workflow type
+  const { data: excelTemplate } = trpc.excelTemplates.getByWorkflowType.useQuery(
+    { workflowType: workflow?.workflowType || "" },
+    { enabled: !!workflow?.workflowType }
+  );
+
+  const handleDownloadTemplate = () => {
+    if (excelTemplate?.fileUrl) {
+      window.open(excelTemplate.fileUrl, "_blank");
+      toast.success("Opening template in new tab");
+    } else {
+      toast.error("No template available for this workflow type");
+    }
+  };
 
   const handleFileUpload = async (stageId: string, file: File) => {
     const reader = new FileReader();
@@ -215,19 +205,16 @@ export default function WorkflowDetail() {
                       <CardDescription>{workflow.description}</CardDescription>
                     )}
                   </div>
-                  <Button
-                    onClick={() => downloadTemplate.mutate({ workflowType: workflow.workflowType as "MAF" | "PR" | "CATTO" })}
-                    variant="outline"
-                    size="sm"
-                    disabled={downloadTemplate.isPending}
-                  >
-                    {downloadTemplate.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
+                  {excelTemplate && (
+                    <Button
+                      onClick={handleDownloadTemplate}
+                      variant="outline"
+                      size="sm"
+                    >
                       <Download className="h-4 w-4 mr-2" />
-                    )}
-                    Download {workflow.workflowType} Template
-                  </Button>
+                      Download {excelTemplate.templateName}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>

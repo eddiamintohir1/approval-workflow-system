@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2 } from "lucide-react";
+import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -145,6 +145,12 @@ export default function Dashboard() {
                   <Button variant="outline" size="sm">
                     <FileText className="h-4 w-4 mr-2" />
                     Form Templates
+                  </Button>
+                </Link>
+                <Link href="/admin/excel-templates">
+                  <Button variant="outline" size="sm">
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Excel Templates
                   </Button>
                 </Link>
               </>

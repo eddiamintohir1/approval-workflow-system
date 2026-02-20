@@ -518,3 +518,27 @@ export const departmentBudgets = mysqlTable("department_budgets", {
 
 export type DepartmentBudget = typeof departmentBudgets.$inferSelect;
 export type InsertDepartmentBudget = typeof departmentBudgets.$inferInsert;
+
+
+/**
+ * =====================================================
+ * EXCEL_TEMPLATES TABLE
+ * Manage downloadable Excel template files
+ * =====================================================
+ */
+export const excelTemplates = mysqlTable("excel_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  workflowType: varchar("workflow_type", { length: 100 }).notNull(), // MAF, PR, Reimbursement, etc.
+  templateName: varchar("template_name", { length: 255 }).notNull(),
+  description: text("description"),
+  fileUrl: text("file_url").notNull(),
+  fileKey: varchar("file_key", { length: 1000 }).notNull(),
+  fileName: varchar("file_name", { length: 500 }).notNull(),
+  fileSize: bigint("file_size", { mode: "number" }),
+  uploadedBy: int("uploaded_by").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+});
+
+export type ExcelTemplate = typeof excelTemplates.$inferSelect;
+export type InsertExcelTemplate = typeof excelTemplates.$inferInsert;

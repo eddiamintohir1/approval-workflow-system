@@ -531,3 +531,27 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add monthly/quarterly/yearly view toggles
 - [x] Display spending vs allocated budget with percentage indicators
 - [x] Add budget overspend warnings (red indicators)
+
+
+## Phase 36: Excel Template Management System
+- [ ] Create excel_templates database table (workflow_type, template_name, file_url, file_key, uploaded_by, uploaded_at)
+- [ ] Build backend API for Excel template CRUD operations
+- [ ] Create Excel template management admin page with upload functionality
+- [ ] Add navigation button in Dashboard sidebar for Excel Template Management (admin only)
+- [ ] Update workflow detail page to show "Download [Type] Template" button
+- [ ] Implement file download functionality for Excel templates
+- [ ] Add upload timestamp and uploader name display
+
+## Phase 20: Excel Template Management System
+
+- [x] Create excel_templates database table with schema
+- [x] Implement backend database helper functions (create, read, update, delete)
+- [x] Create tRPC router for Excel template CRUD operations
+- [x] Build admin UI page for template management (/admin/excel-templates)
+- [x] Add Excel template upload functionality with S3 storage
+- [x] Implement template list view with edit/delete actions
+- [x] Add navigation button in Dashboard for executives (CEO, COO, CFO, admin)
+- [x] Integrate template download into WorkflowDetail page
+- [x] Display download button based on workflow type
+- [x] Write comprehensive unit tests for Excel template management
+- [x] All tests passing (6/6 tests)
