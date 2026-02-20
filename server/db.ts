@@ -960,3 +960,46 @@ export async function getWorkflowCompletionTrend(days: number = 30) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+export async function getWorkflowTimeline() {
+  const workflows = await db.select().from(schema.workflows).orderBy(desc(schema.workflows.createdAt));
+  
+  const timelineData = await Promise.all(
+    workflows.map(async (workflow) => {
+      // Get all stages for this workflow
+      const stages = await db
+        .select()
+        .from(schema.workflowStages)
+        .where(eq(schema.workflowStages.workflowId, workflow.id))
+        .orderBy(schema.workflowStages.stageOrder);
+      
+      // Calculate stage durations
+      const stageTimeline = stages.map((stage, index) => {
+        const startDate = stage.createdAt;
+        const endDate = stage.completedAt || new Date();
+        const duration = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+        
+        return {
+          stageName: stage.stageName,
+          status: stage.status,
+          startDate,
+          endDate: stage.completedAt,
+          duration,
+          stageOrder: stage.stageOrder,
+        };
+      });
+      
+      return {
+        id: workflow.id,
+        workflowNumber: workflow.workflowNumber,
+        title: workflow.title,
+        type: workflow.type,
+        overallStatus: workflow.overallStatus,
+        createdAt: workflow.createdAt,
+        updatedAt: workflow.updatedAt,
+        stages: stageTimeline,
+      };
+    })
+  );
+  
+  return timelineData;
+}

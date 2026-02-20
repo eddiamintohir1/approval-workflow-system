@@ -394,3 +394,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Restore help button functionality
 - [x] Locate analytics page
 - [x] Test analytics page functionality
+
+## Add Gantt Chart and Breadcrumb Trail
+- [x] Add Gantt chart to Analytics page showing workflow progress timeline
+- [x] Create breadcrumb/progress trail component for workflow stages
+- [x] Add breadcrumb trail to top of WorkflowDetail page
+- [x] Test Gantt chart visualization with workflow data
+- [x] Test breadcrumb trail showing current and next stages

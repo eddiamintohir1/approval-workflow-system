@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useCognitoAuth } from "@/hooks/useCognitoAuth";
 import { AuditTrail } from "@/components/AuditTrail";
 import { HelpButton } from "@/components/HelpButton";
+import { WorkflowProgressTrail } from "@/components/WorkflowProgressTrail";
 import { format } from "date-fns";
 
 export default function WorkflowDetail() {
@@ -197,6 +198,19 @@ export default function WorkflowDetail() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Progress Trail */}
+            {stages && stages.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Approval Progress</CardTitle>
+                  <CardDescription>Track the workflow through each approval stage</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <WorkflowProgressTrail stages={stages} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Approval Stages */}
             <Card>

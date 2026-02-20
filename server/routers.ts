@@ -998,6 +998,10 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return await db.getWorkflowCompletionTrend(input.days);
       }),
+
+    timeline: protectedProcedure.query(async () => {
+      return await db.getWorkflowTimeline();
+    }),
   }),
 });
 

@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3, TrendingUp, CheckCircle2, XCircle, Clock, FileText } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { WorkflowGanttChart } from "@/components/WorkflowGanttChart";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -12,8 +13,9 @@ export default function Analytics() {
   const { data: byStatus, isLoading: byStatusLoading } = trpc.analytics.byStatus.useQuery();
   const { data: avgTimeByType, isLoading: avgTimeLoading } = trpc.analytics.avgTimeByType.useQuery();
   const { data: completionTrend, isLoading: trendLoading } = trpc.analytics.completionTrend.useQuery({ days: 30 });
+  const { data: timeline, isLoading: timelineLoading } = trpc.analytics.timeline.useQuery();
 
-  const isLoading = overviewLoading || byTypeLoading || byDepartmentLoading || byStatusLoading || avgTimeLoading || trendLoading;
+  const isLoading = overviewLoading || byTypeLoading || byDepartmentLoading || byStatusLoading || avgTimeLoading || trendLoading || timelineLoading;
 
   if (isLoading) {
     return (
@@ -181,6 +183,9 @@ export default function Analytics() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Workflow Timeline Gantt Chart */}
+      {timeline && <WorkflowGanttChart data={timeline} />}
 
       {/* Completion Trend */}
       <Card className="bg-card/95 backdrop-blur">
