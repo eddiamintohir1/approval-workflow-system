@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -105,6 +105,21 @@ export default function WorkflowCreate() {
                     ? "Material Authorization Form for material requests"
                     : "Purchase Request for procurement"}
                 </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    const url = workflowType === "MAF" 
+                      ? "https://files.manuscdn.com/user_upload_by_module/session_file/94657144/ilFCYhWqzCJOhOQm.xlsx"
+                      : "https://files.manuscdn.com/user_upload_by_module/session_file/94657144/rJwIBgYgrgdNufqM.xlsx";
+                    window.open(url, "_blank");
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download {workflowType} Form Template
+                </Button>
               </div>
 
               {/* Title */}
