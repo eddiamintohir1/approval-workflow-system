@@ -438,3 +438,9 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Implement Excel template download for CATTO workflows
 - [x] Add download button to workflow detail page
 - [x] Test all new features end-to-end
+
+## Fix Recurring Zod Import Error
+- [x] Verify Zod import exists in routers.ts
+- [x] Check for missing Zod imports in other router files
+- [x] Fix the import issue permanently
+- [x] Test workflow detail page to confirm fix works
