@@ -233,6 +233,70 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    discontinue: protectedProcedure
+      .input(z.object({ 
+        id: z.string(),
+        reason: z.string().optional()
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const workflow = await db.getWorkflowById(input.id);
+        if (!workflow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+        }
+        
+        // Only requester or admin can discontinue
+        if (workflow.requesterId !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to discontinue this workflow" });
+        }
+        
+        // Cannot discontinue already completed or discontinued workflows
+        if (["completed", "discontinued", "archived"].includes(workflow.overallStatus)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot discontinue ${workflow.overallStatus} workflow` });
+        }
+        
+        await db.discontinueWorkflow(input.id, input.reason);
+        
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: input.id,
+          action: "discontinued",
+          actionDescription: `Workflow discontinued${input.reason ? `: ${input.reason}` : ''}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+
+    archive: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const workflow = await db.getWorkflowById(input.id);
+        if (!workflow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+        }
+        
+        // Only admin can archive
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can archive workflows" });
+        }
+        
+        await db.archiveWorkflow(input.id);
+        
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: input.id,
+          action: "archived",
+          actionDescription: "Workflow archived",
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+
     updateStatus: protectedProcedure
       .input(
         z.object({

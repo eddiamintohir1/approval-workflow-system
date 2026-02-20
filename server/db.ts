@@ -239,6 +239,30 @@ export async function submitWorkflow(workflowId: string): Promise<void> {
     .where(eq(schema.workflows.id, workflowId));
 }
 
+export async function discontinueWorkflow(
+  workflowId: string,
+  reason?: string
+): Promise<void> {
+  await db
+    .update(schema.workflows)
+    .set({
+      overallStatus: "discontinued",
+      completedAt: new Date(),
+      metadata: sql`JSON_SET(COALESCE(metadata, '{}'), '$.discontinuedReason', ${reason || 'No reason provided'}, '$.discontinuedAt', ${new Date().toISOString()})`,
+    })
+    .where(eq(schema.workflows.id, workflowId));
+}
+
+export async function archiveWorkflow(workflowId: string): Promise<void> {
+  await db
+    .update(schema.workflows)
+    .set({
+      overallStatus: "archived",
+      metadata: sql`JSON_SET(COALESCE(metadata, '{}'), '$.archivedAt', ${new Date().toISOString()})`,
+    })
+    .where(eq(schema.workflows.id, workflowId));
+}
+
 // ============================================
 // Workflow Stage Management
 // ============================================

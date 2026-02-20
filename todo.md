@@ -319,3 +319,12 @@
 - [ ] Test creating MAF workflow with form template
 - [ ] Test creating PR workflow with form template
 - [ ] Test creating CATTO workflow with form template
+
+## Phase 9: Discontinue Project Flow (Current)
+- [x] Update workflow schema to add discontinued/archived status
+- [x] Create backend endpoint for discontinuing workflows
+- [x] Build discontinue workflow modal with warning message
+- [x] Add visual indicators (badges, colors) for discontinued workflows
+- [x] Prevent modifications (approve, reject, upload) to discontinued workflows
+- [x] Add "Discontinue Workflow" button to workflow detail page
+- [x] Test complete discontinue flow with warnings and restrictions

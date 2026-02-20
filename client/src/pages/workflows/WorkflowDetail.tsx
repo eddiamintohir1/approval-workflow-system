@@ -3,6 +3,9 @@ import { trpc } from "@/lib/trpc";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowLeft, FileText, CheckCircle2, Clock, XCircle, AlertCircle, Upload, Download } from "lucide-react";
 import { FormSubmissionDisplay } from "@/components/FormSubmissionDisplay";
@@ -13,6 +16,8 @@ export default function WorkflowDetail() {
   const { id } = useParams();
   const { user } = useUserRole();
   const [selectedStageForUpload, setSelectedStageForUpload] = useState<string | null>(null);
+  const [discontinueDialogOpen, setDiscontinueDialogOpen] = useState(false);
+  const [discontinueReason, setDiscontinueReason] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, refetch } = trpc.workflows.getWithDetails.useQuery(
@@ -47,6 +52,18 @@ export default function WorkflowDetail() {
     },
     onError: (error) => {
       toast.error(error.message || "Failed to reject stage");
+    },
+  });
+
+  const discontinueWorkflow = trpc.workflows.discontinue.useMutation({
+    onSuccess: () => {
+      toast.success("Workflow discontinued");
+      setDiscontinueDialogOpen(false);
+      setDiscontinueReason("");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to discontinue workflow");
     },
   });
 
@@ -194,17 +211,28 @@ export default function WorkflowDetail() {
                   <CardDescription>{workflow.description}</CardDescription>
                 )}
               </div>
-              {workflow.overallStatus === "draft" && workflow.requesterId === user?.id && (
-                <Button
-                  onClick={() => submitWorkflow.mutate({ id: workflow.id })}
-                  disabled={submitWorkflow.isPending}
-                >
-                  {submitWorkflow.isPending && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
-                  Submit for Approval
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {workflow.overallStatus === "draft" && workflow.requesterId === user?.id && (
+                  <Button
+                    onClick={() => submitWorkflow.mutate({ id: workflow.id })}
+                    disabled={submitWorkflow.isPending}
+                  >
+                    {submitWorkflow.isPending && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    Submit for Approval
+                  </Button>
+                )}
+                {!["completed", "discontinued", "archived"].includes(workflow.overallStatus) && 
+                 (workflow.requesterId === user?.id || user?.role === "admin") && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setDiscontinueDialogOpen(true)}
+                  >
+                    Discontinue Workflow
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -236,6 +264,30 @@ export default function WorkflowDetail() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Discontinued Workflow Warning */}
+        {["discontinued", "archived"].includes(workflow.overallStatus) && (
+          <Card className="border-destructive bg-destructive/10">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-destructive mb-1">
+                    {workflow.overallStatus === "discontinued" ? "Workflow Discontinued" : "Workflow Archived"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    This workflow has been {workflow.overallStatus}. No further modifications or approvals can be made.
+                    {workflow.metadata && typeof workflow.metadata === 'object' && 'discontinuedReason' in workflow.metadata && (
+                      <span className="block mt-2">
+                        <strong>Reason:</strong> {String(workflow.metadata.discontinuedReason)}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Form Submission Data */}
         <FormSubmissionDisplay workflowId={workflow.id} />
@@ -288,7 +340,7 @@ export default function WorkflowDetail() {
                         </div>
 
                         {/* Approval Actions */}
-                        {canApproveThis && (
+                        {canApproveThis && !["discontinued", "archived", "completed", "rejected", "cancelled"].includes(workflow.overallStatus) && (
                           <div className="flex items-center gap-2 ml-4">
                             <Button
                               size="sm"
@@ -391,7 +443,7 @@ export default function WorkflowDetail() {
                       )}
 
                       {/* Upload Form Button */}
-                      {isCurrentStage && canApproveThis && !isCeoOrCfo && (
+                      {isCurrentStage && canApproveThis && !isCeoOrCfo && !["discontinued", "archived", "completed", "rejected", "cancelled"].includes(workflow.overallStatus) && (
                         <div className="border-t pt-4">
                           <Button
                             size="sm"
@@ -491,6 +543,57 @@ export default function WorkflowDetail() {
           </Card>
         )}
       </main>
+
+      {/* Discontinue Workflow Dialog */}
+      <Dialog open={discontinueDialogOpen} onOpenChange={setDiscontinueDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discontinue Workflow</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to discontinue this workflow? This action cannot be undone.
+              The workflow will be marked as discontinued and no further approvals can be made.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="reason">Reason (Optional)</Label>
+              <Textarea
+                id="reason"
+                placeholder="Provide a reason for discontinuing this workflow..."
+                value={discontinueReason}
+                onChange={(e) => setDiscontinueReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDiscontinueDialogOpen(false);
+                setDiscontinueReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                discontinueWorkflow.mutate({
+                  id: workflow.id,
+                  reason: discontinueReason || undefined,
+                });
+              }}
+              disabled={discontinueWorkflow.isPending}
+            >
+              {discontinueWorkflow.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Discontinue Workflow
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -502,6 +605,8 @@ function StatusBadge({ status }: { status: string }) {
     completed: { variant: "secondary", icon: CheckCircle2 },
     rejected: { variant: "destructive", icon: XCircle },
     cancelled: { variant: "outline", icon: XCircle },
+    discontinued: { variant: "destructive", icon: XCircle },
+    archived: { variant: "outline", icon: FileText },
   };
 
   const config = variants[status] || variants.draft;

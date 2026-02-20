@@ -79,7 +79,9 @@ export const workflows = mysqlTable("workflows", {
     "in_progress",
     "completed",
     "rejected",
-    "cancelled"
+    "cancelled",
+    "discontinued",
+    "archived"
   ]).default("draft").notNull(),
   
   // Timestamps
