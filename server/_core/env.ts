@@ -8,3 +8,11 @@ export const ENV = {
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
 };
+
+// Frontend environment variables (VITE_ prefix)
+export const env = {
+  VITE_API_URL: process.env.VITE_API_URL,
+  VITE_COGNITO_USER_POOL_ID: process.env.VITE_COGNITO_USER_POOL_ID,
+  VITE_COGNITO_CLIENT_ID: process.env.VITE_COGNITO_CLIENT_ID,
+  VITE_COGNITO_REGION: process.env.VITE_COGNITO_REGION,
+};
