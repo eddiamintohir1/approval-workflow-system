@@ -371,3 +371,8 @@
 - [x] Test complete audit trail functionality
 
 Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update to use workflows/stages API to display audit trail
+
+## Fix Broken Logo
+- [x] Upload logo image to S3
+- [x] Update logo URL in DashboardLayout component
+- [x] Test logo display on dashboard

@@ -170,7 +170,7 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <img src="/compawnion-icon.jpg" alt="Compawnion" className="h-8 w-8 rounded-full" />
+                  <img src="https://files.manuscdn.com/user_upload_by_module/session_file/94657144/IwqIzSEWrZnYdPmw.jpeg" alt="Compawnion" className="h-8 w-8 rounded-full" />
                   <span className="font-semibold tracking-tight truncate">
                     Compawnion
                   </span>
