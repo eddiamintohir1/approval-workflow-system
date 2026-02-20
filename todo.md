@@ -193,3 +193,19 @@
 ## Phase 10.10: Fix Template Query Undefined Error
 
 - [x] Fix getByType endpoint to return null instead of undefined when no template exists
+
+
+## Phase 11: Hybrid Deployment (Manus Frontend + EC2 Backend)
+
+- [x] Remove Manus OAuth and Supabase dependencies from frontend
+- [x] Install AWS Cognito SDK (`amazon-cognito-identity-js`)
+- [x] Create Cognito authentication service for frontend
+- [x] Update login/signup pages to use AWS Cognito
+- [x] Configure tRPC client to point to EC2 backend API
+- [x] Add Cognito JWT token to API requests
+- [x] Update environment variables for Cognito configuration
+- [ ] Add Manus frontend URL to EC2 backend CORS whitelist
+- [ ] Add Manus hosting URL to Cognito callback URLs
+- [ ] Add Manus hosting URL to Cognito logout URLs
+- [ ] Test authentication flow end-to-end
+- [ ] Verify workflow creation works with hybrid setup

@@ -5,55 +5,35 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
-import { Mail, Loader2, CheckCircle, Lock } from "lucide-react";
+import { cognitoAuth } from "@/lib/cognito";
+import { Lock, Loader2 } from "lucide-react";
 
 export default function Login() {
-  const { signInWithMagicLink, signInWithPassword, user } = useSupabaseAuth();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
 
-  // Redirect to dashboard if user is already logged in
+  // Check if user is already logged in
   useEffect(() => {
-    if (user && !loading) {
+    cognitoAuth.getCurrentUser().then((user) => {
+      if (user) {
+        setLocation("/dashboard");
+      }
+    });
+  }, [setLocation]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      await cognitoAuth.signIn(email, password);
       setLocation("/dashboard");
-    }
-  }, [user, loading, setLocation]);
-
-  const handleMagicLinkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(false);
-    setLoading(true);
-
-    const result = await signInWithMagicLink(email);
-
-    if (result.success) {
-      setSuccess(true);
-      setEmail("");
-    } else {
-      setError(result.error || "Failed to send magic link");
-    }
-
-    setLoading(false);
-  };
-
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    const result = await signInWithPassword(email, password);
-
-    if (result.success) {
-      // Redirect will happen automatically via auth state change
-    } else {
-      setError(result.error || "Failed to sign in");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in");
     }
 
     setLoading(false);
@@ -69,91 +49,57 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {success ? (
-            <Alert className="bg-green-50 border-green-200">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">
-                Magic link sent! Check your email inbox for the sign-in link.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <form onSubmit={showPasswordLogin ? handlePasswordSubmit : handleMagicLinkSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.name@compawnion.co"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your.name@compawnion.co"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
 
-              {showPasswordLogin && (
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <Lock className="mr-2 h-4 w-4" />
+                  Sign In
+                </>
               )}
+            </Button>
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {showPasswordLogin ? "Signing in..." : "Sending magic link..."}
-                  </>
-                ) : (
-                  <>
-                    {showPasswordLogin ? (
-                      <>
-                        <Lock className="mr-2 h-4 w-4" />
-                        Sign In
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="mr-2 h-4 w-4" />
-                        Send Magic Link
-                      </>
-                    )}
-                  </>
-                )}
-              </Button>
-
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordLogin(!showPasswordLogin);
-                    setError(null);
-                  }}
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
-                  disabled={loading}
-                >
-                  {showPasswordLogin ? "Use magic link instead" : "Developer login with password"}
-                </button>
-              </div>
-
-              <p className="text-xs text-center text-muted-foreground mt-4">
-                Only @compawnion.co email addresses are allowed to access this system.
-              </p>
-            </form>
-          )}
+            <p className="text-xs text-center text-muted-foreground mt-4">
+              Only @compawnion.co email addresses are allowed to access this system.
+            </p>
+          </form>
         </CardContent>
       </Card>
     </div>
