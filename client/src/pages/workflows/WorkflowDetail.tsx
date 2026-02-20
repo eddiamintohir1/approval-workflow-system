@@ -105,6 +105,7 @@ export default function WorkflowDetail() {
         fileName: file.name,
         fileData: base64,
         fileType: file.type,
+        mimeType: file.type,
       });
     };
     reader.readAsDataURL(file);
