@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Upload, Download, Trash2, FileText } from "lucide-react";
+import { Loader2, Upload, Download, Trash2, FileText, Home } from "lucide-react";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
 export default function TemplateManagement() {
   const { user } = useUserRole();
@@ -113,6 +113,14 @@ export default function TemplateManagement() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-4 mb-4">
+            <Link href="/">
+              <Button variant="outline" size="sm">
+                <Home className="h-4 w-4 mr-2" />
+                Home
+              </Button>
+            </Link>
+          </div>
           <h1 className="text-3xl font-bold">Form Template Management</h1>
           <p className="text-muted-foreground mt-1">
             Upload and manage downloadable form templates (MAF, PR, CATTO)

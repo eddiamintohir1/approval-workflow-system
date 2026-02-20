@@ -32,7 +32,8 @@ import {
   Mail,
   Eye,
   ArrowLeft,
-  Save
+  Save,
+  Home
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
@@ -296,7 +297,7 @@ export default function TemplateBuilder() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Link href="/templates">
+          <Link href="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back

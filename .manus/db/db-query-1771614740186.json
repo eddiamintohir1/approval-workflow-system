@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `department_budgets` (\n  `id` varchar(36) PRIMARY KEY,\n  `department` varchar(100) NOT NULL,\n  `year` int NOT NULL,\n  `quarter` int,\n  `month` int,\n  `allocated_budget` decimal(15,2) NOT NULL,\n  `currency` varchar(3) DEFAULT 'IDR',\n  `notes` text,\n  `created_by` int NOT NULL,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  INDEX `idx_department_year` (`department`, `year`),\n  INDEX `idx_year_quarter` (`year`, `quarter`),\n  INDEX `idx_year_month` (`year`, `month`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE `department_budgets` (\n  `id` varchar(36) PRIMARY KEY,\n  `department` varchar(100) NOT NULL,\n  `year` int NOT NULL,\n  `quarter` int,\n  `month` int,\n  `allocated_budget` decimal(15,2) NOT NULL,\n  `currency` varchar(3) DEFAULT 'IDR',\n  `notes` text,\n  `created_by` int NOT NULL,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  INDEX `idx_department_year` (`department`, `year`),\n  INDEX `idx_year_quarter` (`year`, `quarter`),\n  INDEX `idx_year_month` (`year`, `month`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1708
+}

@@ -503,3 +503,17 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add delete button to workflow list (visible to admin only)
 - [x] Add confirmation dialog before deletion
 - [x] Show success/error toast messages
+
+
+## Phase 34: Form Template Selection & Budget Analytics
+- [ ] Fix form template dropdown showing no options in workflow creation
+- [ ] Add "Actual Cost" field type to form template builder
+- [ ] Create department budget allocation table in database
+- [ ] Add budget setting interface for admin
+- [ ] Create budget analytics page with metered bar charts (spending vs allocated)
+- [ ] Calculate actual spending from "actual cost" fields in submitted forms
+- [ ] Add monthly/quarterly/yearly budget comparison views
+- [ ] Add home/back navigation button to Analytics page
+- [ ] Add home/back navigation button to Form Template pages
+- [ ] Add home/back navigation button to Workflow Template pages
+- [ ] Push code to GitHub repository: https://github.com/eddiamintohir1/approval-workflow-system.git

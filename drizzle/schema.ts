@@ -484,3 +484,37 @@ export const templateStages = mysqlTable("template_stages", {
 
 export type TemplateStage = typeof templateStages.$inferSelect;
 export type InsertTemplateStage = typeof templateStages.$inferInsert;
+
+
+/**
+ * =====================================================
+ * DEPARTMENT_BUDGETS TABLE
+ * Track allocated budgets per department
+ * =====================================================
+ */
+export const departmentBudgets = mysqlTable("department_budgets", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // Department information
+  department: varchar("department", { length: 100 }).notNull(),
+  
+  // Budget period
+  year: int("year").notNull(),
+  quarter: int("quarter"), // 1-4, null for annual budget
+  month: int("month"), // 1-12, null for quarterly/annual budget
+  
+  // Budget amounts
+  allocatedBudget: decimal("allocated_budget", { precision: 15, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("IDR"),
+  
+  // Metadata
+  notes: text("notes"),
+  createdBy: int("created_by").notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DepartmentBudget = typeof departmentBudgets.$inferSelect;
+export type InsertDepartmentBudget = typeof departmentBudgets.$inferInsert;

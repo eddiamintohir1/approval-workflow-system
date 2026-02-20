@@ -20,6 +20,7 @@ export default function WorkflowCreate() {
   
   const [workflowType, setWorkflowType] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string>("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [department, setDepartment] = useState("");
@@ -37,8 +38,8 @@ export default function WorkflowCreate() {
   // Get selected workflow template
   const selectedWorkflowTemplate = workflowTemplates?.find(t => t.id === selectedTemplateId);
 
-  // Get form template for selected workflow type
-  const selectedFormTemplate = formTemplates?.find(t => t.templateCode === workflowType);
+  // Get form template by selected ID
+  const selectedFormTemplate = formTemplates?.find(t => String(t.id) === selectedFormTemplateId);
 
   const createWorkflow = trpc.workflows.create.useMutation({
     onSuccess: (data) => {
@@ -244,6 +245,43 @@ export default function WorkflowCreate() {
                   rows={3}
                 />
               </div>
+
+              {/* Form Template Selection */}
+              {selectedTemplateId && (
+                <div className="space-y-2">
+                  <Label htmlFor="formTemplateId">Form Template (Optional)</Label>
+                  <Select
+                    value={selectedFormTemplateId}
+                    onValueChange={(value) => {
+                      setSelectedFormTemplateId(value);
+                      setFormData({});
+                      setFormErrors({});
+                    }}
+                  >
+                    <SelectTrigger id="formTemplateId">
+                      <SelectValue placeholder="Select a form template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formTemplatesLoading ? (
+                        <div className="p-2 text-sm text-muted-foreground">Loading templates...</div>
+                      ) : formTemplates && formTemplates.length > 0 ? (
+                        formTemplates.map((template) => (
+                          <SelectItem key={template.id} value={String(template.id)}>
+                            {template.templateName} ({template.templateCode})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-2 text-sm text-muted-foreground">No form templates available</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {selectedFormTemplate && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {selectedFormTemplate.description || 'No description'}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Department */}
               <div className="space-y-2">

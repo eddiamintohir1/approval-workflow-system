@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { BarChart3, TrendingUp, CheckCircle2, XCircle, Clock, FileText, DollarSign, Calendar } from "lucide-react";
+import { BarChart3, TrendingUp, CheckCircle2, XCircle, Clock, FileText, DollarSign, Calendar, Home, ArrowLeft } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { WorkflowGanttChart } from "@/components/WorkflowGanttChart";
 
@@ -36,8 +38,17 @@ export default function Analytics() {
   const isLoading = overviewLoading || byTypeLoading || byDepartmentLoading || byStatusLoading || avgTimeLoading || trendLoading || timelineLoading || deptMetricsLoading || deptCostsLoading;
 
   if (isLoading) {
-    return (
-      <div className="container py-8">
+  return (
+    <div className="container py-8">
+      <div className="flex items-center gap-4 mb-6">
+        <Link href="/">
+          <Button variant="outline" size="sm">
+            <Home className="h-4 w-4 mr-2" />
+            Home
+          </Button>
+        </Link>
+        <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+      </div>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
@@ -50,6 +61,16 @@ export default function Analytics() {
 
   return (
     <div className="container py-8 space-y-8">
+      {/* Home Button */}
+      <div className="flex items-center gap-4 mb-4">
+        <Link href="/">
+          <Button variant="outline" size="sm">
+            <Home className="h-4 w-4 mr-2" />
+            Home
+          </Button>
+        </Link>
+      </div>
+      
       {/* Header with Department Filter */}
       <div className="flex items-start justify-between">
         <div>
