@@ -641,3 +641,131 @@ export async function getWorkflowFileById(fileId: string) {
 export async function deleteWorkflowFile(fileId: string) {
   await db.delete(schema.workflowFiles).where(eq(schema.workflowFiles.id, fileId));
 }
+
+// ============================================
+// Form Templates
+// ============================================
+
+export type FormTemplate = schema.FormTemplate;
+export type InsertFormTemplate = schema.InsertFormTemplate;
+export type FormSubmission = schema.FormSubmission;
+export type InsertFormSubmission = schema.InsertFormSubmission;
+
+export async function createFormTemplate(template: Omit<schema.InsertFormTemplate, "id" | "createdAt" | "updatedAt">): Promise<schema.FormTemplate> {
+  const id = randomUUID();
+  await db.insert(schema.formTemplates).values({
+    ...template,
+    id,
+  });
+  
+  const [created] = await db
+    .select()
+    .from(schema.formTemplates)
+    .where(eq(schema.formTemplates.id, id))
+    .limit(1);
+  
+  return created!;
+}
+
+export async function getAllFormTemplates(): Promise<schema.FormTemplate[]> {
+  return await db
+    .select()
+    .from(schema.formTemplates)
+    .orderBy(desc(schema.formTemplates.createdAt));
+}
+
+export async function getActiveFormTemplates(): Promise<schema.FormTemplate[]> {
+  return await db
+    .select()
+    .from(schema.formTemplates)
+    .where(eq(schema.formTemplates.isActive, true))
+    .orderBy(desc(schema.formTemplates.createdAt));
+}
+
+export async function getFormTemplateById(id: string): Promise<schema.FormTemplate | null> {
+  const [template] = await db
+    .select()
+    .from(schema.formTemplates)
+    .where(eq(schema.formTemplates.id, id))
+    .limit(1);
+  
+  return template || null;
+}
+
+export async function getFormTemplateByCode(code: string): Promise<schema.FormTemplate | null> {
+  const [template] = await db
+    .select()
+    .from(schema.formTemplates)
+    .where(eq(schema.formTemplates.templateCode, code))
+    .limit(1);
+  
+  return template || null;
+}
+
+export async function updateFormTemplate(id: string, updates: Partial<Omit<schema.InsertFormTemplate, "id" | "createdAt">>): Promise<void> {
+  await db
+    .update(schema.formTemplates)
+    .set(updates)
+    .where(eq(schema.formTemplates.id, id));
+}
+
+export async function deleteFormTemplate(id: string): Promise<void> {
+  await db.delete(schema.formTemplates).where(eq(schema.formTemplates.id, id));
+}
+
+// ============================================
+// Form Submissions
+// ============================================
+
+export async function createFormSubmission(submission: Omit<schema.InsertFormSubmission, "id" | "createdAt" | "updatedAt">): Promise<schema.FormSubmission> {
+  const id = randomUUID();
+  await db.insert(schema.formSubmissions).values({
+    ...submission,
+    id,
+  });
+  
+  const [created] = await db
+    .select()
+    .from(schema.formSubmissions)
+    .where(eq(schema.formSubmissions.id, id))
+    .limit(1);
+  
+  return created!;
+}
+
+export async function getFormSubmissionById(id: string): Promise<schema.FormSubmission | null> {
+  const [submission] = await db
+    .select()
+    .from(schema.formSubmissions)
+    .where(eq(schema.formSubmissions.id, id))
+    .limit(1);
+  
+  return submission || null;
+}
+
+export async function getFormSubmissionsByWorkflow(workflowId: string): Promise<schema.FormSubmission[]> {
+  return await db
+    .select()
+    .from(schema.formSubmissions)
+    .where(eq(schema.formSubmissions.workflowId, workflowId))
+    .orderBy(desc(schema.formSubmissions.createdAt));
+}
+
+export async function getFormSubmissionsByStage(stageId: string): Promise<schema.FormSubmission[]> {
+  return await db
+    .select()
+    .from(schema.formSubmissions)
+    .where(eq(schema.formSubmissions.stageId, stageId))
+    .orderBy(desc(schema.formSubmissions.createdAt));
+}
+
+export async function updateFormSubmission(id: string, updates: Partial<Omit<schema.InsertFormSubmission, "id" | "createdAt">>): Promise<void> {
+  await db
+    .update(schema.formSubmissions)
+    .set(updates)
+    .where(eq(schema.formSubmissions.id, id));
+}
+
+export async function deleteFormSubmission(id: string): Promise<void> {
+  await db.delete(schema.formSubmissions).where(eq(schema.formSubmissions.id, id));
+}

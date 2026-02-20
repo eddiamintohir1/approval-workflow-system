@@ -324,3 +324,90 @@ export const sequenceCounters = mysqlTable("sequence_counters", {
 
 export type SequenceCounter = typeof sequenceCounters.$inferSelect;
 export type InsertSequenceCounter = typeof sequenceCounters.$inferInsert;
+
+/**
+ * =====================================================
+ * FORM_TEMPLATES TABLE
+ * Reusable form templates with configurable fields
+ * =====================================================
+ */
+export const formTemplates = mysqlTable("form_templates", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // Template information
+  templateName: varchar("template_name", { length: 255 }).notNull(),
+  templateCode: varchar("template_code", { length: 50 }).notNull().unique(), // "MAF_FORM", "PR_FORM", etc.
+  description: text("description"),
+  
+  // Form configuration
+  fields: json("fields").$type<Array<{
+    id: string;
+    type: "text" | "number" | "date" | "dropdown" | "textarea" | "file" | "checkbox" | "email";
+    label: string;
+    placeholder?: string;
+    required: boolean;
+    options?: string[]; // For dropdown
+    validation?: {
+      min?: number;
+      max?: number;
+      pattern?: string;
+      message?: string;
+    };
+    defaultValue?: any;
+  }>>().notNull(),
+  
+  // Template status
+  isActive: boolean("is_active").default(true).notNull(),
+  version: int("version").default(1).notNull(),
+  
+  // Creator information
+  createdBy: int("created_by").notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
+});
+
+export type FormTemplate = typeof formTemplates.$inferSelect;
+export type InsertFormTemplate = typeof formTemplates.$inferInsert;
+
+/**
+ * =====================================================
+ * FORM_SUBMISSIONS TABLE
+ * Store submitted form data
+ * =====================================================
+ */
+export const formSubmissions = mysqlTable("form_submissions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // Template reference
+  templateId: varchar("template_id", { length: 36 }).notNull(),
+  workflowId: varchar("workflow_id", { length: 36 }),
+  stageId: varchar("stage_id", { length: 36 }),
+  
+  // Form data
+  formData: json("form_data").$type<Record<string, any>>().notNull(),
+  
+  // Submission information
+  submittedBy: int("submitted_by").notNull(),
+  submissionStatus: mysqlEnum("submission_status", [
+    "draft",
+    "submitted",
+    "approved",
+    "rejected"
+  ]).default("draft").notNull(),
+  
+  // Timestamps
+  submittedAt: timestamp("submitted_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
+});
+
+export type FormSubmission = typeof formSubmissions.$inferSelect;
+export type InsertFormSubmission = typeof formSubmissions.$inferInsert;

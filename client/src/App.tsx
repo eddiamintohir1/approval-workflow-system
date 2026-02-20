@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
 import WorkflowCreate from "./pages/workflows/WorkflowCreate";
 import WorkflowDetail from "./pages/workflows/WorkflowDetail";
+import FormTemplateList from "./pages/admin/FormTemplateList";
+import FormTemplateBuilder from "./pages/admin/FormTemplateBuilder";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
@@ -60,6 +62,12 @@ function Router() {
       </Route>
       <Route path="/users">
         <ProtectedRoute component={UserManagement} path="/users" />
+      </Route>
+      <Route path="/admin/form-templates">
+        <ProtectedRoute component={FormTemplateList} path="/admin/form-templates" />
+      </Route>
+      <Route path="/admin/form-templates/new">
+        <ProtectedRoute component={FormTemplateBuilder} path="/admin/form-templates/new" />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

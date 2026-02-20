@@ -600,6 +600,242 @@ export const appRouter = router({
       return await db.getAllEmailRecipients();
     }),
   }),
+
+  // ============================================
+  // Form Templates Management
+  // ============================================
+  formTemplates: router({
+    create: adminProcedure
+      .input(
+        z.object({
+          templateName: z.string(),
+          templateCode: z.string(),
+          description: z.string().optional(),
+          fields: z.array(
+            z.object({
+              id: z.string(),
+              type: z.enum(["text", "number", "date", "dropdown", "textarea", "file", "checkbox", "email"]),
+              label: z.string(),
+              placeholder: z.string().optional(),
+              required: z.boolean(),
+              options: z.array(z.string()).optional(),
+              validation: z.object({
+                min: z.number().optional(),
+                max: z.number().optional(),
+                pattern: z.string().optional(),
+                message: z.string().optional(),
+              }).optional(),
+              defaultValue: z.any().optional(),
+            })
+          ),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const template = await db.createFormTemplate({
+          templateName: input.templateName,
+          templateCode: input.templateCode,
+          description: input.description,
+          fields: input.fields,
+          createdBy: ctx.user.id,
+        });
+        
+        await db.createAuditLog({
+          entityType: "form_template",
+          entityId: template.id,
+          action: "created",
+          actionDescription: `Form template created: ${input.templateName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return template;
+      }),
+
+    getAll: protectedProcedure.query(async () => {
+      return await db.getAllFormTemplates();
+    }),
+
+    getActive: protectedProcedure.query(async () => {
+      return await db.getActiveFormTemplates();
+    }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        const template = await db.getFormTemplateById(input.id);
+        if (!template) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Form template not found" });
+        }
+        return template;
+      }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.string(),
+          templateName: z.string().optional(),
+          description: z.string().optional(),
+          fields: z.array(
+            z.object({
+              id: z.string(),
+              type: z.enum(["text", "number", "date", "dropdown", "textarea", "file", "checkbox", "email"]),
+              label: z.string(),
+              placeholder: z.string().optional(),
+              required: z.boolean(),
+              options: z.array(z.string()).optional(),
+              validation: z.object({
+                min: z.number().optional(),
+                max: z.number().optional(),
+                pattern: z.string().optional(),
+                message: z.string().optional(),
+              }).optional(),
+              defaultValue: z.any().optional(),
+            })
+          ).optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.updateFormTemplate(input.id, {
+          templateName: input.templateName,
+          description: input.description,
+          fields: input.fields,
+          isActive: input.isActive,
+        });
+        
+        await db.createAuditLog({
+          entityType: "form_template",
+          entityId: input.id,
+          action: "updated",
+          actionDescription: `Form template updated`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteFormTemplate(input.id);
+        
+        await db.createAuditLog({
+          entityType: "form_template",
+          entityId: input.id,
+          action: "deleted",
+          actionDescription: `Form template deleted`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+  }),
+
+  // ============================================
+  // Form Submissions
+  // ============================================
+  formSubmissions: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          templateId: z.string(),
+          workflowId: z.string().optional(),
+          stageId: z.string().optional(),
+          formData: z.record(z.any()),
+          submissionStatus: z.enum(["draft", "submitted", "approved", "rejected"]).optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const submission = await db.createFormSubmission({
+          templateId: input.templateId,
+          workflowId: input.workflowId,
+          stageId: input.stageId,
+          formData: input.formData,
+          submittedBy: ctx.user.id,
+          submissionStatus: input.submissionStatus || "draft",
+          submittedAt: input.submissionStatus === "submitted" ? new Date() : undefined,
+        });
+        
+        await db.createAuditLog({
+          entityType: "form_submission",
+          entityId: submission.id,
+          action: "created",
+          actionDescription: `Form submission created`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return submission;
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        const submission = await db.getFormSubmissionById(input.id);
+        if (!submission) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Form submission not found" });
+        }
+        return submission;
+      }),
+
+    getByWorkflow: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getFormSubmissionsByWorkflow(input.workflowId);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.string(),
+          formData: z.record(z.any()).optional(),
+          submissionStatus: z.enum(["draft", "submitted", "approved", "rejected"]).optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.updateFormSubmission(input.id, {
+          formData: input.formData,
+          submissionStatus: input.submissionStatus,
+          submittedAt: input.submissionStatus === "submitted" ? new Date() : undefined,
+        });
+        
+        await db.createAuditLog({
+          entityType: "form_submission",
+          entityId: input.id,
+          action: "updated",
+          actionDescription: `Form submission updated`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteFormSubmission(input.id);
+        
+        await db.createAuditLog({
+          entityType: "form_submission",
+          entityId: input.id,
+          action: "deleted",
+          actionDescription: `Form submission deleted`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+  }),
 });
 
 // ============================================
