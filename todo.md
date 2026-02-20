@@ -376,3 +376,13 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Upload logo image to S3
 - [x] Update logo URL in DashboardLayout component
 - [x] Test logo display on dashboard
+
+## Refactor ProjectDetails Page and Add Help Button
+- [x] Analyze ProjectDetails.tsx current API usage
+- [x] Create new WorkflowDetail page with workflows.getById API
+- [x] Update to use stages.getByWorkflow instead of milestones
+- [x] Add all stage approval/rejection mutations
+- [x] Test workflow detail page displays correctly
+- [x] Create HelpButton floating component
+- [x] Add HelpButton to Dashboard and WorkflowDetail pages
+- [x] Test help button links to tech.compawnion.id

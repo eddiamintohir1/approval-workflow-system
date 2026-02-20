@@ -1,118 +1,124 @@
-import { useParams, Link } from "wouter";
-import { trpc } from "@/lib/trpc";
-import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowLeft, FileText, CheckCircle2, Clock, XCircle, AlertCircle, Upload, Download } from "lucide-react";
-import { FormSubmissionDisplay } from "@/components/FormSubmissionDisplay";
-import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { trpc } from "@/lib/trpc";
+import { Loader2, ArrowLeft, CheckCircle2, XCircle, Upload, Download, FileText } from "lucide-react";
 import { useState, useRef } from "react";
+import { Link, useParams } from "wouter";
+import { toast } from "sonner";
+import { useCognitoAuth } from "@/hooks/useCognitoAuth";
+import { AuditTrail } from "@/components/AuditTrail";
+import { HelpButton } from "@/components/HelpButton";
+import { format } from "date-fns";
 
 export default function WorkflowDetail() {
   const { id } = useParams();
-  const { user } = useUserRole();
-  const [selectedStageForUpload, setSelectedStageForUpload] = useState<string | null>(null);
-  const [discontinueDialogOpen, setDiscontinueDialogOpen] = useState(false);
-  const [discontinueReason, setDiscontinueReason] = useState("");
+  const workflowId = id || "";
+  const { user } = useCognitoAuth();
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [comments, setComments] = useState("");
+  const [uploadingStageId, setUploadingStageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data, isLoading, refetch } = trpc.workflows.getWithDetails.useQuery(
-    { id: id! },
-    { enabled: !!id }
-  );
-
-  const submitWorkflow = trpc.workflows.submit.useMutation({
-    onSuccess: () => {
-      toast.success("Workflow submitted for approval");
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to submit workflow");
-    },
-  });
+  const { data: workflow, isLoading: workflowLoading } = trpc.workflows.getById.useQuery({ id: workflowId });
+  const { data: stages, isLoading: stagesLoading, refetch: refetchStages } = trpc.stages.getByWorkflow.useQuery({ workflowId });
+  const { data: files } = trpc.files.getByWorkflow.useQuery({ workflowId });
 
   const approveStage = trpc.stages.approve.useMutation({
     onSuccess: () => {
       toast.success("Stage approved successfully");
-      refetch();
+      setApproveDialogOpen(false);
+      setComments("");
+      setSelectedStageId(null);
+      refetchStages();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to approve stage");
+      toast.error(error.message);
     },
   });
 
   const rejectStage = trpc.stages.reject.useMutation({
     onSuccess: () => {
       toast.success("Stage rejected");
-      refetch();
+      setRejectDialogOpen(false);
+      setComments("");
+      setSelectedStageId(null);
+      refetchStages();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to reject stage");
+      toast.error(error.message);
     },
   });
 
-  const discontinueWorkflow = trpc.workflows.discontinue.useMutation({
+  const uploadFile = trpc.files.upload.useMutation({
     onSuccess: () => {
-      toast.success("Workflow discontinued");
-      setDiscontinueDialogOpen(false);
-      setDiscontinueReason("");
-      refetch();
+      toast.success("File uploaded successfully");
+      setUploadingStageId(null);
+      refetchStages();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to discontinue workflow");
+      toast.error(`Upload failed: ${error.message}`);
+      setUploadingStageId(null);
     },
   });
 
-  const uploadFile = trpc.workflows.uploadFile.useMutation({
-    onSuccess: () => {
-      toast.success("Form uploaded successfully");
-      setSelectedStageForUpload(null);
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to upload form");
-      setSelectedStageForUpload(null);
-    },
-  });
-
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>, stageId: string) => {
-    const file = event.target.files?.[0];
-    if (!file || !data?.workflow) return;
-
-    try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = reader.result as string;
-        const base64Content = base64Data.split(',')[1];
-
-        await uploadFile.mutateAsync({
-          workflowId: data.workflow.id,
-          stageId,
-          filename: file.name,
-          fileData: base64Content,
-          mimeType: file.type,
-          fileSize: file.size,
-        });
-      };
-      reader.onerror = () => {
-        toast.error("Failed to read file");
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      toast.error("Failed to upload file");
-    }
+  const handleFileUpload = async (stageId: string, file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64 = e.target?.result as string;
+      uploadFile.mutate({
+        workflowId,
+        stageId,
+        fileName: file.name,
+        fileData: base64,
+        fileType: file.type,
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
-  const triggerFileUpload = (stageId: string) => {
-    setSelectedStageForUpload(stageId);
+  const handleUploadClick = (stageId: string) => {
+    setUploadingStageId(stageId);
     fileInputRef.current?.click();
   };
 
-  if (isLoading) {
+  const handleApproveClick = (stageId: string) => {
+    setSelectedStageId(stageId);
+    setApproveDialogOpen(true);
+  };
+
+  const handleRejectClick = (stageId: string) => {
+    setSelectedStageId(stageId);
+    setRejectDialogOpen(true);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+      case "in_progress":
+        return <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>;
+      case "pending":
+        return <Badge className="bg-gray-100 text-gray-800">Pending</Badge>;
+      case "rejected":
+        return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const canUserApproveStage = (stage: any) => {
+    if (!user) return false;
+    if (stage.status !== "in_progress") return false;
+    if (stage.requiredRole && user.role !== stage.requiredRole && user.role !== "admin") return false;
+    return true;
+  };
+
+  if (workflowLoading || stagesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -120,67 +126,21 @@ export default function WorkflowDetail() {
     );
   }
 
-  if (!data || !data.workflow) {
+  if (!workflow) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Workflow Not Found</CardTitle>
-            <CardDescription>The requested workflow could not be found</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard">
-              <Button className="w-full">Back to Dashboard</Button>
-            </Link>
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground">Workflow not found</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const { workflow, stages, approvals, files, comments } = data;
-  const currentStage = stages.find((s) => s.status === "in_progress");
-  
-  // Check if user can approve current stage
-  const canApprove = (stage: typeof stages[0]) => {
-    if (!user || stage.status !== "in_progress") return false;
-    if (user.role === "admin") return true;
-    return user.role === stage.requiredRole;
-  };
-
-  // Check if user has uploaded a form for this stage
-  const hasUploadedForm = (stageId: string) => {
-    if (!user) return false;
-    return files.some(f => f.stageId === stageId && f.uploadedBy === user.id);
-  };
-
-  // Get files for a specific stage
-  const getStageFiles = (stageId: string) => {
-    return files.filter(f => f.stageId === stageId);
-  };
-
-  // Get all files from previous stages (completed stages)
-  const getPreviousStageFiles = (currentStageOrder: number) => {
-    const previousStages = stages.filter(s => s.stageOrder < currentStageOrder && s.status === "completed");
-    return previousStages.map(stage => ({
-      stage,
-      files: getStageFiles(stage.id)
-    })).filter(item => item.files.length > 0);
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        onChange={(e) => selectedStageForUpload && handleFileSelect(e, selectedStageForUpload)}
-        accept=".pdf,.xlsx,.xls,.doc,.docx,.jpg,.jpeg,.png"
-      />
-
-      {/* Header */}
-      <header className="border-b bg-card">
+      <header className="border-b bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <Link href="/dashboard">
             <Button variant="ghost" size="sm">
@@ -191,193 +151,129 @@ export default function WorkflowDetail() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        {/* Workflow Header */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <Badge variant={workflow.workflowType === "MAF" ? "default" : "secondary"}>
-                    {workflow.workflowType}
-                  </Badge>
-                  <span className="font-mono text-sm text-muted-foreground">
-                    {workflow.workflowNumber}
-                  </span>
-                  <StatusBadge status={workflow.overallStatus} />
-                </div>
-                <CardTitle className="text-2xl">{workflow.title}</CardTitle>
-                {workflow.description && (
-                  <CardDescription>{workflow.description}</CardDescription>
-                )}
-              </div>
-              <div className="flex gap-2">
-                {workflow.overallStatus === "draft" && workflow.requesterId === user?.id && (
-                  <Button
-                    onClick={() => submitWorkflow.mutate({ id: workflow.id })}
-                    disabled={submitWorkflow.isPending}
-                  >
-                    {submitWorkflow.isPending && (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+      <main className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Workflow Header */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge>{workflow.workflowType}</Badge>
+                      <span className="text-sm text-muted-foreground">{workflow.workflowNumber}</span>
+                      {getStatusBadge(workflow.overallStatus)}
+                    </div>
+                    <CardTitle className="text-2xl">{workflow.title}</CardTitle>
+                    {workflow.description && (
+                      <CardDescription>{workflow.description}</CardDescription>
                     )}
-                    Submit for Approval
-                  </Button>
-                )}
-                {!["completed", "discontinued", "archived"].includes(workflow.overallStatus) && 
-                 (workflow.requesterId === user?.id || user?.role === "admin") && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setDiscontinueDialogOpen(true)}
-                  >
-                    Discontinue Workflow
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Department</p>
-                <p className="font-medium">{workflow.department}</p>
-              </div>
-              {workflow.estimatedAmount && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Estimated Amount</p>
-                  <p className="font-medium">
-                    {workflow.currency} {parseFloat(workflow.estimatedAmount).toLocaleString()}
-                  </p>
+                  </div>
                 </div>
-              )}
-              <div>
-                <p className="text-sm text-muted-foreground">Created</p>
-                <p className="font-medium">
-                  {new Date(workflow.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Last Updated</p>
-                <p className="font-medium">
-                  {new Date(workflow.updatedAt).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Discontinued Workflow Warning */}
-        {["discontinued", "archived"].includes(workflow.overallStatus) && (
-          <Card className="border-destructive bg-destructive/10">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-semibold text-destructive mb-1">
-                    {workflow.overallStatus === "discontinued" ? "Workflow Discontinued" : "Workflow Archived"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    This workflow has been {workflow.overallStatus}. No further modifications or approvals can be made.
-                    {workflow.metadata && typeof workflow.metadata === 'object' && 'discontinuedReason' in workflow.metadata && (
-                      <span className="block mt-2">
-                        <strong>Reason:</strong> {String(workflow.metadata.discontinuedReason)}
-                      </span>
-                    )}
-                  </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Department</span>
+                    <p className="font-medium">{workflow.department}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Created</span>
+                    <p className="font-medium">{format(new Date(workflow.createdAt), "MM/dd/yyyy")}</p>
+                  </div>
+                  {workflow.estimatedAmount && (
+                    <div>
+                      <span className="text-muted-foreground">Amount</span>
+                      <p className="font-medium">
+                        {workflow.currency} {workflow.estimatedAmount.toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Last Updated</span>
+                    <p className="font-medium">{format(new Date(workflow.updatedAt), "MM/dd/yyyy")}</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
 
-        {/* Form Submission Data */}
-        <FormSubmissionDisplay workflowId={workflow.id} />
-
-        {/* Approval Stages */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Approval Stages</CardTitle>
-            <CardDescription>Track the progress of approval stages</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {stages.map((stage, index) => {
-                const stageApprovals = approvals.filter((a) => a.stageId === stage.id);
-                const isCurrentStage = stage.status === "in_progress";
-                const canApproveThis = canApprove(stage);
-                const stageFiles = getStageFiles(stage.id);
-                const previousFiles = getPreviousStageFiles(stage.stageOrder);
-                const userHasUploadedForm = hasUploadedForm(stage.id);
-                const isCeoOrCfo = user?.role === "CEO" || user?.role === "CFO";
-                const canApproveWithoutForm = isCeoOrCfo; // CEO/CFO can approve with signature only
-
-                return (
-                  <div
-                    key={stage.id}
-                    className={`p-4 border rounded-lg ${
-                      isCurrentStage
-                        ? "border-primary bg-primary/5"
-                        : stage.status === "pending"
-                        ? "opacity-50 bg-muted/30"
-                        : ""
-                    }`}
-                  >
-                    <div className="space-y-4">
-                      {/* Stage Header */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">
-                              Stage {stage.stageOrder}
-                            </span>
-                            <h3 className="font-semibold">{stage.stageName}</h3>
-                            <StageStatusBadge status={stage.status} />
+            {/* Approval Stages */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Approval Stages</CardTitle>
+                <CardDescription>Track the progress of approval stages</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {stages && stages.length > 0 ? (
+                  <div className="space-y-6">
+                    {stages.map((stage, index) => (
+                      <div key={stage.id} className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold">Stage {index + 1}</span>
+                              <span className="text-sm">{stage.stageName}</span>
+                              {getStatusBadge(stage.status)}
+                            </div>
+                            {stage.requiredRole && (
+                              <p className="text-sm text-muted-foreground">
+                                Required Role: {stage.requiredRole}
+                              </p>
+                            )}
                           </div>
-                          {stage.requiredRole && (
-                            <p className="text-sm text-muted-foreground">
-                              Required Role: {stage.requiredRole}
-                            </p>
-                          )}
                         </div>
 
-                        {/* Approval Actions */}
-                        {canApproveThis && !["discontinued", "archived", "completed", "rejected", "cancelled"].includes(workflow.overallStatus) && (
-                          <div className="flex items-center gap-2 ml-4">
+                        {/* Stage Files */}
+                        {files && files.filter(f => f.stageId === stage.id).length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-sm font-medium">Uploaded Files:</p>
+                            {files.filter(f => f.stageId === stage.id).map((file) => (
+                              <div key={file.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4" />
+                                  <span className="text-sm">{file.fileName}</span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => window.open(file.fileUrl, "_blank")}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        {canUserApproveStage(stage) && (
+                          <div className="flex gap-2 mt-4">
                             <Button
                               size="sm"
+                              onClick={() => handleUploadClick(stage.id)}
                               variant="outline"
-                              onClick={() => {
-                                const comments = prompt("Add comments (optional):");
-                                if (comments !== null) {
-                                  approveStage.mutate({
-                                    stageId: stage.id,
-                                    workflowId: workflow.id,
-                                    comments: comments ? comments : undefined,
-                                  });
-                                }
-                              }}
-                              disabled={approveStage.isPending || (!canApproveWithoutForm && !userHasUploadedForm)}
-                              title={!canApproveWithoutForm && !userHasUploadedForm ? "You must upload a form before approving" : ""}
+                              disabled={uploadingStageId === stage.id}
                             >
-                              <CheckCircle2 className="h-4 w-4 mr-1" />
-                              Approve
-                              {isCeoOrCfo && " (Signature)"}
+                              {uploadingStageId === stage.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <Upload className="h-4 w-4 mr-1" />
+                              )}
+                              Upload File
                             </Button>
                             <Button
                               size="sm"
+                              onClick={() => handleApproveClick(stage.id)}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleRejectClick(stage.id)}
                               variant="destructive"
-                              onClick={() => {
-                                const comments = prompt("Reason for rejection (required):");
-                                if (comments && comments.trim()) {
-                                  rejectStage.mutate({
-                                    stageId: stage.id,
-                                    workflowId: workflow.id,
-                                    comments: comments.trim() || "",
-                                  });
-                                } else if (comments !== null) {
-                                  toast.error("Please provide a reason for rejection");
-                                }
-                              }}
-                              disabled={rejectStage.isPending}
                             >
                               <XCircle className="h-4 w-4 mr-1" />
                               Reject
@@ -385,256 +281,124 @@ export default function WorkflowDetail() {
                           </div>
                         )}
                       </div>
-
-                      {/* Previous Stage Forms (Read-only) */}
-                      {isCurrentStage && previousFiles.length > 0 && (
-                        <div className="border-t pt-4">
-                          <h4 className="text-sm font-semibold mb-3">Forms from Previous Stages</h4>
-                          <div className="space-y-3">
-                            {previousFiles.map(({ stage: prevStage, files: prevFiles }) => (
-                              <div key={prevStage.id} className="bg-muted/30 p-3 rounded">
-                                <p className="text-sm font-medium mb-2">
-                                  Stage {prevStage.stageOrder}: {prevStage.stageName}
-                                </p>
-                                <div className="space-y-2">
-                                  {prevFiles.map((file) => (
-                                    <div key={file.id} className="flex items-center justify-between p-2 bg-background rounded text-sm">
-                                      <div className="flex items-center gap-2">
-                                        <FileText className="h-4 w-4 text-muted-foreground" />
-                                        <span>{file.fileName}</span>
-                                      </div>
-                                      <Button size="sm" variant="ghost" asChild>
-                                        <a href={file.s3Url || "#"} target="_blank" rel="noopener noreferrer">
-                                          <Download className="h-4 w-4" />
-                                        </a>
-                                      </Button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Current Stage Forms */}
-                      {stageFiles.length > 0 && (
-                        <div className="border-t pt-4">
-                          <h4 className="text-sm font-semibold mb-3">Uploaded Forms for This Stage</h4>
-                          <div className="space-y-2">
-                            {stageFiles.map((file) => (
-                              <div key={file.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                                <div className="flex items-center gap-2">
-                                  <FileText className="h-4 w-4" />
-                                  <span className="text-sm">{file.fileName}</span>
-                                  {file.uploadedBy === user?.id && (
-                                    <Badge variant="outline" className="text-xs">Your upload</Badge>
-                                  )}
-                                </div>
-                                <Button size="sm" variant="ghost" asChild>
-                                  <a href={file.s3Url || "#"} target="_blank" rel="noopener noreferrer">
-                                    <Download className="h-4 w-4" />
-                                  </a>
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Upload Form Button */}
-                      {isCurrentStage && canApproveThis && !isCeoOrCfo && !["discontinued", "archived", "completed", "rejected", "cancelled"].includes(workflow.overallStatus) && (
-                        <div className="border-t pt-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => triggerFileUpload(stage.id)}
-                            disabled={uploadFile.isPending}
-                            className="w-full"
-                          >
-                            {uploadFile.isPending ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Upload className="h-4 w-4 mr-2" />
-                            )}
-                            {userHasUploadedForm ? "Upload Another Form" : "Upload Form (Required for Approval)"}
-                          </Button>
-                          {!userHasUploadedForm && (
-                            <p className="text-xs text-muted-foreground mt-2 text-center">
-                              You must upload a form before you can approve this stage
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* CEO/CFO Signature Note */}
-                      {isCurrentStage && canApproveThis && isCeoOrCfo && (
-                        <div className="border-t pt-4">
-                          <p className="text-sm text-muted-foreground text-center">
-                            As {user.role}, you can approve with your signature without uploading a form
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Stage Approvals */}
-                      {stageApprovals.length > 0 && (
-                        <div className="border-t pt-4">
-                          <h4 className="text-sm font-semibold mb-3">Approval History</h4>
-                          <div className="space-y-2">
-                            {stageApprovals.map((approval) => (
-                              <div
-                                key={approval.id}
-                                className="text-sm p-2 bg-background rounded border"
-                              >
-                                <div className="flex items-center gap-2">
-                                  {approval.action === "approved" ? (
-                                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                  ) : (
-                                    <XCircle className="h-4 w-4 text-red-500" />
-                                  )}
-                                  <span className="font-medium">
-                                    {approval.action === "approved" ? "Approved" : "Rejected"}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    by {approval.approverRole}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    on {new Date(approval.createdAt).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                {approval.comments && (
-                                  <p className="mt-1 text-muted-foreground">{approval.comments}</p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No stages defined</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Comments */}
-        {comments.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Comments</CardTitle>
-              <CardDescription>Discussion and feedback on this workflow</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="p-3 border rounded">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium">{comment.authorRole}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(comment.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-sm">{comment.commentText}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Audit Trail */}
+            <AuditTrail workflowId={workflowId} />
+          </div>
+        </div>
       </main>
 
-      {/* Discontinue Workflow Dialog */}
-      <Dialog open={discontinueDialogOpen} onOpenChange={setDiscontinueDialogOpen}>
+      {/* Approve Dialog */}
+      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Discontinue Workflow</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to discontinue this workflow? This action cannot be undone.
-              The workflow will be marked as discontinued and no further approvals can be made.
-            </DialogDescription>
+            <DialogTitle>Approve Stage</DialogTitle>
+            <DialogDescription>Add optional comments for this approval</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="reason">Reason (Optional)</Label>
-              <Textarea
-                id="reason"
-                placeholder="Provide a reason for discontinuing this workflow..."
-                value={discontinueReason}
-                onChange={(e) => setDiscontinueReason(e.target.value)}
-                rows={3}
-              />
-            </div>
+          <div className="py-4">
+            <Textarea
+              placeholder="Comments (optional)"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              rows={4}
+            />
           </div>
           <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>
+              Cancel
+            </Button>
             <Button
-              variant="outline"
               onClick={() => {
-                setDiscontinueDialogOpen(false);
-                setDiscontinueReason("");
+                if (selectedStageId) {
+                  approveStage.mutate({ 
+                    stageId: selectedStageId, 
+                    workflowId,
+                    comments: comments || undefined 
+                  });
+                }
               }}
+              disabled={approveStage.isPending}
             >
+              {approveStage.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Stage</DialogTitle>
+            <DialogDescription>Please provide a reason for rejection</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Reason for rejection (required)"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={() => {
-                discontinueWorkflow.mutate({
-                  id: workflow.id,
-                  reason: discontinueReason || undefined,
-                });
+                if (selectedStageId && comments) {
+                  rejectStage.mutate({ 
+                    stageId: selectedStageId, 
+                    workflowId,
+                    comments 
+                  });
+                }
               }}
-              disabled={discontinueWorkflow.isPending}
+              disabled={!comments || rejectStage.isPending}
             >
-              {discontinueWorkflow.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Discontinue Workflow
+              {rejectStage.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Reject
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && uploadingStageId) {
+            handleFileUpload(uploadingStageId, file);
+          }
+          e.target.value = '';
+        }}
+        accept=".xlsx,.xls,.pdf,.doc,.docx,.png,.jpg,.jpeg"
+      />
+
+      {/* Copyright Footer */}
+      <footer className="border-t bg-card mt-8">
+        <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
+          © Eddie Amintohir. All rights reserved.
+        </div>
+      </footer>
+
+      {/* Help Button */}
+      <HelpButton />
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
-    draft: { variant: "outline", icon: FileText },
-    in_progress: { variant: "default", icon: Clock },
-    completed: { variant: "secondary", icon: CheckCircle2 },
-    rejected: { variant: "destructive", icon: XCircle },
-    cancelled: { variant: "outline", icon: XCircle },
-    discontinued: { variant: "destructive", icon: XCircle },
-    archived: { variant: "outline", icon: FileText },
-  };
-
-  const config = variants[status] || variants.draft;
-  const Icon = config.icon;
-
-  return (
-    <Badge variant={config.variant} className="flex items-center gap-1">
-      <Icon className="h-3 w-3" />
-      {status.replace("_", " ").toUpperCase()}
-    </Badge>
-  );
-}
-
-function StageStatusBadge({ status }: { status: string }) {
-  const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
-    pending: { variant: "outline", icon: Clock },
-    in_progress: { variant: "default", icon: AlertCircle },
-    completed: { variant: "secondary", icon: CheckCircle2 },
-    rejected: { variant: "destructive", icon: XCircle },
-  };
-
-  const config = variants[status] || variants.pending;
-  const Icon = config.icon;
-
-  return (
-    <Badge variant={config.variant} className="flex items-center gap-1">
-      <Icon className="h-3 w-3" />
-      {status.replace("_", " ").toUpperCase()}
-    </Badge>
   );
 }

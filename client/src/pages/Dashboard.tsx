@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users } from "lucide-react";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { HelpButton } from "@/components/HelpButton";
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
@@ -250,6 +251,9 @@ export default function Dashboard() {
           © Eddie Amintohir. All rights reserved.
         </div>
       </footer>
+
+      {/* Help Button */}
+      <HelpButton />
     </div>
   );
 }
