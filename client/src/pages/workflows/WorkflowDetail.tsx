@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowLeft, FileText, CheckCircle2, Clock, XCircle, AlertCircle, Upload, Download } from "lucide-react";
+import { FormSubmissionDisplay } from "@/components/FormSubmissionDisplay";
 import { toast } from "sonner";
 import { useState, useRef } from "react";
 
@@ -235,6 +236,9 @@ export default function WorkflowDetail() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Form Submission Data */}
+        <FormSubmissionDisplay workflowId={workflow.id} />
 
         {/* Approval Stages */}
         <Card>

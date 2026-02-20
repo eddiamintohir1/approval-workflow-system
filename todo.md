@@ -306,3 +306,16 @@
 - [x] Implement CEO/CFO signature-only approval (apply pre-uploaded signature image)
 - [ ] Add signature upload interface for CEO/CFO users in user management
 - [ ] Test complete workflow with form upload requirements at each stage
+
+## Phase 21: Default Form Templates & Workflow Integration
+- [x] Create seed script to populate default form templates (MAF, PR, CATTO)
+- [x] Define MAF form fields (requester info, item details, justification, budget)
+- [x] Define PR form fields (vendor info, items, quantities, delivery date)
+- [x] Define CATTO form fields (project details, timeline, resources, approval chain)
+- [x] Update WorkflowCreate page to show template selection dropdown
+- [x] Replace free-text fields with DynamicFormRenderer when template is selected
+- [x] Save form submission data to form_submissions table when workflow is created
+- [x] Update WorkflowDetail page to display submitted form data from form_submissions
+- [ ] Test creating MAF workflow with form template
+- [ ] Test creating PR workflow with form template
+- [ ] Test creating CATTO workflow with form template

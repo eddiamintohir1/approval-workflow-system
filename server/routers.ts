@@ -743,7 +743,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          templateId: z.string(),
+          templateId: z.union([z.string(), z.number()]).transform(val => String(val)),
           workflowId: z.string().optional(),
           stageId: z.string().optional(),
           formData: z.record(z.any()),
@@ -752,7 +752,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input, ctx }) => {
         const submission = await db.createFormSubmission({
-          templateId: input.templateId,
+          templateId: String(input.templateId),
           workflowId: input.workflowId,
           stageId: input.stageId,
           formData: input.formData,
@@ -787,7 +787,20 @@ export const appRouter = router({
     getByWorkflow: protectedProcedure
       .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
-        return await db.getFormSubmissionsByWorkflow(input.workflowId);
+        const submissions = await db.getFormSubmissionsByWorkflow(input.workflowId);
+        
+        // Fetch templates for each submission
+        const submissionsWithTemplates = await Promise.all(
+          submissions.map(async (submission) => {
+            const template = await db.getFormTemplateById(submission.templateId);
+            return {
+              ...submission,
+              template,
+            };
+          })
+        );
+        
+        return submissionsWithTemplates;
       }),
 
     update: protectedProcedure
