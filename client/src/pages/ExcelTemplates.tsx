@@ -55,60 +55,39 @@ export default function ExcelTemplates() {
   // Upload mutation
   const uploadMutation = trpc.excelTemplates.uploadFile.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Excel template uploaded successfully",
-      });
+      toast.success("Excel template uploaded successfully");
       setShowUploadDialog(false);
       resetUploadForm();
       utils.excelTemplates.getAll.invalidate();
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     },
   });
 
   // Update mutation
   const updateMutation = trpc.excelTemplates.update.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Template updated successfully",
-      });
+      toast.success("Template updated successfully");
       setShowEditDialog(false);
       setEditingTemplate(null);
       utils.excelTemplates.getAll.invalidate();
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     },
   });
 
   // Delete mutation
   const deleteMutation = trpc.excelTemplates.delete.useMutation({
     onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Template deleted successfully",
-      });
+      toast.success("Template deleted successfully");
       setShowDeleteDialog(false);
       setDeletingTemplateId(null);
       utils.excelTemplates.getAll.invalidate();
     },
     onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     },
   });
 
@@ -128,11 +107,7 @@ export default function ExcelTemplates() {
         "application/vnd.ms-excel",
       ];
       if (!validTypes.includes(file.type)) {
-        toast({
-          title: "Invalid file type",
-          description: "Please select an Excel file (.xlsx or .xls)",
-          variant: "destructive",
-        });
+        toast.error("Please select an Excel file (.xlsx or .xls)");
         return;
       }
       setSelectedFile(file);
@@ -141,11 +116,7 @@ export default function ExcelTemplates() {
 
   const handleUpload = async () => {
     if (!workflowType || !templateName || !selectedFile) {
-      toast({
-        title: "Missing information",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
+      toast.error("Please fill in all required fields");
       return;
     }
 
