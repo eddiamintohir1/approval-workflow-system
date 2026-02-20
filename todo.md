@@ -466,3 +466,12 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Add visual stage flow indicator
 - [ ] Create template list page to view all templates
 - [ ] Add template editing functionality
+
+## Phase 31: Template List & Workflow Integration
+- [x] Create template list page (/templates) with all saved templates
+- [x] Add edit button to open template in builder
+- [x] Add delete button with confirmation dialog
+- [x] Show template preview with visual stage flow
+- [x] Update workflow creation form to select template
+- [x] Auto-generate workflow stages from selected template
+- [x] Add template preview in workflow creation

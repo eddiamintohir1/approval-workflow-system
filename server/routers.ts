@@ -224,7 +224,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          workflowType: z.enum(["MAF", "PR", "CATTO"]),
+          workflowType: z.string(),
           title: z.string(),
           description: z.string().optional(),
           department: z.string(),
@@ -232,6 +232,7 @@ export const appRouter = router({
           currency: z.string().optional(),
           requiresGa: z.boolean().optional(),
           requiresPpic: z.boolean().optional(),
+          templateId: z.string().optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -240,8 +241,29 @@ export const appRouter = router({
           requesterId: ctx.user.id,
         });
         
-        // Create initial stages based on workflow type
-        await createInitialStages(workflow.id, input.workflowType, input.estimatedAmount);
+        // Create stages from template if provided, otherwise use default logic
+        if (input.templateId) {
+          const template = await db.getWorkflowTemplateById(input.templateId);
+          if (template && template.stages) {
+            for (const stage of template.stages) {
+              await db.createWorkflowStage({
+                workflowId: workflow.id,
+                stageOrder: stage.stageOrder,
+                stageName: stage.stageName,
+                stageType: stage.approvalRequired ? "approval" : "review",
+                requiredRole: stage.requiredRole,
+                requiresOneOf: stage.requiresOneOf,
+                fileUploadRequired: stage.fileUploadRequired,
+                notificationEmails: stage.notificationEmails,
+                visibleToDepartments: stage.visibleToDepartments,
+                approvalThreshold: stage.approvalThreshold,
+              });
+            }
+          }
+        } else {
+          // Create initial stages based on workflow type (fallback)
+          await createInitialStages(workflow.id, input.workflowType, input.estimatedAmount);
+        }
         
         await db.createAuditLog({
           entityType: "workflow",
