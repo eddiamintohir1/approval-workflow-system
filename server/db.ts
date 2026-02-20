@@ -959,3 +959,4 @@ export async function getWorkflowCompletionTrend(days: number = 30) {
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
+

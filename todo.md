@@ -359,3 +359,15 @@
 - [x] Remove VITE_API_URL to use same-origin for published version
 - [ ] Republish with updated environment variables
 - [ ] Test authentication flow on wfmt.compawnion.id domain
+
+## Phase 8: Audit Trail & Logging
+- [x] Review audit_logs table schema
+- [x] Add audit logging to workflow approval/rejection actions
+- [x] Add audit logging to file upload/delete actions
+- [x] Add audit logging to workflow status changes
+- [x] Add audit logging to admin override actions
+- [x] Create audit trail viewer component
+- [x] Add audit trail section to workflow detail page
+- [x] Test complete audit trail functionality
+
+Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update to use workflows/stages API to display audit trail

@@ -10,6 +10,7 @@ import { useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
+import { AuditTrail } from "@/components/AuditTrail";
 
 // Component to download form templates
 function TemplateDownloadCard({ type }: { type: "MAF" | "PR" | "CATTO" }) {
@@ -126,7 +127,6 @@ export default function ProjectDetails() {
 
   const { data: project, isLoading: projectLoading } = trpc.projects.getById.useQuery({ projectId });
   const { data: milestones, isLoading: milestonesLoading, refetch: refetchMilestones } = trpc.milestones.getByProject.useQuery({ projectId });
-  const { data: auditTrail, refetch: refetchAudit } = trpc.audit.getByProject.useQuery({ projectId });
 
   const approveMilestone = trpc.milestones.approve.useMutation({
     onSuccess: () => {
@@ -405,28 +405,7 @@ export default function ProjectDetails() {
 
           {/* Audit Trail */}
           <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Audit Trail</CardTitle>
-                <CardDescription>History of all actions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {auditTrail && auditTrail.length > 0 ? (
-                  <div className="space-y-4">
-                    {auditTrail.map((entry) => (
-                      <div key={entry.id} className="text-sm border-l-2 border-muted pl-3 py-1">
-                        <p className="font-medium">{entry.action.replace("_", " ")}</p>
-                        <p className="text-muted-foreground text-xs">
-                          {new Date(entry.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No activity yet</p>
-                )}
-              </CardContent>
-            </Card>
+            <AuditTrail workflowId={projectId} />
           </div>
         </div>
       </main>
