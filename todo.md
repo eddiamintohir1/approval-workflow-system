@@ -601,3 +601,22 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add daily reminder scheduler (8 AM)
 - [x] Test email delivery from user-specific @compawnion.co addresses
 - [x] Add email notification preferences to user settings
+
+## Phase 23: Fix Template Builder Preview Error
+
+- [ ] Investigate "Failed to load template preview" error
+- [ ] Check template builder page for API errors
+- [ ] Identify missing or broken template preview functionality
+- [ ] Fix template preview loading logic
+- [ ] Test template builder with different workflow types
+
+## Phase 24: Workflow Initial Submission Details & Visibility Restrictions
+
+- [x] Add "Workflow Details" section to WorkflowDetail page showing initial submission info
+- [x] Display original files uploaded by requester
+- [x] Show requester information, department, estimated amount, creation date
+- [x] Implement visibility restrictions for workflow cards in Dashboard
+- [x] Filter workflows based on user's department and stage visibility settings
+- [x] Hide stages not visible to user's department in workflow detail page
+- [x] Test visibility logic with different user roles and departments
+- [x] Ensure approvers can see all necessary information to make decisions

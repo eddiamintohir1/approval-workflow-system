@@ -360,11 +360,27 @@ export const appRouter = router({
 
     getById: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const workflow = await db.getWorkflowById(input.id);
         if (!workflow) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
         }
+
+        // Check if user has access to this workflow
+        const accessCheck = await db.checkWorkflowAccess(
+          input.id,
+          ctx.user.id,
+          ctx.user.role,
+          ctx.user.department
+        );
+
+        if (!accessCheck.hasAccess) {
+          throw new TRPCError({ 
+            code: "FORBIDDEN", 
+            message: `Access denied: ${accessCheck.reason}` 
+          });
+        }
+
         return workflow;
       }),
 

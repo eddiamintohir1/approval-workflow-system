@@ -359,6 +359,58 @@ export async function updateStageStatus(
     .where(eq(schema.workflowStages.id, stageId));
 }
 
+/**
+ * Check if a user has access to view a workflow based on:
+ * 1. C-level roles (CEO, CFO, COO) and admin always have access
+ * 2. Workflow requester always has access
+ * 3. Other users have access if their department is in visibleToDepartments for at least one stage
+ */
+export async function checkWorkflowAccess(
+  workflowId: string,
+  userId: number,
+  userRole: string,
+  userDepartment: string | null
+): Promise<{ hasAccess: boolean; reason?: string }> {
+  // C-level and admin always have access
+  if (["CEO", "CFO", "COO", "admin"].includes(userRole)) {
+    return { hasAccess: true, reason: "C-level or admin access" };
+  }
+
+  // Check if user is the requester
+  const workflow = await getWorkflowById(workflowId);
+  if (!workflow) {
+    return { hasAccess: false, reason: "Workflow not found" };
+  }
+
+  if (workflow.requesterId === userId) {
+    return { hasAccess: true, reason: "Workflow requester" };
+  }
+
+  // Check if user's department has visibility to any stage
+  if (!userDepartment) {
+    return { hasAccess: false, reason: "No department assigned" };
+  }
+
+  const stages = await getStagesByWorkflow(workflowId);
+  
+  // Check if any stage is visible to user's department
+  const hasVisibleStage = stages.some(stage => {
+    // If visibleToDepartments is null/empty, stage is NOT visible to regular users
+    // Only C-level, admin, and requester can see stages without explicit visibility
+    if (!stage.visibleToDepartments || stage.visibleToDepartments.length === 0) {
+      return false;
+    }
+    // Check if user's department is in the visible departments list
+    return stage.visibleToDepartments.includes(userDepartment);
+  });
+
+  if (hasVisibleStage) {
+    return { hasAccess: true, reason: "Department has stage visibility" };
+  }
+
+  return { hasAccess: false, reason: "No visible stages for your department" };
+}
+
 // ============================================
 // Workflow Approval Management
 // ============================================

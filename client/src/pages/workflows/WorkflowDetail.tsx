@@ -28,9 +28,23 @@ export default function WorkflowDetail() {
   const [uploadingStageId, setUploadingStageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: workflow, isLoading: workflowLoading } = trpc.workflows.getById.useQuery({ id: workflowId });
+  const { data: workflow, isLoading: workflowLoading, error: workflowError } = trpc.workflows.getById.useQuery({ id: workflowId });
   const { data: stages, isLoading: stagesLoading, refetch: refetchStages } = trpc.stages.getByWorkflow.useQuery({ workflowId });
   const { data: files } = trpc.files.getByWorkflow.useQuery({ workflowId });
+
+  // Filter stages based on user's department visibility
+  const visibleStages = stages?.filter(stage => {
+    // C-level, admin, and requester see all stages
+    if (!user || ["CEO", "CFO", "COO", "admin"].includes(user.role) || workflow?.requesterId === user.id) {
+      return true;
+    }
+    // If no visibility restrictions, stage is NOT visible to regular users
+    if (!stage.visibleToDepartments || stage.visibleToDepartments.length === 0) {
+      return false;
+    }
+    // Check if user's department is in visible departments
+    return user.department && stage.visibleToDepartments.includes(user.department);
+  }) || [];
 
   const approveStage = trpc.stages.approve.useMutation({
     onSuccess: () => {
@@ -161,6 +175,41 @@ export default function WorkflowDetail() {
     );
   }
 
+  // Handle access denied error
+  if (workflowError && workflowError.data?.code === "FORBIDDEN") {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-destructive">Access Denied</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              You don't have permission to view this workflow.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {workflowError.message}
+            </p>
+            <p className="text-sm">
+              This workflow is only visible to:
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li>The person who created the workflow</li>
+              <li>CEO, CFO, COO, and admin roles</li>
+              <li>Departments assigned to specific approval stages</li>
+            </ul>
+            <Link href="/dashboard">
+              <Button variant="outline" className="mt-4">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!workflow) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -243,15 +292,103 @@ export default function WorkflowDetail() {
               </CardContent>
             </Card>
 
+            {/* Initial Submission Details */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Initial Submission Details</CardTitle>
+                <CardDescription>Information provided when this workflow was created</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Requester Info */}
+                <div>
+                  <span className="text-sm text-muted-foreground">Requested By</span>
+                  <p className="font-medium">{workflow.requesterName || "Unknown"}</p>
+                </div>
+
+                {/* Workflow Details Grid */}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Workflow Type</span>
+                    <p className="font-medium">{workflow.workflowType}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Department</span>
+                    <p className="font-medium">{workflow.department}</p>
+                  </div>
+                  {workflow.estimatedAmount && (
+                    <>
+                      <div>
+                        <span className="text-muted-foreground">Estimated Amount</span>
+                        <p className="font-medium">
+                          {workflow.currency} {workflow.estimatedAmount.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Currency</span>
+                        <p className="font-medium">{workflow.currency}</p>
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Submitted On</span>
+                    <p className="font-medium">{format(new Date(workflow.createdAt), "MMM dd, yyyy 'at' HH:mm")}</p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {workflow.description && (
+                  <div>
+                    <span className="text-sm text-muted-foreground">Description</span>
+                    <p className="mt-1 text-sm bg-muted p-3 rounded-md">{workflow.description}</p>
+                  </div>
+                )}
+
+                {/* Initial Files */}
+                {files && files.filter(f => !f.stageId).length > 0 && (
+                  <div>
+                    <span className="text-sm text-muted-foreground mb-2 block">Attached Files</span>
+                    <div className="space-y-2">
+                      {files.filter(f => !f.stageId).map((file) => (
+                        <div key={file.id} className="flex items-center justify-between p-3 bg-muted rounded-md">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">{file.fileName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Uploaded by {file.uploaderName} on {format(new Date(file.uploadedAt), "MMM dd, yyyy 'at' HH:mm")}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(file.fileUrl, "_blank")}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {files && files.filter(f => !f.stageId).length === 0 && (
+                  <div className="text-sm text-muted-foreground italic">
+                    No files were attached during initial submission
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Progress Trail */}
-            {stages && stages.length > 0 && (
+            {visibleStages && visibleStages.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Approval Progress</CardTitle>
                   <CardDescription>Track the workflow through each approval stage</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <WorkflowProgressTrail stages={stages} />
+                  <WorkflowProgressTrail stages={visibleStages} />
                 </CardContent>
               </Card>
             )}
@@ -263,9 +400,9 @@ export default function WorkflowDetail() {
                 <CardDescription>Track the progress of approval stages</CardDescription>
               </CardHeader>
               <CardContent>
-                {stages && stages.length > 0 ? (
+                {visibleStages && visibleStages.length > 0 ? (
                   <div className="space-y-6">
-                    {stages.map((stage, index) => (
+                    {visibleStages.map((stage, index) => (
                       <div key={stage.id} className="border rounded-lg p-4">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
