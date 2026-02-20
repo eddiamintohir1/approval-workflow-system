@@ -134,11 +134,11 @@ export default function WorkflowCreate() {
       });
 
       // If form template was used, save form submission
-      if (selectedFormTemplate) {
+      if (selectedFormTemplate && selectedFormTemplate.id) {
         console.log('Creating form submission with data:', formData);
         await createFormSubmission.mutateAsync({
           workflowId: workflow.id,
-          templateId: selectedFormTemplate.id,
+          templateId: String(selectedFormTemplate.id),
           formData: formData || {},
           submissionStatus: 'submitted',
         });
