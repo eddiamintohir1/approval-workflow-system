@@ -72,13 +72,15 @@ export default function UserManagement() {
 
   const roleOptions = [
     { value: "admin", label: "Admin" },
-    { value: "brand_manager", label: "Brand Manager" },
-    { value: "ppic_manager", label: "PPIC Manager" },
-    { value: "production_manager", label: "Production Manager" },
-    { value: "purchasing_manager", label: "Purchasing Manager" },
-    { value: "sales_manager", label: "Sales Manager" },
-    { value: "pr_manager", label: "PR Manager" },
-    { value: "director", label: "Director" },
+    { value: "CEO", label: "CEO" },
+    { value: "COO", label: "COO" },
+    { value: "CFO", label: "CFO" },
+    { value: "PPIC", label: "PPIC" },
+    { value: "Purchasing", label: "Purchasing" },
+    { value: "GA", label: "GA" },
+    { value: "Finance", label: "Finance" },
+    { value: "Production", label: "Production" },
+    { value: "Logistics", label: "Logistics" },
   ];
 
   return (

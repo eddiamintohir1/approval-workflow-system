@@ -572,3 +572,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add admin UI for bulk user sync
 - [x] Test complete forgot password flow
 - [x] Test bulk user sync functionality
+
+## Phase 21.1: Fix Role Validation Error
+
+- [x] Identify role mismatch between tRPC validation schema and database
+- [x] Check what roles are actually stored in database
+- [x] Update role enum in routers.ts to match database roles
+- [x] Test user management page role updates
