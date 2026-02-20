@@ -1003,3 +1003,8 @@ export async function getWorkflowTimeline() {
   
   return timelineData;
 }
+
+export async function getUserByRole(role: string) {
+  const users = await db.select().from(schema.user).where(eq(schema.user.role, role)).limit(1);
+  return users[0] || null;
+}

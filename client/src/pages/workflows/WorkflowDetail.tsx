@@ -67,6 +67,31 @@ export default function WorkflowDetail() {
     },
   });
 
+  const downloadTemplate = trpc.excel.downloadTemplate.useMutation({
+    onSuccess: (data) => {
+      // Convert base64 to blob and download
+      const byteCharacters = atob(data.data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Template downloaded successfully");
+    },
+    onError: (error) => {
+      toast.error(`Download failed: ${error.message}`);
+    },
+  });
+
   const handleFileUpload = async (stageId: string, file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -114,7 +139,11 @@ export default function WorkflowDetail() {
 
   const canUserApproveStage = (stage: any) => {
     if (!user) return false;
-    if (stage.status !== "in_progress") return false;
+    // Allow approval for pending or in_progress stages
+    if (stage.status !== "pending" && stage.status !== "in_progress") return false;
+    // Check if workflow is in a state that allows approvals
+    if (workflow?.overallStatus === "completed" || workflow?.overallStatus === "rejected" || workflow?.overallStatus === "discontinued") return false;
+    // Check role permission
     if (stage.requiredRole && user.role !== stage.requiredRole && user.role !== "admin") return false;
     return true;
   };
@@ -171,6 +200,19 @@ export default function WorkflowDetail() {
                       <CardDescription>{workflow.description}</CardDescription>
                     )}
                   </div>
+                  <Button
+                    onClick={() => downloadTemplate.mutate({ workflowType: workflow.workflowType as "MAF" | "PR" | "CATTO" })}
+                    variant="outline"
+                    size="sm"
+                    disabled={downloadTemplate.isPending}
+                  >
+                    {downloadTemplate.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    Download {workflow.workflowType} Template
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>

@@ -1003,6 +1003,46 @@ export const appRouter = router({
       return await db.getWorkflowTimeline();
     }),
   }),
+
+  // ============================================
+  // Excel Template Download
+  // ============================================
+  excel: router({
+    downloadTemplate: protectedProcedure
+      .input(z.object({ workflowType: z.enum(["MAF", "PR", "CATTO"]) }))
+      .mutation(async ({ input, ctx }) => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        
+        let templateFile: string;
+        if (input.workflowType === "MAF") {
+          templateFile = "MAF02.2026.xlsx";
+        } else if (input.workflowType === "PR") {
+          templateFile = "PR02.2026.xlsx";
+        } else {
+          templateFile = "CattoPAF02.2026.xlsx";
+        }
+        
+        const templatePath = path.join(process.cwd(), "templates", templateFile);
+        const buffer = await fs.readFile(templatePath);
+        const base64 = buffer.toString("base64");
+        
+        await db.createAuditLog({
+          entityType: "template",
+          entityId: input.workflowType,
+          action: "template_downloaded",
+          actionDescription: `${input.workflowType} template downloaded`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return {
+          filename: templateFile,
+          data: base64,
+        };
+      }),
+  }),
 });
 
 // ============================================

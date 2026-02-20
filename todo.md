@@ -413,3 +413,28 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Check Zod schema validation in the problematic endpoint
 - [x] Fix the schema validation issue (added missing Zod import)
 - [x] Test the fix on workflow detail page
+
+## Executive Dashboard Features and Workflow Improvements
+- [x] Add Analytics button to dashboard for CEO, COO, CFO roles
+- [x] Add Template Management button to dashboard for CEO, COO, CFO roles
+- [ ] Create template management page for creating/editing form templates
+- [ ] Implement Excel export for MAF workflows with signature fields
+- [ ] Implement Excel export for PR workflows with signature fields
+- [x] Fix PPIC role workflow approval (enable PPIC users to approve their stage)
+- [x] Add Marketing department to department enum and forms
+- [x] Add Sales department to department enum and forms
+- [x] Add R&D department to department enum and forms
+- [ ] Test all executive features and workflow approvals
+
+## Executive Dashboard Features and Workflow Improvements
+- [x] Add Analytics button to dashboard for CEO, COO, CFO roles
+- [x] Add Template Management button to dashboard for CEO, COO, CFO roles
+- [x] Fix PPIC role workflow approval (enable PPIC users to approve their stage)
+- [x] Add Marketing department to department enum and forms
+- [x] Add Sales department to department enum and forms
+- [x] Add R&D department to department enum and forms
+- [x] Implement Excel template download for MAF workflows
+- [x] Implement Excel template download for PR workflows
+- [x] Implement Excel template download for CATTO workflows
+- [x] Add download button to workflow detail page
+- [x] Test all new features end-to-end

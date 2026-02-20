@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users } from "lucide-react";
+import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit } from "lucide-react";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { HelpButton } from "@/components/HelpButton";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
@@ -82,6 +82,23 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Executive features for CEO, COO, CFO */}
+            {(user.role === "CEO" || user.role === "COO" || user.role === "CFO") && (
+              <>
+                <Link href="/analytics">
+                  <Button variant="outline" size="sm">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Analytics
+                  </Button>
+                </Link>
+                <Link href="/templates">
+                  <Button variant="outline" size="sm">
+                    <FileEdit className="h-4 w-4 mr-2" />
+                    Templates
+                  </Button>
+                </Link>
+              </>
+            )}
             {user.role === "admin" && (
               <Link href="/users">
                 <Button variant="outline" size="sm">

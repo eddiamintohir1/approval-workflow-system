@@ -239,6 +239,9 @@ export default function WorkflowCreate() {
                     <SelectItem value="Logistics">Logistics</SelectItem>
                     <SelectItem value="IT">IT</SelectItem>
                     <SelectItem value="HR">HR</SelectItem>
+                    <SelectItem value="Marketing">Marketing</SelectItem>
+                    <SelectItem value="Sales">Sales</SelectItem>
+                    <SelectItem value="R&D">R&D</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
