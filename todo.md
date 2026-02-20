@@ -475,3 +475,14 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Update workflow creation form to select template
 - [x] Auto-generate workflow stages from selected template
 - [x] Add template preview in workflow creation
+
+
+## Phase 32: Executive Access & Enhanced Analytics
+- [x] Update navigation to show Form Template menu for CEO, COO, CFO, Admin roles
+- [x] Update navigation to show Workflow Template menu for CEO, COO, CFO, Admin roles
+- [x] Add department dropdown filter to Analytics page
+- [x] Calculate average days from task assignment to completion per department (from audit logs)
+- [x] Add monthly cost breakdown by department (from form price fields)
+- [x] Add yearly cost breakdown by department (from form price fields)
+- [x] Display completion time metrics with visual charts
+- [x] Display cost metrics with visual charts

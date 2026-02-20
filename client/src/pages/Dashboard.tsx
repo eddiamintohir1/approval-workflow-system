@@ -83,7 +83,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             {/* Executive features for CEO, COO, CFO */}
-            {(user.role === "CEO" || user.role === "COO" || user.role === "CFO") && (
+            {(user.role === "CEO" || user.role === "COO" || user.role === "CFO" || user.role === "admin") && (
               <>
                 <Link href="/analytics">
                   <Button variant="outline" size="sm">
@@ -92,6 +92,28 @@ export default function Dashboard() {
                   </Button>
                 </Link>
                 <Link href="/templates">
+                  <Button variant="outline" size="sm">
+                    <FileEdit className="h-4 w-4 mr-2" />
+                    Workflow Templates
+                  </Button>
+                </Link>
+                <Link href="/admin/form-templates">
+                  <Button variant="outline" size="sm">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Form Templates
+                  </Button>
+                </Link>
+              </>
+            )}
+            {user.role === "admin" && (
+              <>
+                <Link href="/users">
+                  <Button variant="outline" size="sm">
+                    <Users className="h-4 w-4 mr-2" />
+                    User Management
+                  </Button>
+                </Link>
+                <Link href="/admin/sequences">
                   <Button variant="outline" size="sm">
                     <FileEdit className="h-4 w-4 mr-2" />
                     Templates

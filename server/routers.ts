@@ -1123,6 +1123,22 @@ export const appRouter = router({
     timeline: protectedProcedure.query(async () => {
       return await db.getWorkflowTimeline();
     }),
+
+    // Department-specific analytics
+    departmentMetrics: protectedProcedure
+      .input(z.object({ department: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getDepartmentMetrics(input.department);
+      }),
+
+    departmentCostBreakdown: protectedProcedure
+      .input(z.object({ 
+        department: z.string(),
+        period: z.enum(["monthly", "yearly"]).default("monthly")
+      }))
+      .query(async ({ input }) => {
+        return await db.getDepartmentCostBreakdown(input.department, input.period);
+      }),
   }),
 
   // ============================================

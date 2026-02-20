@@ -1233,3 +1233,142 @@ export async function deleteWorkflowTemplate(templateId: string) {
   
   return { success: true };
 }
+
+
+// ============================================================================
+// Department-Specific Analytics
+// ============================================================================
+
+export async function getDepartmentMetrics(department: string) {
+  // Get all workflows for this department
+  const workflows = await db
+    .select()
+    .from(schema.workflows)
+    .where(eq(schema.workflows.department, department));
+
+  // Get audit logs for completion tracking
+  const workflowIds = workflows.map(w => w.id);
+  
+  if (workflowIds.length === 0) {
+    return {
+      totalWorkflows: 0,
+      avgCompletionDays: 0,
+      completedCount: 0,
+      inProgressCount: 0,
+    };
+  }
+
+  // Calculate average days from creation to completion
+  const completedWorkflows = workflows.filter(w => w.overallStatus === 'completed');
+  let avgCompletionDays = 0;
+  
+  if (completedWorkflows.length > 0) {
+    const completionTimes = await Promise.all(
+      completedWorkflows.map(async (workflow) => {
+        // Get audit logs for this workflow
+        const logs = await db
+          .select()
+          .from(schema.auditLogs)
+          .where(and(
+            eq(schema.auditLogs.entityType, 'workflow'),
+            eq(schema.auditLogs.entityId, workflow.id)
+          ))
+          .orderBy(schema.auditLogs.timestamp);
+
+        if (logs.length === 0) return 0;
+
+        // Find first "created" and last "completed" logs
+        const createdLog = logs.find(log => log.action === 'created');
+        const completedLog = logs.find(log => log.action === 'completed' || log.actionDescription?.includes('completed'));
+
+        if (!createdLog) return 0;
+
+        const startTime = new Date(createdLog.timestamp).getTime();
+        const endTime = completedLog 
+          ? new Date(completedLog.timestamp).getTime()
+          : new Date(workflow.updatedAt).getTime();
+
+        return (endTime - startTime) / (1000 * 60 * 60 * 24); // Convert to days
+      })
+    );
+
+    avgCompletionDays = Math.round(
+      completionTimes.reduce((sum, days) => sum + days, 0) / completionTimes.length
+    );
+  }
+
+  return {
+    totalWorkflows: workflows.length,
+    avgCompletionDays,
+    completedCount: completedWorkflows.length,
+    inProgressCount: workflows.filter(w => w.overallStatus === 'in_progress').length,
+  };
+}
+
+export async function getDepartmentCostBreakdown(department: string, period: 'monthly' | 'yearly') {
+  // Get all workflows for this department
+  const workflows = await db
+    .select()
+    .from(schema.workflows)
+    .where(eq(schema.workflows.department, department));
+
+  if (workflows.length === 0) {
+    return [];
+  }
+
+  // Get form submissions for these workflows
+  const workflowIds = workflows.map(w => w.id);
+  const submissions = await db
+    .select()
+    .from(schema.formSubmissions)
+    .where(sql`${schema.formSubmissions.workflowId} IN (${sql.join(workflowIds.map(id => sql`${id}`), sql`, `)})`);
+
+  // Extract cost data from form submissions
+  const costData: { period: string; totalCost: number; count: number }[] = [];
+  const periodMap = new Map<string, { totalCost: number; count: number }>();
+
+  for (const submission of submissions) {
+    const formData = submission.formData as any;
+    
+    // Look for price/cost fields in form data
+    let cost = 0;
+    if (formData) {
+      // Common field names for cost/price
+      const costFields = ['price', 'amount', 'cost', 'total', 'totalAmount', 'totalCost'];
+      for (const field of costFields) {
+        if (formData[field] && !isNaN(Number(formData[field]))) {
+          cost = Number(formData[field]);
+          break;
+        }
+      }
+    }
+
+    if (cost > 0 && submission.submittedAt) {
+      const date = new Date(submission.submittedAt);
+      let periodKey: string;
+
+      if (period === 'monthly') {
+        periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else {
+        periodKey = String(date.getFullYear());
+      }
+
+      const existing = periodMap.get(periodKey) || { totalCost: 0, count: 0 };
+      periodMap.set(periodKey, {
+        totalCost: existing.totalCost + cost,
+        count: existing.count + 1,
+      });
+    }
+  }
+
+  // Convert map to array and sort
+  for (const [periodKey, data] of periodMap.entries()) {
+    costData.push({
+      period: periodKey,
+      totalCost: Math.round(data.totalCost),
+      count: data.count,
+    });
+  }
+
+  return costData.sort((a, b) => a.period.localeCompare(b.period));
+}

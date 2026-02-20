@@ -1,12 +1,20 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, TrendingUp, CheckCircle2, XCircle, Clock, FileText } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { BarChart3, TrendingUp, CheckCircle2, XCircle, Clock, FileText, DollarSign, Calendar } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { WorkflowGanttChart } from "@/components/WorkflowGanttChart";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+const DEPARTMENTS = ["All", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "IT", "HR", "Marketing", "Sales", "R&D"];
+
 export default function Analytics() {
+  const [selectedDepartment, setSelectedDepartment] = useState("All");
+  const [costPeriod, setCostPeriod] = useState<"monthly" | "yearly">("monthly");
+
   const { data: overview, isLoading: overviewLoading } = trpc.analytics.overview.useQuery();
   const { data: byType, isLoading: byTypeLoading } = trpc.analytics.byType.useQuery();
   const { data: byDepartment, isLoading: byDepartmentLoading } = trpc.analytics.byDepartment.useQuery();
@@ -14,8 +22,18 @@ export default function Analytics() {
   const { data: avgTimeByType, isLoading: avgTimeLoading } = trpc.analytics.avgTimeByType.useQuery();
   const { data: completionTrend, isLoading: trendLoading } = trpc.analytics.completionTrend.useQuery({ days: 30 });
   const { data: timeline, isLoading: timelineLoading } = trpc.analytics.timeline.useQuery();
+  
+  // Department-specific metrics
+  const { data: deptMetrics, isLoading: deptMetricsLoading } = trpc.analytics.departmentMetrics.useQuery(
+    { department: selectedDepartment },
+    { enabled: selectedDepartment !== "All" }
+  );
+  const { data: deptCosts, isLoading: deptCostsLoading } = trpc.analytics.departmentCostBreakdown.useQuery(
+    { department: selectedDepartment, period: costPeriod },
+    { enabled: selectedDepartment !== "All" }
+  );
 
-  const isLoading = overviewLoading || byTypeLoading || byDepartmentLoading || byStatusLoading || avgTimeLoading || trendLoading || timelineLoading;
+  const isLoading = overviewLoading || byTypeLoading || byDepartmentLoading || byStatusLoading || avgTimeLoading || trendLoading || timelineLoading || deptMetricsLoading || deptCostsLoading;
 
   if (isLoading) {
     return (
@@ -32,16 +50,91 @@ export default function Analytics() {
 
   return (
     <div className="container py-8 space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Workflow Analytics</h1>
-        <p className="text-muted-foreground mt-2">
-          Comprehensive overview of workflow performance and metrics
-        </p>
+      {/* Header with Department Filter */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Workflow Analytics</h1>
+          <p className="text-muted-foreground mt-2">
+            Comprehensive overview of workflow performance and metrics
+          </p>
+        </div>
+        <div className="w-64">
+          <Label htmlFor="department">Filter by Department</Label>
+          <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+            <SelectTrigger id="department">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEPARTMENTS.map((dept) => (
+                <SelectItem key={dept} value={dept}>
+                  {dept}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Department-Specific Metrics (shown when department is selected) */}
+      {selectedDepartment !== "All" && deptMetrics && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="bg-card/95 backdrop-blur">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Avg. Completion Time</CardTitle>
+              <Clock className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{deptMetrics.avgCompletionDays}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Days from assignment to completion
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/95 backdrop-blur">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Workflows</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{deptMetrics.totalWorkflows}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedDepartment} department
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/95 backdrop-blur">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{deptMetrics.completedCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Successfully completed
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/95 backdrop-blur">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+              <Clock className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{deptMetrics.inProgressCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Currently active
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Global Metrics Cards (shown when All is selected) */}
+      {selectedDepartment === "All" && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-card/95 backdrop-blur">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Workflows</CardTitle>
@@ -93,7 +186,48 @@ export default function Analytics() {
             </p>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
+
+      {/* Department Cost Breakdown (shown when department is selected) */}
+      {selectedDepartment !== "All" && deptCosts && deptCosts.length > 0 && (
+        <Card className="bg-card/95 backdrop-blur">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Cost Breakdown - {selectedDepartment}</CardTitle>
+                <CardDescription>Total costs from workflow form data</CardDescription>
+              </div>
+              <Select value={costPeriod} onValueChange={(v) => setCostPeriod(v as "monthly" | "yearly")}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={deptCosts}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="period" />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value: number) => [`$${value.toLocaleString()}`, "Total Cost"]}
+                />
+                <Bar dataKey="totalCost" fill="#10b981" />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-4 text-sm text-muted-foreground">
+              Total: ${deptCosts.reduce((sum, item) => sum + item.totalCost, 0).toLocaleString()} | 
+              Workflows: {deptCosts.reduce((sum, item) => sum + item.count, 0)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Grid */}
       <div className="grid gap-6 md:grid-cols-2">
