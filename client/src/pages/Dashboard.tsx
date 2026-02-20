@@ -78,7 +78,7 @@ export default function Dashboard() {
       <header className="border-b bg-card/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src="/images.jpeg" alt="Compawnion" className="h-10 w-10 rounded-full" />
+            <img src="https://files.manuscdn.com/user_upload_by_module/session_file/94657144/VBJnHGARwdnBRpGK.png" alt="Compawnion" className="h-10 w-10 rounded-full" />
             <div>
               <h1 className="text-2xl font-bold">Approval Workflow System</h1>
               <p className="text-sm text-muted-foreground">Welcome, {user.email?.split("@")[0] || "User"}</p>

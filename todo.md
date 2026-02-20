@@ -386,3 +386,11 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Create HelpButton floating component
 - [x] Add HelpButton to Dashboard and WorkflowDetail pages
 - [x] Test help button links to tech.compawnion.id
+
+## Fix Logo, Help Button, and Analytics Page Issues
+- [x] Upload new logo image to S3
+- [x] Update logo URL in all components
+- [x] Investigate why help button is missing
+- [x] Restore help button functionality
+- [x] Locate analytics page
+- [x] Test analytics page functionality
