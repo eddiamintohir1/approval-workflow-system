@@ -284,11 +284,11 @@ export default function WorkflowDetail() {
                           </div>
                         </div>
 
-                        {/* Stage Files */}
-                        {files && files.filter(f => f.stageId === stage.id).length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            <p className="text-sm font-medium">Uploaded Files:</p>
-                            {files.filter(f => f.stageId === stage.id).map((file) => (
+                        {/* Stage Files - Always show for all stages */}
+                        <div className="mt-3 space-y-2">
+                          <p className="text-sm font-medium">Uploaded Files:</p>
+                          {files && files.filter(f => f.stageId === stage.id).length > 0 ? (
+                            files.filter(f => f.stageId === stage.id).map((file) => (
                               <div key={file.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
                                 <div className="flex items-center gap-2">
                                   <FileText className="h-4 w-4" />
@@ -302,9 +302,11 @@ export default function WorkflowDetail() {
                                   <Download className="h-4 w-4" />
                                 </Button>
                               </div>
-                            ))}
-                          </div>
-                        )}
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">No files uploaded yet</p>
+                          )}
+                        </div>
 
                         {/* Action Buttons */}
                         {canUserApproveStage(stage) && (
