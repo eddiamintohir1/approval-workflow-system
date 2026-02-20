@@ -279,3 +279,16 @@
 - [x] Create backend endpoint to switch user role temporarily
 - [x] Test role switching functionality for all roles (admin, Finance, CFO, PPIC, Purchasing, GA, etc.)
 - [x] Verify approval permissions work correctly for each role
+
+## Phase 18: Complete Phase 4 - Workflow & Milestone Management
+- [x] Build file upload interface for attaching documents to workflows
+  - [x] Add file upload component to WorkflowDetail page
+  - [x] Implement drag-and-drop file upload
+  - [x] Upload files to S3 storage
+  - [x] Save file metadata to workflow_files table
+  - [x] Display uploaded files list with download links
+- [x] Implement greyed-out logic for locked approval stages
+  - [x] Disable approval buttons for stages that haven't been unlocked
+  - [x] Show visual indication (greyed out) for locked stages
+  - [x] Only allow approval for current active stage
+- [x] Test file upload and stage locking functionality

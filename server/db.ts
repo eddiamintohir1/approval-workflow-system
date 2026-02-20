@@ -611,3 +611,33 @@ export async function getAllEmailRecipients(): Promise<schema.EmailRecipient[]> 
     .from(schema.emailRecipients)
     .where(eq(schema.emailRecipients.isActive, true));
 }
+
+// ============================================
+// Workflow Files
+// ============================================
+
+
+// ============================================
+// Workflow Files Queries
+// ============================================
+
+export async function getWorkflowFiles(workflowId: string) {
+  return await db
+    .select()
+    .from(schema.workflowFiles)
+    .where(eq(schema.workflowFiles.workflowId, workflowId))
+    .orderBy(desc(schema.workflowFiles.uploadedAt));
+}
+
+export async function getWorkflowFileById(fileId: string) {
+  const results = await db
+    .select()
+    .from(schema.workflowFiles)
+    .where(eq(schema.workflowFiles.id, fileId))
+    .limit(1);
+  return results[0] || null;
+}
+
+export async function deleteWorkflowFile(fileId: string) {
+  await db.delete(schema.workflowFiles).where(eq(schema.workflowFiles.id, fileId));
+}

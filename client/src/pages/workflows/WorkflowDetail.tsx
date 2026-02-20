@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowLeft, FileText, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
+import { FileUpload } from "@/components/FileUpload";
 import { toast } from "sonner";
 
 export default function WorkflowDetail() {
@@ -170,7 +171,11 @@ export default function WorkflowDetail() {
                   <div
                     key={stage.id}
                     className={`p-4 border rounded-lg ${
-                      isCurrentStage ? "border-primary bg-primary/5" : ""
+                      isCurrentStage
+                        ? "border-primary bg-primary/5"
+                        : stage.status === "pending"
+                        ? "opacity-50 bg-muted/30"
+                        : ""
                     }`}
                   >
                     <div className="flex items-start justify-between">
@@ -269,6 +274,17 @@ export default function WorkflowDetail() {
                 );
               })}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* File Attachments */}
+        <Card>
+          <CardHeader>
+            <CardTitle>File Attachments</CardTitle>
+            <CardDescription>Upload and manage workflow documents</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FileUpload workflowId={workflow.id} />
           </CardContent>
         </Card>
 
