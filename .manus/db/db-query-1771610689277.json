@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `template_stages` (\n  `id` varchar(36) PRIMARY KEY,\n  `template_id` varchar(36) NOT NULL,\n  `stage_order` int NOT NULL,\n  `stage_name` varchar(255) NOT NULL,\n  `stage_description` text,\n  `department` varchar(100),\n  `required_role` varchar(50),\n  `requires_one_of` json,\n  `approval_required` boolean DEFAULT true NOT NULL,\n  `file_upload_required` boolean DEFAULT false NOT NULL,\n  `notification_emails` json,\n  `approval_threshold` decimal(15, 2),\n  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,\n  FOREIGN KEY (`template_id`) REFERENCES `workflow_templates`(`id`) ON DELETE CASCADE\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE IF NOT EXISTS `template_stages` (\n  `id` varchar(36) PRIMARY KEY,\n  `template_id` varchar(36) NOT NULL,\n  `stage_order` int NOT NULL,\n  `stage_name` varchar(255) NOT NULL,\n  `stage_description` text,\n  `department` varchar(100),\n  `required_role` varchar(50),\n  `requires_one_of` json,\n  `approval_required` boolean DEFAULT true NOT NULL,\n  `file_upload_required` boolean DEFAULT false NOT NULL,\n  `notification_emails` json,\n  `approval_threshold` decimal(15, 2),\n  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,\n  FOREIGN KEY (`template_id`) REFERENCES `workflow_templates`(`id`) ON DELETE CASCADE\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1707
+}

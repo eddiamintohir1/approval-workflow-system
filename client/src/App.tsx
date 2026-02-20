@@ -15,6 +15,7 @@ import FormTemplateList from "./pages/admin/FormTemplateList";
 import FormTemplateBuilder from "./pages/admin/FormTemplateBuilder";
 import SequenceGenerator from "./pages/admin/SequenceGenerator";
 import Analytics from "./pages/Analytics";
+import TemplateBuilder from "./pages/templates/TemplateBuilder";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
@@ -73,6 +74,9 @@ function Router() {
       </Route>
       <Route path="/admin/sequences" component={() => <ProtectedRoute component={SequenceGenerator} path="/admin/sequences" />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} path="/analytics" />} />
+      <Route path="/templates/builder">
+        <ProtectedRoute component={TemplateBuilder} path="/templates/builder" />
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

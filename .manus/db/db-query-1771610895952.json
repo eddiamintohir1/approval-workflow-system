@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `template_stages` ADD COLUMN `visible_to_departments` json AFTER `notification_emails`;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute ALTER TABLE `template_stages` ADD COLUMN `visible_to_departments` json AFTER `notification_emails`;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1988
+}

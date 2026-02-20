@@ -57,6 +57,7 @@ export const workflows = mysqlTable("workflows", {
   id: varchar("id", { length: 36 }).primaryKey(), // UUID as string
   workflowNumber: varchar("workflow_number", { length: 50 }).notNull().unique(), // WFMT-MAF-260209-001
   workflowType: mysqlEnum("workflow_type", ["MAF", "PR"]).notNull(),
+  templateId: varchar("template_id", { length: 36 }), // Reference to workflow template used
   title: varchar("title", { length: 500 }).notNull(),
   description: text("description"),
   
@@ -413,3 +414,73 @@ export const formSubmissions = mysqlTable("form_submissions", {
 
 export type FormSubmission = typeof formSubmissions.$inferSelect;
 export type InsertFormSubmission = typeof formSubmissions.$inferInsert;
+
+/**
+ * =====================================================
+ * WORKFLOW_TEMPLATES TABLE
+ * Reusable workflow templates with custom stages
+ * =====================================================
+ */
+export const workflowTemplates = mysqlTable("workflow_templates", {
+  id: varchar("id", { length: 36 }).primaryKey(), // UUID
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  workflowType: varchar("workflow_type", { length: 100 }).notNull(), // Flexible: MAF, PR, Reimbursement, Leave, etc.
+  
+  // Template status
+  isActive: boolean("is_active").default(true).notNull(),
+  isDefault: boolean("is_default").default(false).notNull(), // One default template per type
+  
+  // Creator
+  createdBy: int("created_by").notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WorkflowTemplate = typeof workflowTemplates.$inferSelect;
+export type InsertWorkflowTemplate = typeof workflowTemplates.$inferInsert;
+
+/**
+ * =====================================================
+ * TEMPLATE_STAGES TABLE
+ * Configurable stages for workflow templates
+ * =====================================================
+ */
+export const templateStages = mysqlTable("template_stages", {
+  id: varchar("id", { length: 36 }).primaryKey(), // UUID
+  templateId: varchar("template_id", { length: 36 }).notNull(),
+  
+  // Stage ordering
+  stageOrder: int("stage_order").notNull(),
+  
+  // Stage information
+  stageName: varchar("stage_name", { length: 255 }).notNull(),
+  stageDescription: text("stage_description"),
+  
+  // Department/Role assignment
+  department: varchar("department", { length: 100 }),
+  requiredRole: varchar("required_role", { length: 50 }),
+  requiresOneOf: json("requires_one_of").$type<string[]>(), // Multiple roles allowed (e.g., ['CEO', 'COO'])
+  
+  // Stage conditions
+  approvalRequired: boolean("approval_required").default(true).notNull(),
+  fileUploadRequired: boolean("file_upload_required").default(false).notNull(),
+  
+  // Email notifications
+  notificationEmails: json("notification_emails").$type<string[]>(), // Email addresses to notify when stage starts
+  
+  // Stage visibility control
+  visibleToDepartments: json("visible_to_departments").$type<string[]>(), // Departments that can see this stage
+  
+  // Approval threshold (for amount-based routing)
+  approvalThreshold: decimal("approval_threshold", { precision: 15, scale: 2 }),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TemplateStage = typeof templateStages.$inferSelect;
+export type InsertTemplateStage = typeof templateStages.$inferInsert;

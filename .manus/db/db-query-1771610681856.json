@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `workflow_templates` (\n  `id` varchar(36) PRIMARY KEY,\n  `name` varchar(255) NOT NULL,\n  `description` text,\n  `workflow_type` enum('MAF', 'PR') NOT NULL,\n  `is_active` boolean DEFAULT true NOT NULL,\n  `is_default` boolean DEFAULT false NOT NULL,\n  `created_by` int NOT NULL,\n  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE IF NOT EXISTS `workflow_templates` (\n  `id` varchar(36) PRIMARY KEY,\n  `name` varchar(255) NOT NULL,\n  `description` text,\n  `workflow_type` enum('MAF', 'PR') NOT NULL,\n  `is_active` boolean DEFAULT true NOT NULL,\n  `is_default` boolean DEFAULT false NOT NULL,\n  `created_by` int NOT NULL,\n  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1698
+}

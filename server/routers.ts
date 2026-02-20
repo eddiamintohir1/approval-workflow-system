@@ -14,6 +14,100 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+// Template router (defined before appRouter)
+const templatesRouter = router({
+  // Create new template
+  create: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      description: z.string().optional(),
+      workflowType: z.string(),
+      isDefault: z.boolean().optional(),
+      stages: z.array(z.object({
+        stageOrder: z.number(),
+        stageName: z.string(),
+        stageDescription: z.string().optional(),
+        department: z.string().optional(),
+        requiredRole: z.string().optional(),
+        requiresOneOf: z.array(z.string()).optional(),
+        approvalRequired: z.boolean(),
+        fileUploadRequired: z.boolean(),
+        notificationEmails: z.array(z.string()).optional(),
+        visibleToDepartments: z.array(z.string()).optional(),
+        approvalThreshold: z.number().optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return await db.createWorkflowTemplate({
+        ...input,
+        createdBy: ctx.user.id,
+      });
+    }),
+
+  // Get all templates
+  getAll: protectedProcedure
+    .input(z.object({
+      workflowType: z.string().optional(),
+      isActive: z.boolean().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      return await db.getWorkflowTemplates(input || {});
+    }),
+
+  // Get template by ID with stages
+  getById: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const template = await db.getWorkflowTemplateById(input.id);
+      if (!template) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+      }
+      return template;
+    }),
+
+  // Get default template for workflow type
+  getDefault: protectedProcedure
+    .input(z.object({ workflowType: z.string() }))
+    .query(async ({ input }) => {
+      return await db.getDefaultTemplate(input.workflowType);
+    }),
+
+  // Update template
+  update: protectedProcedure
+    .input(z.object({
+      id: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      isDefault: z.boolean().optional(),
+      isActive: z.boolean().optional(),
+      stages: z.array(z.object({
+        id: z.string().optional(),
+        stageOrder: z.number(),
+        stageName: z.string(),
+        stageDescription: z.string().optional(),
+        department: z.string().optional(),
+        requiredRole: z.string().optional(),
+        requiresOneOf: z.array(z.string()).optional(),
+        approvalRequired: z.boolean(),
+        fileUploadRequired: z.boolean(),
+        notificationEmails: z.array(z.string()).optional(),
+        visibleToDepartments: z.array(z.string()).optional(),
+        approvalThreshold: z.number().optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, ...updates } = input;
+      return await db.updateWorkflowTemplate(id, updates);
+    }),
+
+  // Delete template
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      return await db.deleteWorkflowTemplate(input.id);
+    }),
+});
+
 export const appRouter = router({
   system: systemRouter,
   
@@ -1008,6 +1102,11 @@ export const appRouter = router({
       return await db.getWorkflowTimeline();
     }),
   }),
+
+  // ============================================
+  // Workflow Templates
+  // ============================================
+  templates: templatesRouter,
 
   // ============================================
   // Excel Template Download

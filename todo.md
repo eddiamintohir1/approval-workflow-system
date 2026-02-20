@@ -452,3 +452,17 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Restore file upload functionality for stages
 - [ ] Test with PPIC role on pending PPIC Review stage
 - [ ] Test with Purchasing role on in-progress Purchasing Review stage
+
+
+## Phase 30: Workflow Template Builder System
+- [x] Create workflow_templates table schema (name, description, is_active)
+- [x] Create template_stages table schema with conditions (order, department, approval_required, file_upload_required, notification_emails, visible_to_departments)
+- [x] Build Template Builder page with drag-and-drop UI
+- [x] Implement stage configuration panel (approval, file upload, email notifications, department visibility)
+- [x] Add template management backend API (create, save, edit, delete, getAll, getById, getDefault)
+- [x] Wire up frontend with tRPC for template creation
+- [ ] Update workflow creation to select and use templates
+- [ ] Enhance breadcrumb trail visualization
+- [ ] Add visual stage flow indicator
+- [ ] Create template list page to view all templates
+- [ ] Add template editing functionality

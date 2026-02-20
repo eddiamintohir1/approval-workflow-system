@@ -1022,3 +1022,214 @@ export async function getUserByRole(role: string) {
   const users = await db.select().from(schema.user).where(eq(schema.user.role, role)).limit(1);
   return users[0] || null;
 }
+
+// ============================================
+// Workflow Template Management
+// ============================================
+
+export async function createWorkflowTemplate(template: {
+  name: string;
+  description?: string;
+  workflowType: string;
+  isDefault?: boolean;
+  createdBy: number;
+  stages: Array<{
+    stageOrder: number;
+    stageName: string;
+    stageDescription?: string;
+    department?: string;
+    requiredRole?: string;
+    requiresOneOf?: string[];
+    approvalRequired: boolean;
+    fileUploadRequired: boolean;
+    notificationEmails?: string[];
+    visibleToDepartments?: string[];
+    approvalThreshold?: number;
+  }>;
+}): Promise<{ templateId: string }> {
+  const templateId = randomUUID();
+  
+  // If this is set as default, unset other defaults for this workflow type
+  if (template.isDefault) {
+    await db
+      .update(schema.workflowTemplates)
+      .set({ isDefault: false })
+      .where(eq(schema.workflowTemplates.workflowType, template.workflowType));
+  }
+  
+  // Insert template
+  await db.insert(schema.workflowTemplates).values({
+    id: templateId,
+    name: template.name,
+    description: template.description,
+    workflowType: template.workflowType,
+    isDefault: template.isDefault || false,
+    isActive: true,
+    createdBy: template.createdBy,
+  });
+  
+  // Insert stages
+  for (const stage of template.stages) {
+    const stageId = randomUUID();
+    await db.insert(schema.templateStages).values({
+      id: stageId,
+      templateId,
+      stageOrder: stage.stageOrder,
+      stageName: stage.stageName,
+      stageDescription: stage.stageDescription,
+      department: stage.department,
+      requiredRole: stage.requiredRole,
+      requiresOneOf: stage.requiresOneOf,
+      approvalRequired: stage.approvalRequired,
+      fileUploadRequired: stage.fileUploadRequired,
+      notificationEmails: stage.notificationEmails,
+      visibleToDepartments: stage.visibleToDepartments,
+      approvalThreshold: stage.approvalThreshold ? stage.approvalThreshold.toString() : undefined,
+    });
+  }
+  
+  return { templateId };
+}
+
+export async function getWorkflowTemplates(filters?: {
+  workflowType?: string;
+  isActive?: boolean;
+}) {
+  let query = db.select().from(schema.workflowTemplates);
+  
+  if (filters?.workflowType) {
+    query = query.where(eq(schema.workflowTemplates.workflowType, filters.workflowType)) as any;
+  }
+  if (filters?.isActive !== undefined) {
+    query = query.where(eq(schema.workflowTemplates.isActive, filters.isActive)) as any;
+  }
+  
+  return await query.orderBy(desc(schema.workflowTemplates.createdAt));
+}
+
+export async function getWorkflowTemplateById(templateId: string) {
+  const [template] = await db
+    .select()
+    .from(schema.workflowTemplates)
+    .where(eq(schema.workflowTemplates.id, templateId))
+    .limit(1);
+  
+  if (!template) {
+    return null;
+  }
+  
+  const stages = await db
+    .select()
+    .from(schema.templateStages)
+    .where(eq(schema.templateStages.templateId, templateId))
+    .orderBy(schema.templateStages.stageOrder);
+  
+  return {
+    ...template,
+    stages,
+  };
+}
+
+export async function getDefaultTemplate(workflowType: string) {
+  const [template] = await db
+    .select()
+    .from(schema.workflowTemplates)
+    .where(
+      and(
+        eq(schema.workflowTemplates.workflowType, workflowType),
+        eq(schema.workflowTemplates.isDefault, true),
+        eq(schema.workflowTemplates.isActive, true)
+      )
+    )
+    .limit(1);
+  
+  if (!template) {
+    return null;
+  }
+  
+  const stages = await db
+    .select()
+    .from(schema.templateStages)
+    .where(eq(schema.templateStages.templateId, template.id))
+    .orderBy(schema.templateStages.stageOrder);
+  
+  return {
+    ...template,
+    stages,
+  };
+}
+
+export async function updateWorkflowTemplate(
+  templateId: string,
+  updates: {
+    name?: string;
+    description?: string;
+    isDefault?: boolean;
+    isActive?: boolean;
+    stages?: Array<{
+      id?: string;
+      stageOrder: number;
+      stageName: string;
+      stageDescription?: string;
+      department?: string;
+      requiredRole?: string;
+      requiresOneOf?: string[];
+      approvalRequired: boolean;
+      fileUploadRequired: boolean;
+      notificationEmails?: string[];
+      visibleToDepartments?: string[];
+      approvalThreshold?: number;
+    }>;
+  }
+) {
+  // Update template
+  await db
+    .update(schema.workflowTemplates)
+    .set({
+      name: updates.name,
+      description: updates.description,
+      isDefault: updates.isDefault,
+      isActive: updates.isActive,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.workflowTemplates.id, templateId));
+  
+  // If stages are provided, replace all stages
+  if (updates.stages) {
+    // Delete existing stages
+    await db
+      .delete(schema.templateStages)
+      .where(eq(schema.templateStages.templateId, templateId));
+    
+    // Insert new stages
+    for (const stage of updates.stages) {
+      const stageId = stage.id || randomUUID();
+      await db.insert(schema.templateStages).values({
+        id: stageId,
+        templateId,
+        stageOrder: stage.stageOrder,
+        stageName: stage.stageName,
+        stageDescription: stage.stageDescription,
+        department: stage.department,
+        requiredRole: stage.requiredRole,
+        requiresOneOf: stage.requiresOneOf,
+        approvalRequired: stage.approvalRequired,
+        fileUploadRequired: stage.fileUploadRequired,
+        notificationEmails: stage.notificationEmails,
+        visibleToDepartments: stage.visibleToDepartments,
+        approvalThreshold: stage.approvalThreshold ? stage.approvalThreshold.toString() : undefined,
+      });
+    }
+  }
+  
+  return { success: true };
+}
+
+export async function deleteWorkflowTemplate(templateId: string) {
+  // Stages will be deleted automatically due to CASCADE
+  await db
+    .delete(schema.workflowTemplates)
+    .where(eq(schema.workflowTemplates.id, templateId));
+  
+  return { success: true };
+}
