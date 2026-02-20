@@ -307,36 +307,45 @@ export default function WorkflowDetail() {
 
                         {/* Action Buttons */}
                         {canUserApproveStage(stage) && (
-                          <div className="flex gap-2 mt-4">
-                            <Button
-                              size="sm"
-                              onClick={() => handleUploadClick(stage.id)}
-                              variant="outline"
-                              disabled={uploadingStageId === stage.id}
-                            >
-                              {uploadingStageId === stage.id ? (
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                              ) : (
-                                <Upload className="h-4 w-4 mr-1" />
-                              )}
-                              Upload File
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleApproveClick(stage.id)}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              <CheckCircle2 className="h-4 w-4 mr-1" />
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleRejectClick(stage.id)}
-                              variant="destructive"
-                            >
-                              <XCircle className="h-4 w-4 mr-1" />
-                              Reject
-                            </Button>
+                          <div className="mt-4">
+                            {(!files || files.filter(f => f.stageId === stage.id).length === 0) && (
+                              <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                <p className="text-sm text-blue-800 dark:text-blue-200">
+                                  ℹ️ Please upload the required form before approving this stage.
+                                </p>
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleUploadClick(stage.id)}
+                                variant="outline"
+                                disabled={uploadingStageId === stage.id}
+                              >
+                                {uploadingStageId === stage.id ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <Upload className="h-4 w-4 mr-1" />
+                                )}
+                                Upload File
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleApproveClick(stage.id)}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleRejectClick(stage.id)}
+                                variant="destructive"
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                          </div>
                           </div>
                         )}
                       </div>
