@@ -5,6 +5,8 @@ import { systemRouter } from "./_core/systemRouter";
 import * as db from "./db";
 import { storagePut, storageGet } from "./storage";
 import { randomUUID } from "crypto";
+import { withCache, CACHE_TTL, invalidateAnalyticsCache } from "./analyticsCache";
+import { triggerRemindersNow } from "./reminderScheduler";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -341,6 +343,9 @@ export const appRouter = router({
           actorRole: ctx.user.role,
         });
         
+        // Invalidate analytics cache
+        invalidateAnalyticsCache();
+        
         return workflow;
       }),
 
@@ -509,6 +514,9 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
+        
+        // Invalidate analytics cache
+        invalidateAnalyticsCache();
         
         return { success: true };
       }),
@@ -1190,40 +1198,72 @@ export const appRouter = router({
   // ============================================
   analytics: router({
     overview: protectedProcedure.query(async () => {
-      return await db.getWorkflowAnalytics();
+      return await withCache(
+        'analytics:overview',
+        CACHE_TTL.OVERVIEW,
+        () => db.getWorkflowAnalytics()
+      );
     }),
 
     byType: protectedProcedure.query(async () => {
-      return await db.getWorkflowsByType();
+      return await withCache(
+        'analytics:byType',
+        CACHE_TTL.BY_TYPE,
+        () => db.getWorkflowsByType()
+      );
     }),
 
     byDepartment: protectedProcedure.query(async () => {
-      return await db.getWorkflowsByDepartment();
+      return await withCache(
+        'analytics:byDepartment',
+        CACHE_TTL.BY_DEPARTMENT,
+        () => db.getWorkflowsByDepartment()
+      );
     }),
 
     byStatus: protectedProcedure.query(async () => {
-      return await db.getWorkflowsByStatus();
+      return await withCache(
+        'analytics:byStatus',
+        CACHE_TTL.BY_STATUS,
+        () => db.getWorkflowsByStatus()
+      );
     }),
 
     avgTimeByType: protectedProcedure.query(async () => {
-      return await db.getAvgApprovalTimeByType();
+      return await withCache(
+        'analytics:avgTimeByType',
+        CACHE_TTL.AVG_TIME,
+        () => db.getAvgApprovalTimeByType()
+      );
     }),
 
     completionTrend: protectedProcedure
       .input(z.object({ days: z.number().optional().default(30) }))
       .query(async ({ input }) => {
-        return await db.getWorkflowCompletionTrend(input.days);
+        return await withCache(
+          `analytics:completionTrend:${input.days}`,
+          CACHE_TTL.COMPLETION_TREND,
+          () => db.getWorkflowCompletionTrend(input.days)
+        );
       }),
 
     timeline: protectedProcedure.query(async () => {
-      return await db.getWorkflowTimeline();
+      return await withCache(
+        'analytics:timeline',
+        CACHE_TTL.TIMELINE,
+        () => db.getWorkflowTimeline()
+      );
     }),
 
-    // Department-specific analytics
+    // Department-specific analytics with per-department caching
     departmentMetrics: protectedProcedure
       .input(z.object({ department: z.string() }))
       .query(async ({ input }) => {
-        return await db.getDepartmentMetrics(input.department);
+        return await withCache(
+          `analytics:departmentMetrics:${input.department}`,
+          CACHE_TTL.DEPARTMENT_METRICS,
+          () => db.getDepartmentMetrics(input.department)
+        );
       }),
 
     departmentCostBreakdown: protectedProcedure
@@ -1232,7 +1272,11 @@ export const appRouter = router({
         period: z.enum(["monthly", "yearly"]).default("monthly")
       }))
       .query(async ({ input }) => {
-        return await db.getDepartmentCostBreakdown(input.department, input.period);
+        return await withCache(
+          `analytics:costBreakdown:${input.department}:${input.period}`,
+          CACHE_TTL.COST_BREAKDOWN,
+          () => db.getDepartmentCostBreakdown(input.department, input.period)
+        );
       }),
   }),
 
@@ -1299,6 +1343,17 @@ export const appRouter = router({
   // Workflow Templates
   // ============================================
   templates: templatesRouter,
+
+  // ============================================
+  // Email Reminders
+  // ============================================
+  reminders: router({
+    // Manual trigger for testing (admin only)
+    sendNow: adminProcedure.mutation(async () => {
+      await triggerRemindersNow();
+      return { success: true, message: "Reminders sent successfully" };
+    }),
+  }),
 
   // ============================================
   // Excel Template Management

@@ -31,10 +31,14 @@ export default function Dashboard() {
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
-  // Fetch workflows
+  // Fetch workflows with caching
   const { data: workflows, isLoading: workflowsLoading } = trpc.workflows.getAll.useQuery(
     undefined,
-    { enabled: !!user }
+    { 
+      enabled: !!user,
+      staleTime: 1000 * 60 * 2, // 2 minutes - workflows change frequently
+      refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes in background
+    }
   );
 
   // Delete workflow mutation
@@ -72,8 +76,8 @@ export default function Dashboard() {
     window.location.href = "/";
   };
 
-  // Show loading skeleton while auth is loading OR while user data is loading
-  if (authLoading || workflowsLoading) {
+  // Show loading skeleton only while auth is loading
+  if (authLoading) {
     return <DashboardSkeleton />;
   }
 
@@ -269,7 +273,23 @@ export default function Dashboard() {
             </div>
 
             {/* Workflows List */}
-            {filteredWorkflows.length === 0 ? (
+            {workflowsLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="h-5 bg-muted rounded w-1/3 mb-2"></div>
+                          <div className="h-4 bg-muted rounded w-1/2"></div>
+                        </div>
+                        <div className="h-6 bg-muted rounded w-20"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : filteredWorkflows.length === 0 ? (
               <div className="text-center py-12">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No workflows found</h3>

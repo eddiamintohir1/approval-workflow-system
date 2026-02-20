@@ -18,27 +18,52 @@ export default function Analytics() {
   const [selectedDepartment, setSelectedDepartment] = useState("All");
   const [costPeriod, setCostPeriod] = useState<"monthly" | "yearly">("monthly");
 
-  const { data: overview, isLoading: overviewLoading } = trpc.analytics.overview.useQuery();
-  const { data: byType, isLoading: byTypeLoading } = trpc.analytics.byType.useQuery();
-  const { data: byDepartment, isLoading: byDepartmentLoading } = trpc.analytics.byDepartment.useQuery();
-  const { data: byStatus, isLoading: byStatusLoading } = trpc.analytics.byStatus.useQuery();
-  const { data: avgTimeByType, isLoading: avgTimeLoading } = trpc.analytics.avgTimeByType.useQuery();
-  const { data: completionTrend, isLoading: trendLoading } = trpc.analytics.completionTrend.useQuery({ days: 30 });
-  const { data: timeline, isLoading: timelineLoading } = trpc.analytics.timeline.useQuery();
+  // Global analytics with aggressive caching (changes infrequently)
+  const { data: overview, isLoading: overviewLoading } = trpc.analytics.overview.useQuery(undefined, {
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+  const { data: byType, isLoading: byTypeLoading } = trpc.analytics.byType.useQuery(undefined, {
+    staleTime: 1000 * 60 * 10,
+  });
+  const { data: byDepartment, isLoading: byDepartmentLoading } = trpc.analytics.byDepartment.useQuery(undefined, {
+    staleTime: 1000 * 60 * 10,
+  });
+  const { data: byStatus, isLoading: byStatusLoading } = trpc.analytics.byStatus.useQuery(undefined, {
+    staleTime: 1000 * 60 * 10,
+  });
+  const { data: avgTimeByType, isLoading: avgTimeLoading } = trpc.analytics.avgTimeByType.useQuery(undefined, {
+    staleTime: 1000 * 60 * 10,
+  });
+  const { data: completionTrend, isLoading: trendLoading } = trpc.analytics.completionTrend.useQuery(
+    { days: 30 },
+    { staleTime: 1000 * 60 * 10 }
+  );
+  const { data: timeline, isLoading: timelineLoading } = trpc.analytics.timeline.useQuery(undefined, {
+    staleTime: 1000 * 60 * 10,
+  });
   
-  // Department-specific metrics
+  // Department-specific metrics with caching per department
   const { data: deptMetrics, isLoading: deptMetricsLoading } = trpc.analytics.departmentMetrics.useQuery(
     { department: selectedDepartment },
-    { enabled: selectedDepartment !== "All" }
+    { 
+      enabled: selectedDepartment !== "All",
+      staleTime: 1000 * 60 * 5, // 5 minutes - cache per department
+      keepPreviousData: true, // Show previous data while loading new department
+    }
   );
   const { data: deptCosts, isLoading: deptCostsLoading } = trpc.analytics.departmentCostBreakdown.useQuery(
     { department: selectedDepartment, period: costPeriod },
-    { enabled: selectedDepartment !== "All" }
+    { 
+      enabled: selectedDepartment !== "All",
+      staleTime: 1000 * 60 * 5,
+      keepPreviousData: true, // Show previous data while loading new period
+    }
   );
 
-  const isLoading = overviewLoading || byTypeLoading || byDepartmentLoading || byStatusLoading || avgTimeLoading || trendLoading || timelineLoading || deptMetricsLoading || deptCostsLoading;
+  // Only show full-page loading on initial load (when no data exists yet)
+  const isInitialLoading = (overviewLoading && !overview) || (byTypeLoading && !byType);
 
-  if (isLoading) {
+  if (isInitialLoading) {
   return (
     <div className="container py-8">
       <div className="flex items-center gap-4 mb-6">

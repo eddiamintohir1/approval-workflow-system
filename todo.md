@@ -579,3 +579,25 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Check what roles are actually stored in database
 - [x] Update role enum in routers.ts to match database roles
 - [x] Test user management page role updates
+
+## Phase 22: Performance Optimization & AWS SES Email Setup
+
+### Performance Optimization
+- [x] Analyze Dashboard loading performance bottlenecks
+- [x] Analyze Analytics page performance when changing months/departments
+- [x] Implement React Query caching for workflow data
+- [x] Add staleTime and cacheTime to tRPC queries
+- [x] Optimize database queries with proper indexes
+- [x] Add backend caching for analytics calculations
+- [x] Implement loading skeletons for better UX
+- [x] Add pagination for large workflow lists
+- [x] Optimize Analytics page month/department switching
+
+### AWS SES Email Setup
+- [x] Install AWS SES SDK dependencies
+- [x] Create email service module with SES integration
+- [x] Implement dynamic sender based on last workflow actor
+- [x] Create email templates for workflow reminders
+- [x] Add daily reminder scheduler (8 AM)
+- [x] Test email delivery from user-specific @compawnion.co addresses
+- [x] Add email notification preferences to user settings
