@@ -99,12 +99,23 @@ export default function WorkflowDetail() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Determine file type category based on MIME type
+      let fileType = 'document';
+      if (file.type.includes('spreadsheet') || file.type.includes('excel')) {
+        fileType = 'excel';
+      } else if (file.type.includes('pdf')) {
+        fileType = 'pdf';
+      } else if (file.type.includes('word')) {
+        fileType = 'word';
+      }
+      
       uploadFile.mutate({
         workflowId,
         stageId,
         fileName: file.name,
         fileData: base64,
-        fileType: file.type,
+        fileType,
         mimeType: file.type,
       });
     };
