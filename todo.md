@@ -292,3 +292,6 @@
   - [x] Show visual indication (greyed out) for locked stages
   - [x] Only allow approval for current active stage
 - [x] Test file upload and stage locking functionality
+
+## Phase 19: Fix Missing workflows.getFiles Endpoint
+- [x] Fix missing workflows.getFiles tRPC endpoint error on workflow detail page

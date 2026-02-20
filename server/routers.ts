@@ -255,6 +255,79 @@ export const appRouter = router({
         
         return { success: true };
       }),
+
+    uploadFile: protectedProcedure
+      .input(
+        z.object({
+          workflowId: z.string(),
+          filename: z.string(),
+          fileData: z.string(), // base64 encoded
+          mimeType: z.string(),
+          fileSize: z.number(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Convert base64 to buffer
+        const fileBuffer = Buffer.from(input.fileData, "base64");
+        
+        // Upload to S3
+        const fileKey = `workflows/${input.workflowId}/${Date.now()}-${input.filename}`;
+        const { url } = await storagePut(fileKey, fileBuffer, input.mimeType);
+        
+        // Save file metadata to database
+        await db.createWorkflowFile({
+          workflowId: input.workflowId,
+          fileName: input.filename,
+          fileType: "attachment",
+          s3Bucket: "manus-storage",
+          s3Key: fileKey,
+          s3Url: url,
+          fileSize: input.fileSize,
+          mimeType: input.mimeType,
+          uploadedBy: ctx.user.id,
+        });
+        
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: input.workflowId.toString(),
+          action: "file_uploaded",
+          actionDescription: `File uploaded: ${input.filename}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true, url };
+      }),
+
+    getFiles: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getFilesByWorkflow(input.workflowId);
+      }),
+
+    deleteFile: protectedProcedure
+      .input(z.object({ fileId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const file = await db.getWorkflowFileById(input.fileId);
+        if (!file) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "File not found" });
+        }
+        
+        await db.deleteWorkflowFile(input.fileId);
+        
+        await db.createAuditLog({
+          entityType: "workflow",
+          entityId: file.workflowId.toString(),
+          action: "file_deleted",
+          actionDescription: `File deleted: ${file.fileName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
   }),
 
   // ============================================
@@ -512,79 +585,6 @@ export const appRouter = router({
       return await db.getAllEmailRecipients();
     }),
   }),
-
-    uploadFile: protectedProcedure
-      .input(
-        z.object({
-          workflowId: z.string(),
-          filename: z.string(),
-          fileData: z.string(), // base64 encoded
-          mimeType: z.string(),
-          fileSize: z.number(),
-        })
-      )
-      .mutation(async ({ input, ctx }) => {
-        // Convert base64 to buffer
-        const fileBuffer = Buffer.from(input.fileData, "base64");
-        
-        // Upload to S3
-        const fileKey = `workflows/${input.workflowId}/${Date.now()}-${input.filename}`;
-        const { url } = await storagePut(fileKey, fileBuffer, input.mimeType);
-        
-        // Save file metadata to database
-        await db.createWorkflowFile({
-          workflowId: input.workflowId,
-          fileName: input.filename,
-          fileType: "attachment",
-          s3Bucket: "manus-storage",
-          s3Key: fileKey,
-          s3Url: url,
-          fileSize: input.fileSize,
-          mimeType: input.mimeType,
-          uploadedBy: ctx.user.id,
-        });
-        
-        await db.createAuditLog({
-          entityType: "workflow",
-          entityId: input.workflowId.toString(),
-          action: "file_uploaded",
-          actionDescription: `File uploaded: ${input.filename}`,
-          actorId: ctx.user.id,
-          actorEmail: ctx.user.email,
-          actorRole: ctx.user.role,
-        });
-        
-        return { success: true, url };
-      }),
-
-    getFiles: protectedProcedure
-      .input(z.object({ workflowId: z.string() }))
-      .query(async ({ input }) => {
-        return await db.getWorkflowFiles(input.workflowId);
-      }),
-
-    deleteFile: protectedProcedure
-      .input(z.object({ fileId: z.string() }))
-      .mutation(async ({ input, ctx }) => {
-        const file = await db.getWorkflowFileById(input.fileId);
-        if (!file) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "File not found" });
-        }
-        
-        await db.deleteWorkflowFile(input.fileId);
-        
-        await db.createAuditLog({
-          entityType: "workflow",
-          entityId: file.workflowId.toString(),
-          action: "file_deleted",
-          actionDescription: `File deleted: ${file.filename}`,
-          actorId: ctx.user.id,
-          actorEmail: ctx.user.email,
-          actorRole: ctx.user.role,
-        });
-        
-        return { success: true };
-      }),
 });
 
 // ============================================
