@@ -70,15 +70,18 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       {/* Role Switcher for test user */}
       <RoleSwitcher />
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="border-b bg-card/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Approval Workflow System</h1>
-            <p className="text-sm text-muted-foreground">Welcome, {user.email?.split("@")[0] || "User"}</p>
+          <div className="flex items-center gap-4">
+            <img src="/images.jpeg" alt="Compawnion" className="h-10 w-10 rounded-full" />
+            <div>
+              <h1 className="text-2xl font-bold">Approval Workflow System</h1>
+              <p className="text-sm text-muted-foreground">Welcome, {user.email?.split("@")[0] || "User"}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {user.role === "admin" && (
