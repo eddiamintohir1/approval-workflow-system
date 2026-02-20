@@ -21,14 +21,13 @@ export default function Dashboard() {
     { enabled: !!user }
   );
 
-  const loading = authLoading || workflowsLoading;
-
   const handleLogout = async () => {
     await signOut();
     window.location.href = "/";
   };
 
-  if (loading) {
+  // Show loading spinner while auth is loading OR while user data is loading
+  if (authLoading || workflowsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -36,7 +35,8 @@ export default function Dashboard() {
     );
   }
 
-  if (!user) {
+  // Only show auth required screen if auth is complete AND user is null
+  if (!authLoading && !user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-full max-w-md">
