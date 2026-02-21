@@ -145,8 +145,8 @@ export default function WorkflowCreate() {
         });
       }
 
-      toast.success("Workflow created successfully");
-      setLocation(`/workflows/${workflow.id}`);
+      // Toast and navigation handled by mutation onSuccess
+      // setLocation(`/workflows/${workflow.id}`); // Removed: handled in onSuccess
     } catch (error: any) {
       toast.error(error.message || "Failed to create workflow");
     }

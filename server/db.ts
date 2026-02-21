@@ -194,14 +194,18 @@ export async function createWorkflow(workflow: {
   return newWorkflow;
 }
 
-export async function getWorkflowById(workflowId: string): Promise<schema.Workflow | undefined> {
-  const [workflow] = await db
-    .select()
+export async function getWorkflowById(workflowId: string): Promise<(schema.Workflow & { requesterName?: string }) | undefined> {
+  const [result] = await db
+    .select({
+      ...schema.workflows,
+      requesterName: schema.users.fullName,
+    })
     .from(schema.workflows)
+    .leftJoin(schema.users, eq(schema.workflows.requesterId, schema.users.id))
     .where(eq(schema.workflows.id, workflowId))
     .limit(1);
   
-  return workflow;
+  return result as any;
 }
 
 export async function getWorkflowsByRequester(requesterId: number): Promise<schema.Workflow[]> {
@@ -1177,7 +1181,20 @@ export async function getWorkflowTemplates(filters?: {
     query = query.where(eq(schema.workflowTemplates.isActive, filters.isActive)) as any;
   }
   
-  return await query.orderBy(desc(schema.workflowTemplates.createdAt));
+  const templates = await query.orderBy(desc(schema.workflowTemplates.createdAt));
+  
+  // Add stage count to each template
+  const templatesWithStages = await Promise.all(
+    templates.map(async (template) => {
+      const stages = await db
+        .select()
+        .from(schema.templateStages)
+        .where(eq(schema.templateStages.templateId, template.id));
+      return { ...template, stages };
+    })
+  );
+  
+  return templatesWithStages;
 }
 
 export async function getWorkflowTemplateById(templateId: string) {

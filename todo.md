@@ -641,3 +641,49 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Update meta description for social media sharing
 - [x] Update Open Graph tags for link previews
 - [x] Test link sharing preview on messaging apps
+
+## Phase 28: Fix TypeScript Errors
+
+- [ ] Fix Cognito token payload type errors in server/_core/context.ts
+- [ ] Add proper type definitions for cognito:groups
+- [ ] Run full TypeScript check to find all errors
+- [ ] Fix remaining TypeScript errors
+- [ ] Verify build completes without errors
+
+## Phase 29: Comprehensive Beta Testing
+
+- [ ] Test login with valid credentials
+- [ ] Test login with invalid credentials (error handling)
+- [ ] Test forgot password flow (email → code → new password)
+- [ ] Test logout functionality
+- [ ] Test workflow creation for MAF type
+- [ ] Test workflow creation for PR type
+- [ ] Test workflow creation for Reimbursement type
+- [ ] Test workflow creation for Budget type
+- [ ] Test file upload during workflow creation
+- [ ] Test approval flow with PPIC role
+- [ ] Test approval flow with Finance role
+- [ ] Test approval flow with CEO/COO/CFO roles
+- [ ] Test rejection flow
+- [ ] Test file upload during approval stages
+- [ ] Test Excel template download
+- [ ] Test Excel template management (admin)
+- [ ] Test Analytics page with different filters
+- [ ] Test Dashboard search functionality
+- [ ] Test Dashboard filters (status, type, department, date range)
+- [ ] Test User Management (role changes, sync from Cognito)
+- [ ] Test visibility restrictions (users can't access unauthorized workflows)
+- [ ] Test edge cases (empty data, large files, special characters)
+- [ ] Document all bugs and issues found
+- [ ] Fix critical bugs before pilot testing
+
+## Phase 30: Fix Beta Testing Issues
+
+- [x] Investigate department dropdown not opening on workflow creation page
+- [x] Fix dropdown component initialization or event handling (dropdown works correctly, was browser automation issue)
+- [x] Fix missing role assignments for stages 3 & 4 in workflow detail page (not a bug - template was created without roles for those stages)
+- [x] Fix requester showing "Unknown" instead of user email (added join with users table)
+- [x] Remove duplicate success toast notification after workflow creation (removed manual toast, kept mutation onSuccess)
+- [x] Fix template showing "0 stages" during creation (added stages to template query)
+- [ ] Remove duplicate "User Management" navigation item
+- [ ] Test workflow creation flow end-to-end after fixes
