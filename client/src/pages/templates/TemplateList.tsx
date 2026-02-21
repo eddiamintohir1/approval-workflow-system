@@ -28,6 +28,7 @@ export default function TemplateList() {
 
   const { data: templates, isLoading, refetch } = trpc.templates.getAll.useQuery();
   const deleteTemplate = trpc.templates.delete.useMutation();
+  const utils = trpc.useUtils();
 
   const filteredTemplates = templates?.filter((template) =>
     template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -56,10 +57,11 @@ export default function TemplateList() {
 
   const handlePreview = async (templateId: string) => {
     try {
-      const template = await trpc.templates.getById.query({ id: templateId });
+      const template = await utils.templates.getById.fetch({ id: templateId });
       setPreviewTemplate(template);
     } catch (error) {
       toast.error("Failed to load template preview");
+      console.error("Preview error:", error);
     }
   };
 

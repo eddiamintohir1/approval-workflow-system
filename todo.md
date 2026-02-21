@@ -742,3 +742,4 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 
 ## Phase 36: Fix Sidebar Visibility
 - [x] Fix left sidebar menu not showing on dashboard
+- [x] Fix workflow template preview modal not opening when clicking Preview button
