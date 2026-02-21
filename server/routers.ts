@@ -665,8 +665,8 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to approve this stage" });
         }
         
-        // Check if form has been uploaded for this stage (except CEO/CFO who use signatures)
-        if (ctx.user.role !== "CEO" && ctx.user.role !== "CFO") {
+        // Check if form has been uploaded for this stage (except CEO/CFO/admin who have bypass)
+        if (ctx.user.role !== "CEO" && ctx.user.role !== "CFO" && ctx.user.role !== "admin") {
           const stageFiles = await db.getFilesByStage(input.stageId);
           const userUploadedFile = stageFiles.find(f => f.uploadedBy === ctx.user.id);
           

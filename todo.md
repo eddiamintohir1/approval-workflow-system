@@ -687,3 +687,4 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Fix template showing "0 stages" during creation (added stages to template query)
 - [ ] Remove duplicate "User Management" navigation item
 - [ ] Test workflow creation flow end-to-end after fixes
+- [x] Fix admin bypass for file upload requirement - admins should be able to approve stages without uploading files
