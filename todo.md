@@ -731,3 +731,11 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Reduce Gantt chart row heights to single line per workflow
 - [x] Remove stage legend indicators (redundant with chart bars)
 - [x] Keep only workflow name, number, and status badge
+
+## Phase 36: Modern Left Sidebar Navigation & Capacity Dashboard
+- [x] Move top menu items (User Management, Template Management, Sequence Generator) to left sidebar
+- [x] Create backend endpoint for capacity dashboard data grouped by current approver
+- [ ] Build Capacity Dashboard page with horizontal scrollable user columns
+- [ ] Display workflow cards under each user with time tracking metrics
+- [ ] Add filters for team/department and time period
+- [ ] Calculate time remaining, progress %, and overdue status from existing dates
