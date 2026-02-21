@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft, CheckCircle2, XCircle, Upload, Download, FileText } from "lucide-react";
 import { WorkflowDetailSkeleton } from "@/components/WorkflowDetailSkeleton";
+import { ContingencyWorkflowsDisplay } from "@/components/ContingencyWorkflowsDisplay";
 import { useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import { toast } from "sonner";
@@ -288,6 +289,11 @@ export default function WorkflowDetail() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Contingency Workflows */}
+            {workflow.contingencyWorkflowIds && workflow.contingencyWorkflowIds.length > 0 && (
+              <ContingencyWorkflowsDisplay workflowIds={workflow.contingencyWorkflowIds} />
+            )}
 
             {/* Initial Submission Details */}
             <Card>

@@ -696,3 +696,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 
 ## Phase 30: Workflow Template Preview
 - [x] Implement workflow template preview with vertical timeline visualization
+
+## Phase 31: Pre-completion Contingency Feature
+- [x] Add contingency_workflow_ids JSON field to workflows table
+- [x] Update backend validation to check contingency status before final approval
+- [x] Remove GA/PPIC approval toggles from workflow creation form
+- [x] Add Pre-completion Contingency toggle and workflow search selector
+- [x] Display contingency workflows and their status in workflow detail page

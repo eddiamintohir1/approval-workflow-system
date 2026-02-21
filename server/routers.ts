@@ -300,6 +300,7 @@ export const appRouter = router({
           currency: z.string().optional(),
           requiresGa: z.boolean().optional(),
           requiresPpic: z.boolean().optional(),
+          contingencyWorkflowIds: z.array(z.string()).optional(),
           templateId: z.string().optional(),
         })
       )
@@ -347,6 +348,32 @@ export const appRouter = router({
         invalidateAnalyticsCache();
         
         return workflow;
+      }),
+
+    search: protectedProcedure
+      .input(z.object({ 
+        query: z.string(),
+        limit: z.number().optional()
+      }))
+      .query(async ({ input, ctx }) => {
+        const limit = input.limit || 20;
+        const workflows = ctx.user.role === "admin" 
+          ? await db.getAllWorkflows()
+          : await db.getWorkflowsByRequester(ctx.user.id);
+        
+        // Simple search by title or workflow number
+        const filtered = workflows.filter(w => 
+          w.title.toLowerCase().includes(input.query.toLowerCase()) ||
+          w.workflowNumber.toLowerCase().includes(input.query.toLowerCase())
+        );
+        
+        return filtered.slice(0, limit);
+      }),
+
+    getByIds: protectedProcedure
+      .input(z.object({ ids: z.array(z.string()) }))
+      .query(async ({ input }) => {
+        return await Promise.all(input.ids.map(id => db.getWorkflowById(id)));
       }),
 
     getAll: protectedProcedure.query(async ({ ctx }) => {
@@ -699,7 +726,29 @@ export const appRouter = router({
           // Move to next stage
           await db.updateStageStatus(stages[currentStageIndex + 1].id, "in_progress");
         } else {
-          // Workflow completed
+          // This is the last stage - check contingency workflows before completing
+          const workflow = await db.getWorkflowById(input.workflowId);
+          
+          if (workflow?.contingencyWorkflowIds && workflow.contingencyWorkflowIds.length > 0) {
+            // Check if all contingency workflows are completed
+            const contingencyWorkflows = await Promise.all(
+              workflow.contingencyWorkflowIds.map(id => db.getWorkflowById(id))
+            );
+            
+            const incompleteContingencies = contingencyWorkflows.filter(
+              w => w && w.overallStatus !== "completed"
+            );
+            
+            if (incompleteContingencies.length > 0) {
+              const names = incompleteContingencies.map(w => w?.title || "Unknown").join(", ");
+              throw new TRPCError({
+                code: "PRECONDITION_FAILED",
+                message: `Cannot complete workflow. The following contingency workflows must be completed first: ${names}`
+              });
+            }
+          }
+          
+          // All contingencies satisfied - complete workflow
           await db.updateWorkflowStatus(input.workflowId, "completed");
         }
         

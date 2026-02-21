@@ -69,9 +69,12 @@ export const workflows = mysqlTable("workflows", {
   estimatedAmount: decimal("estimated_amount", { precision: 15, scale: 2 }),
   currency: varchar("currency", { length: 3 }).default("IDR"),
   
-  // Routing flags
+  // Routing flags (deprecated - kept for backward compatibility)
   requiresGa: boolean("requires_ga").default(false),
   requiresPpic: boolean("requires_ppic").default(false),
+  
+  // Pre-completion contingency - workflow IDs that must be completed first
+  contingencyWorkflowIds: json("contingency_workflow_ids").$type<string[]>(),
   
   // Workflow status
   currentStage: varchar("current_stage", { length: 100 }),

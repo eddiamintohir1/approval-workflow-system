@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
 import { TemplatePreview } from "@/components/TemplatePreview";
+import { ContingencyWorkflowSelector } from "@/components/ContingencyWorkflowSelector";
 
 export default function WorkflowCreate() {
   const [, setLocation] = useLocation();
@@ -25,8 +26,9 @@ export default function WorkflowCreate() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [department, setDepartment] = useState("");
-  const [requiresGa, setRequiresGa] = useState(false);
-  const [requiresPpic, setRequiresPpic] = useState(false);
+  const [hasContingency, setHasContingency] = useState(false);
+  const [contingencyWorkflowIds, setContingencyWorkflowIds] = useState<string[]>([]);
+  const [contingencySearch, setContingencySearch] = useState("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -131,8 +133,7 @@ export default function WorkflowCreate() {
         title: title.trim(),
         description: description.trim() || undefined,
         department: department.trim(),
-        requiresGa,
-        requiresPpic,
+        contingencyWorkflowIds: hasContingency ? contingencyWorkflowIds : undefined,
         templateId: selectedTemplateId || undefined,
       });
 
@@ -341,31 +342,25 @@ export default function WorkflowCreate() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="requiresGa">Requires GA Approval</Label>
+                    <Label htmlFor="hasContingency">Pre-completion Contingency</Label>
                     <p className="text-sm text-muted-foreground">
-                      General Affairs approval required
+                      This workflow cannot be completed unless other workflows are completed first
                     </p>
                   </div>
                   <Switch
-                    id="requiresGa"
-                    checked={requiresGa}
-                    onCheckedChange={setRequiresGa}
+                    id="hasContingency"
+                    checked={hasContingency}
+                    onCheckedChange={setHasContingency}
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="requiresPpic">Requires PPIC Approval</Label>
-                    <p className="text-sm text-muted-foreground">
-                      PPIC approval required
-                    </p>
-                  </div>
-                  <Switch
-                    id="requiresPpic"
-                    checked={requiresPpic}
-                    onCheckedChange={setRequiresPpic}
+                {hasContingency && (
+                  <ContingencyWorkflowSelector
+                    selectedIds={contingencyWorkflowIds}
+                    onSelect={(ids) => setContingencyWorkflowIds(ids)}
+                    currentWorkflowId={null}
                   />
-                </div>
+                )}
               </div>
 
               {/* Submit Buttons */}
