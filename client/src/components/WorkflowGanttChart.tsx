@@ -195,14 +195,14 @@ export function WorkflowGanttChart({ data }: WorkflowGanttChartProps) {
                     onClick={() => toggleDepartment(department)}
                     className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       {isExpanded ? (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
                       ) : (
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       )}
-                      <span className="font-semibold text-lg">{department}</span>
-                      <Badge variant="secondary">{workflows.length} workflows</Badge>
+                      <span className="font-semibold">{department}</span>
+                      <Badge variant="secondary" className="text-xs">{workflows.length} workflows</Badge>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{workflows.filter(w => w.overallStatus === "completed").length} completed</span>
@@ -213,36 +213,29 @@ export function WorkflowGanttChart({ data }: WorkflowGanttChartProps) {
 
                   {/* Workflows List */}
                   {isExpanded && (
-                    <div className="p-4 space-y-4 bg-card">
+                    <div className="p-2 space-y-1 bg-card">
                       {workflows.map((workflow) => (
-                        <div key={workflow.id} className="space-y-2">
-                          {/* Workflow header */}
-                          <div className="flex items-center gap-2">
-                            <Badge variant={workflow.type === "MAF" ? "default" : "secondary"} className="text-xs">
-                              {workflow.type}
-                            </Badge>
-                            <span className="font-mono text-xs text-muted-foreground">{workflow.workflowNumber}</span>
-                            <span className="text-sm font-medium truncate flex-1">{workflow.title}</span>
-                            <Badge 
-                              variant={workflow.overallStatus === "completed" ? "default" : "secondary"}
-                              className={
-                                workflow.overallStatus === "completed" ? "bg-green-600" :
-                                workflow.overallStatus === "rejected" ? "bg-red-600" :
-                                workflow.overallStatus === "in_progress" ? "bg-blue-600" :
-                                ""
-                              }
-                            >
-                              {workflow.overallStatus}
-                            </Badge>
-                            <Link href={`/workflows/${workflow.id}`}>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          </div>
-
-                          {/* Timeline bar */}
-                          <div className="relative h-10 bg-muted/30 rounded-md overflow-hidden">
+                        <div key={workflow.id} className="flex items-center gap-2 py-1 hover:bg-muted/30 rounded px-2">
+                          {/* Workflow info - compact single line */}
+                          <Badge variant={workflow.type === "MAF" ? "default" : "secondary"} className="text-xs shrink-0">
+                            {workflow.type}
+                          </Badge>
+                          <span className="font-mono text-xs text-muted-foreground shrink-0">{workflow.workflowNumber}</span>
+                          <span className="text-sm truncate flex-1 min-w-0">{workflow.title}</span>
+                          <Badge 
+                            variant={workflow.overallStatus === "completed" ? "default" : "secondary"}
+                            className={
+                              workflow.overallStatus === "completed" ? "bg-green-600 shrink-0" :
+                              workflow.overallStatus === "rejected" ? "bg-red-600 shrink-0" :
+                              workflow.overallStatus === "in_progress" ? "bg-blue-600 shrink-0" :
+                              "shrink-0"
+                            }
+                          >
+                            {workflow.overallStatus}
+                          </Badge>
+                          
+                          {/* Inline timeline bar */}
+                          <div className="relative h-6 w-64 bg-muted/30 rounded overflow-hidden shrink-0">
                             {workflow.stages.map((stage, index) => {
                               const left = calculatePosition(new Date(stage.startDate));
                               const width = calculateWidth(new Date(stage.startDate), stage.endDate);
@@ -252,32 +245,22 @@ export function WorkflowGanttChart({ data }: WorkflowGanttChartProps) {
                               return (
                                 <div
                                   key={index}
-                                  className={`absolute top-1 bottom-1 ${getStatusColor(stage.status)} rounded transition-all hover:opacity-80 cursor-pointer`}
+                                  className={`absolute top-0.5 bottom-0.5 ${getStatusColor(stage.status)} rounded transition-all hover:opacity-80 cursor-pointer`}
                                   style={{
                                     left: `${left}%`,
                                     width: `${width}%`,
                                   }}
                                   title={`${stage.stageName} - ${stage.status} (${stage.duration} days)`}
-                                >
-                                  <div className="px-2 py-1.5 text-xs text-white font-medium truncate">
-                                    {stage.stageName}
-                                  </div>
-                                </div>
+                                />
                               );
                             })}
                           </div>
-
-                          {/* Stage legend */}
-                          <div className="flex flex-wrap gap-2 text-xs pl-1">
-                            {workflow.stages.map((stage, index) => (
-                              <div key={index} className="flex items-center gap-1.5">
-                                <div className={`w-3 h-3 rounded ${getStatusColor(stage.status)}`} />
-                                <span className="text-muted-foreground">
-                                  {stage.stageName} ({stage.duration}d)
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                          
+                          <Link href={`/workflows/${workflow.id}`}>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0">
+                              <ExternalLink className="h-3 w-3" />
+                            </Button>
+                          </Link>
                         </div>
                       ))}
                     </div>

@@ -726,3 +726,8 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Optimize query caching for faster loading
 - [ ] Implement lazy loading for heavy components
 - [x] Add loading skeletons for better perceived performance
+
+## Phase 36: Compact Gantt Chart View
+- [x] Reduce Gantt chart row heights to single line per workflow
+- [x] Remove stage legend indicators (redundant with chart bars)
+- [x] Keep only workflow name, number, and status badge
