@@ -712,3 +712,17 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add date range filter for timeline view
 - [x] Implement stage-based color coding for workflow bars
 - [x] Make workflow bars clickable to navigate to detail page
+
+## Phase 34: Workflow Pinning
+- [x] Add pinned_workflows field to user table
+- [x] Create pin/unpin workflow backend endpoints
+- [x] Add pin button to workflow cards and detail pages
+- [x] Update dashboard to show pinned workflows at top with highlighted styling
+- [x] Add visual indicator (star icon) for pinned workflows
+
+## Phase 35: Performance Optimization & UI Fixes
+- [x] Fix duplicate User Management button in dashboard header
+- [x] Add Sequence Generator button to CEO/COO/CFO/Admin menu
+- [x] Optimize query caching for faster loading
+- [ ] Implement lazy loading for heavy components
+- [x] Add loading skeletons for better perceived performance

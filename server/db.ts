@@ -149,6 +149,13 @@ export async function updateUserStatus(userId: number, isActive: boolean): Promi
     .where(eq(schema.users.id, userId));
 }
 
+export async function updateUserPinnedWorkflows(userId: number, pinnedWorkflows: string[]): Promise<void> {
+  await db
+    .update(schema.users)
+    .set({ pinnedWorkflows })
+    .where(eq(schema.users.id, userId));
+}
+
 // ============================================
 // Workflow Management
 // ============================================

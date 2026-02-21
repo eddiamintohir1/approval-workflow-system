@@ -35,6 +35,9 @@ export const users = mysqlTable("users", {
   // Signature for CEO/CFO approval
   signatureUrl: text("signature_url"), // S3 URL to signature image
   
+  // Pinned workflows (personal user preference)
+  pinnedWorkflows: json("pinned_workflows").$type<string[]>().default([]),
+  
   // Status
   isActive: boolean("is_active").default(true).notNull(),
   

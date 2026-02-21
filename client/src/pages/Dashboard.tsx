@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2, FileSpreadsheet } from "lucide-react";
+import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2, FileSpreadsheet, Star } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -92,10 +92,44 @@ export default function Dashboard() {
     undefined,
     { 
       enabled: !!user,
-      staleTime: 1000 * 60 * 2, // 2 minutes - workflows change frequently
-      refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes in background
+      staleTime: 1000 * 60 * 5, // 5 minutes cache - faster loading
+      cacheTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      refetchInterval: false, // Disable auto-refetch to reduce server load
     }
   );
+
+  // Pin/unpin workflow mutations
+  const pinWorkflow = trpc.users.pinWorkflow.useMutation({
+    onSuccess: () => {
+      toast.success("Workflow pinned");
+      utils.users.me.invalidate();
+    },
+    onError: (error) => {
+      toast.error("Error", { description: error.message });
+    },
+  });
+
+  const unpinWorkflow = trpc.users.unpinWorkflow.useMutation({
+    onSuccess: () => {
+      toast.success("Workflow unpinned");
+      utils.users.me.invalidate();
+    },
+    onError: (error) => {
+      toast.error("Error", { description: error.message });
+    },
+  });
+
+  const handlePinToggle = (e: React.MouseEvent, workflowId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const isPinned = user.pinnedWorkflows?.includes(workflowId);
+    if (isPinned) {
+      unpinWorkflow.mutate({ workflowId });
+    } else {
+      pinWorkflow.mutate({ workflowId });
+    }
+  };
 
   // Delete workflow mutation
   const deleteWorkflow = trpc.workflows.delete.useMutation({
@@ -156,7 +190,7 @@ export default function Dashboard() {
     );
   }
 
-  // Filter workflows by all criteria
+  // Filter and sort workflows (pinned first, then by date)
   const filteredWorkflows = workflows?.filter((w) => {
     // Search filter (ID or title)
     const matchesSearch = !searchQuery ||
@@ -178,6 +212,14 @@ export default function Dashboard() {
     const matchesDateTo = !dateTo || workflowDate <= new Date(dateTo + "T23:59:59");
 
     return matchesSearch && matchesStatus && matchesType && matchesDepartment && matchesDateFrom && matchesDateTo;
+  }).sort((a, b) => {
+    // Sort pinned workflows first
+    const aIsPinned = user?.pinnedWorkflows?.includes(a.id) || false;
+    const bIsPinned = user?.pinnedWorkflows?.includes(b.id) || false;
+    if (aIsPinned && !bIsPinned) return -1;
+    if (!aIsPinned && bIsPinned) return 1;
+    // Then sort by creation date (newest first)
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   }) || [];
 
   // Calculate statistics
@@ -231,6 +273,12 @@ export default function Dashboard() {
                     Excel Templates
                   </Button>
                 </Link>
+                <Link href="/admin/sequences">
+                  <Button variant="outline" size="sm">
+                    <FileEdit className="h-4 w-4 mr-2" />
+                    Sequence Generator
+                  </Button>
+                </Link>
               </>
             )}
             {user.role === "admin" && (
@@ -244,18 +292,10 @@ export default function Dashboard() {
                 <Link href="/admin/sequences">
                   <Button variant="outline" size="sm">
                     <FileEdit className="h-4 w-4 mr-2" />
-                    Templates
+                    Sequence Generator
                   </Button>
                 </Link>
               </>
-            )}
-            {user.role === "admin" && (
-              <Link href="/users">
-                <Button variant="outline" size="sm">
-                  <Users className="h-4 w-4 mr-2" />
-                  User Management
-                </Button>
-              </Link>
             )}
             <Button variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -481,8 +521,10 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredWorkflows.map((workflow) => (
-                  <Card key={workflow.id} className="hover:bg-accent/50 transition-colors">
+                {filteredWorkflows.map((workflow) => {
+                  const isPinned = user?.pinnedWorkflows?.includes(workflow.id) || false;
+                  return (
+                  <Card key={workflow.id} className={`hover:bg-accent/50 transition-colors ${isPinned ? 'border-yellow-500 border-2 bg-yellow-50/50 dark:bg-yellow-950/20' : ''}`}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <Link href={`/workflows/${workflow.id}`} className="flex-1 cursor-pointer">
@@ -515,20 +557,32 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </Link>
-                        {user.role === "admin" && (
+                        <div className="flex items-center gap-2">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={(e) => handleDeleteClick(e, workflow.id)}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => handlePinToggle(e, workflow.id)}
+                            className={isPinned ? 'text-yellow-500 hover:text-yellow-600' : 'text-muted-foreground hover:text-foreground'}
+                            title={isPinned ? 'Unpin workflow' : 'Pin workflow'}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Star className={`h-4 w-4 ${isPinned ? 'fill-current' : ''}`} />
                           </Button>
-                        )}
+                          {user.role === "admin" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => handleDeleteClick(e, workflow.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

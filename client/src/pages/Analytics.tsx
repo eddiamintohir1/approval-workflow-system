@@ -20,26 +20,42 @@ export default function Analytics() {
 
   // Global analytics with aggressive caching (changes infrequently)
   const { data: overview, isLoading: overviewLoading } = trpc.analytics.overview.useQuery(undefined, {
-    staleTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 15, // 15 minutes cache
+    cacheTime: 1000 * 60 * 30, // Keep in memory for 30 minutes
+    refetchOnWindowFocus: false,
   });
   const { data: byType, isLoading: byTypeLoading } = trpc.analytics.byType.useQuery(undefined, {
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 15,
+    cacheTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
   });
   const { data: byDepartment, isLoading: byDepartmentLoading } = trpc.analytics.byDepartment.useQuery(undefined, {
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 15,
+    cacheTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
   });
   const { data: byStatus, isLoading: byStatusLoading } = trpc.analytics.byStatus.useQuery(undefined, {
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 15,
+    cacheTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
   });
   const { data: avgTimeByType, isLoading: avgTimeLoading } = trpc.analytics.avgTimeByType.useQuery(undefined, {
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 15,
+    cacheTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
   });
   const { data: completionTrend, isLoading: trendLoading } = trpc.analytics.completionTrend.useQuery(
     { days: 30 },
-    { staleTime: 1000 * 60 * 10 }
+    { 
+      staleTime: 1000 * 60 * 15,
+      cacheTime: 1000 * 60 * 30,
+      refetchOnWindowFocus: false,
+    }
   );
   const { data: timeline, isLoading: timelineLoading } = trpc.analytics.timeline.useQuery(undefined, {
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 15,
+    cacheTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
   });
   
   // Department-specific metrics with caching per department

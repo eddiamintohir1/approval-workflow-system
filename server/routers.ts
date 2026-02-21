@@ -190,6 +190,28 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    // Pin workflow
+    pinWorkflow: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const currentPinned = ctx.user.pinnedWorkflows || [];
+        if (currentPinned.includes(input.workflowId)) {
+          return { success: true, message: "Already pinned" };
+        }
+        await db.updateUserPinnedWorkflows(ctx.user.id, [...currentPinned, input.workflowId]);
+        return { success: true };
+      }),
+
+    // Unpin workflow
+    unpinWorkflow: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const currentPinned = ctx.user.pinnedWorkflows || [];
+        const updated = currentPinned.filter(id => id !== input.workflowId);
+        await db.updateUserPinnedWorkflows(ctx.user.id, updated);
+        return { success: true };
+      }),
+
     // Switch role for test user only
     switchRole: protectedProcedure
       .input(
