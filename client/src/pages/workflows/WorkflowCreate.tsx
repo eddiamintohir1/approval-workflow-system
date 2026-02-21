@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, ArrowLeft, Download, FileText } from "lucide-react";
+import { Loader2, ArrowLeft, Download, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
+import { TemplatePreview } from "@/components/TemplatePreview";
 
 export default function WorkflowCreate() {
   const [, setLocation] = useLocation();
@@ -28,6 +29,7 @@ export default function WorkflowCreate() {
   const [requiresPpic, setRequiresPpic] = useState(false);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // Fetch active form templates
   const { data: formTemplates, isLoading: formTemplatesLoading } = trpc.formTemplates.getActive.useQuery();
@@ -218,6 +220,18 @@ export default function WorkflowCreate() {
                         {selectedWorkflowTemplate.stages?.length || 0} stages
                       </p>
                     </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        console.log('Preview button clicked, opening dialog');
+                        setPreviewOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview
+                    </Button>
                   </div>
                 )}
               </div>
@@ -376,6 +390,15 @@ export default function WorkflowCreate() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Template Preview Dialog */}
+      {selectedTemplateId && (
+        <TemplatePreview
+          templateId={selectedTemplateId}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+        />
+      )}
     </div>
   );
 }

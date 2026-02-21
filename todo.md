@@ -693,3 +693,6 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Clean up duplicate user records (test@compawnion.co appears twice)
 - [x] Configure production workflow templates (MAF, PR, Reimbursement with real approval chains)
 - [x] Replace loading spinners with skeleton loaders (like dog/cat skeletons)
+
+## Phase 30: Workflow Template Preview
+- [x] Implement workflow template preview with vertical timeline visualization
