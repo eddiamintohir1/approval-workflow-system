@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { Loader2, Upload, Download, Trash2, FileText, Home } from "lucide-react";
+import { TemplateManagementSkeleton } from "@/components/TemplateManagementSkeleton";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -98,11 +99,7 @@ export default function TemplateManagement() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <TemplateManagementSkeleton />;
   }
 
   const getTemplateByType = (type: "MAF" | "PR" | "CATTO") => {

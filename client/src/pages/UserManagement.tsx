@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft, UserCheck, UserX, RefreshCw } from "lucide-react";
+import { UserManagementSkeleton } from "@/components/UserManagementSkeleton";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -63,11 +64,7 @@ export default function UserManagement() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <UserManagementSkeleton />;
   }
 
   const roleOptions = [

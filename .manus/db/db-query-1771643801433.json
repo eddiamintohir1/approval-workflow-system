@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, email, full_name, role FROM users WHERE email = 'user@compawnion.co' ORDER BY created_at;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute SELECT id, email, full_name, role FROM users WHERE email = 'user@compawnion.co' ORDER BY created_at;",
+  "rows": [
+    {
+      "id": "30010",
+      "email": "user@compawnion.co",
+      "full_name": "user",
+      "role": "PPIC"
+    },
+    {
+      "id": "30039",
+      "email": "user@compawnion.co",
+      "full_name": "Test User",
+      "role": "Finance"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tfull_name\trole\n30010\tuser@compawnion.co\tuser\tPPIC\n30039\tuser@compawnion.co\tTest User\tFinance\n",
+  "stderr": "",
+  "execution_time_ms": 1544
+}

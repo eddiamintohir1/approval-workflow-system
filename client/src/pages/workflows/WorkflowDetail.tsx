@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft, CheckCircle2, XCircle, Upload, Download, FileText } from "lucide-react";
+import { WorkflowDetailSkeleton } from "@/components/WorkflowDetailSkeleton";
 import { useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import { toast } from "sonner";
@@ -168,11 +169,7 @@ export default function WorkflowDetail() {
   };
 
   if (workflowLoading || stagesLoading || !user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <WorkflowDetailSkeleton />;
   }
 
   // Handle access denied error

@@ -688,3 +688,8 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Remove duplicate "User Management" navigation item
 - [ ] Test workflow creation flow end-to-end after fixes
 - [x] Fix admin bypass for file upload requirement - admins should be able to approve stages without uploading files
+
+## Phase 26: Post-Beta Testing Improvements
+- [x] Clean up duplicate user records (test@compawnion.co appears twice)
+- [x] Configure production workflow templates (MAF, PR, Reimbursement with real approval chains)
+- [x] Replace loading spinners with skeleton loaders (like dog/cat skeletons)
