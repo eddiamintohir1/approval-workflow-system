@@ -706,3 +706,9 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 
 ## Phase 32: Login Page Branding Update
 - [x] Change login page title from "Approval Workflow System" to "CJB Workflow Hub"
+
+## Phase 33: Enhanced Gantt Chart with Department Grouping
+- [x] Create department-grouped Gantt chart component with collapsible sections
+- [x] Add date range filter for timeline view
+- [x] Implement stage-based color coding for workflow bars
+- [x] Make workflow bars clickable to navigate to detail page
