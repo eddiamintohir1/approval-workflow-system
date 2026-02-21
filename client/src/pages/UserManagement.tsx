@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -81,22 +82,8 @@ export default function UserManagement() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-sm text-muted-foreground">Manage user roles and access</p>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
+    <DashboardLayout>
+      <div className="container mx-auto px-4 py-8">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -185,14 +172,7 @@ export default function UserManagement() {
             )}
           </CardContent>
         </Card>
-      </main>
-      
-      {/* Copyright Footer */}
-      <footer className="border-t bg-card mt-8">
-        <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
-          © Eddie Amintohir. All rights reserved.
-        </div>
-      </footer>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

@@ -22,6 +22,7 @@ import {
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { HelpButton } from "@/components/HelpButton";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import DashboardLayout from "@/components/DashboardLayout";
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
@@ -232,27 +233,10 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen">
+    <DashboardLayout>
       {/* Role Switcher for test user */}
       <RoleSwitcher />
-      {/* Header */}
-      <header className="border-b bg-card/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src="https://files.manuscdn.com/user_upload_by_module/session_file/94657144/VBJnHGARwdnBRpGK.png" alt="Compawnion" className="h-10 w-10 rounded-full" />
-            <div>
-              <h1 className="text-2xl font-bold">Approval Workflow System</h1>
-              <p className="text-sm text-muted-foreground">Welcome, {user.email?.split("@")[0] || "User"}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Menu items moved to left sidebar */}
-            <RoleSwitcher />
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 space-y-8">
+      <div className="space-y-8">
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-5">
           <Card>
@@ -534,7 +518,6 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-      </main>
 
       {/* Copyright Footer */}
       <footer className="border-t bg-card mt-8">
@@ -573,7 +556,8 @@ export default function Dashboard() {
 
       {/* Help Button */}
       <HelpButton />
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
 

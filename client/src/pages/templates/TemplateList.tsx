@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,13 +72,8 @@ export default function TemplateList() {
   }
 
   return (
-    <div className="container py-6">
-      <Link href="/">
-        <Button variant="outline" size="sm" className="mb-4">
-          <Home className="h-4 w-4 mr-2" />
-          Home
-        </Button>
-      </Link>
+    <DashboardLayout>
+      <div className="container py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -299,6 +295,7 @@ export default function TemplateList() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -27,6 +26,8 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import { HelpButton } from './HelpButton';
+import { useCognitoAuth } from '@/hooks/useCognitoAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -55,7 +56,7 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
+  const { loading, user } = useCognitoAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -115,7 +116,8 @@ function DashboardLayoutContent({
   children,
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useCognitoAuth();
+  const { user: userWithRole } = useUserRole();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -211,7 +213,7 @@ function DashboardLayoutContent({
             </SidebarMenu>
             
             {/* Admin Menu Section */}
-            {user && ['admin', 'ceo', 'cfo', 'coo'].includes(user.role) && (
+            {userWithRole && ['admin', 'ceo', 'cfo', 'coo'].includes(userWithRole.role) && (
               <>
                 {!isCollapsed && (
                   <div className="px-4 py-2 mt-4">
@@ -276,7 +278,7 @@ function DashboardLayoutContent({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  onClick={logout}
+                  onClick={signOut}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />

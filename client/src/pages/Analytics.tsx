@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,8 @@ export default function Analytics() {
 
   if (isInitialLoading) {
   return (
-    <div className="container py-8">
+    <DashboardLayout>
+      <div className="container py-8">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/">
           <Button variant="outline" size="sm">
@@ -98,11 +100,13 @@ export default function Analytics() {
           </div>
         </div>
       </div>
+    </DashboardLayout>
     );
   }
 
   return (
-    <div className="container py-8 space-y-8">
+    <DashboardLayout>
+      <div className="container py-8 space-y-8">
       {/* Home Button */}
       <div className="flex items-center gap-4 mb-4">
         <Link href="/">
@@ -409,6 +413,7 @@ export default function Analytics() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

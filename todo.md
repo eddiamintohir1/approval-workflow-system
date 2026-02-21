@@ -739,3 +739,6 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Display workflow cards under each user with time tracking metrics
 - [ ] Add filters for team/department and time period
 - [ ] Calculate time remaining, progress %, and overdue status from existing dates
+
+## Phase 36: Fix Sidebar Visibility
+- [x] Fix left sidebar menu not showing on dashboard

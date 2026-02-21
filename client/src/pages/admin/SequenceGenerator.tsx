@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -86,7 +87,8 @@ export default function SequenceGenerator() {
   };
   
   return (
-    <div className="container py-8">
+    <DashboardLayout>
+      <div className="container py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Sequence Generators</h1>
@@ -189,6 +191,7 @@ export default function SequenceGenerator() {
           </TabsContent>
         ))}
       </Tabs>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
