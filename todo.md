@@ -703,3 +703,6 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Remove GA/PPIC approval toggles from workflow creation form
 - [x] Add Pre-completion Contingency toggle and workflow search selector
 - [x] Display contingency workflows and their status in workflow detail page
+
+## Phase 32: Login Page Branding Update
+- [x] Change login page title from "Approval Workflow System" to "CJB Workflow Hub"

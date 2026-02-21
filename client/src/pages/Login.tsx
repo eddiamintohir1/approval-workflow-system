@@ -47,7 +47,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Approval Workflow System</CardTitle>
+          <CardTitle className="text-2xl">CJB Workflow Hub</CardTitle>
           <CardDescription>
             Sign in with your @compawnion.co email address
           </CardDescription>
