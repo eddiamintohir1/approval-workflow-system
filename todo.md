@@ -743,3 +743,29 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 ## Phase 36: Fix Sidebar Visibility
 - [x] Fix left sidebar menu not showing on dashboard
 - [x] Fix workflow template preview modal not opening when clicking Preview button
+
+## Phase 26: Capacity Management & Task Assignment System
+- [x] Add new roles: Exec Asst and Staff to role enum
+- [x] Create task_assignments table with indexes
+- [x] Create user_performance_metrics table with indexes
+- [x] Create salary_cache table
+- [x] Add is_quick_assign_enabled boolean to workflow_templates table
+- [x] Generate and apply database migrations
+- [x] Create tRPC endpoints for task assignment (create, getByUser, getTeamAssignments)
+- [x] Create tRPC endpoints for performance metrics (calculateUserMetrics, getUserMetrics, recalculateAll)
+- [x] Create tRPC endpoints for salary integration (syncFromQapita, getUserSalary, syncAll)
+- [x] Create tRPC endpoints for template quick assign toggle
+- [x] Create tRPC endpoint for paginated capacity user list
+- [ ] Add "Quick Assign" button next to "New Workflow" on Dashboard
+- [ ] Create Quick Assign modal with enabled templates
+- [ ] Add quick assign toggle to template cards
+- [ ] Redesign Capacity page with pagination (20 users/page)
+- [ ] Add department filter with "My Team" option
+- [ ] Create user detail popup with performance metrics
+- [ ] Add salary display for admin/CEO/CFO/COO only
+- [ ] Update DashboardLayout role-based menu visibility
+- [ ] Hide ADMINISTRATION section from Dept heads and Staff
+- [ ] Hide Capacity and Analytics from Dept heads and Staff
+- [ ] Add database indexes for performance optimization
+- [ ] Test with 100 test users
+- [ ] Push to GitHub after successful deployment

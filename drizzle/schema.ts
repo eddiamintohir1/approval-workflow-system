@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint, index } from "drizzle-orm/mysql-core";
 
 /**
  * =====================================================
@@ -20,14 +20,16 @@ export const users = mysqlTable("users", {
     "CEO",
     "COO",
     "CFO",
+    "Exec Asst",
     "PPIC",
     "Purchasing",
     "GA",
     "Finance",
     "Production",
     "Logistics",
+    "Staff",
     "admin"
-  ]).default("PPIC").notNull(),
+  ]).default("Staff").notNull(),
   
   // Cognito groups stored as JSON array
   cognitoGroups: json("cognito_groups").$type<string[]>(),
@@ -436,6 +438,7 @@ export const workflowTemplates = mysqlTable("workflow_templates", {
   // Template status
   isActive: boolean("is_active").default(true).notNull(),
   isDefault: boolean("is_default").default(false).notNull(), // One default template per type
+  isQuickAssignEnabled: boolean("is_quick_assign_enabled").default(false).notNull(), // Show in Quick Assign modal
   
   // Creator
   createdBy: int("created_by").notNull(),
@@ -548,3 +551,63 @@ export const excelTemplates = mysqlTable("excel_templates", {
 
 export type ExcelTemplate = typeof excelTemplates.$inferSelect;
 export type InsertExcelTemplate = typeof excelTemplates.$inferInsert;
+
+/**
+ * =====================================================
+ * TASK ASSIGNMENTS TABLE
+ * Tracks workflow assignments from managers to staff
+ * =====================================================
+ */
+export const taskAssignments = mysqlTable("task_assignments", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  assignedTo: int("assigned_to").notNull(), // user.id (Staff)
+  assignedBy: int("assigned_by").notNull(), // user.id (Manager/Dept Head)
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+}, (table) => ({
+  workflowIdx: index("idx_workflow_id").on(table.workflowId),
+  assignedToIdx: index("idx_assigned_to").on(table.assignedTo),
+  assignedByIdx: index("idx_assigned_by").on(table.assignedBy),
+}));
+
+export type TaskAssignment = typeof taskAssignments.$inferSelect;
+export type InsertTaskAssignment = typeof taskAssignments.$inferInsert;
+
+/**
+ * =====================================================
+ * USER PERFORMANCE METRICS TABLE
+ * Cached performance metrics for capacity page
+ * Refreshed every 12 hours
+ * =====================================================
+ */
+export const userPerformanceMetrics = mysqlTable("user_performance_metrics", {
+  userId: int("user_id").primaryKey(),
+  avgCompletionHours: decimal("avg_completion_hours", { precision: 10, scale: 2 }),
+  tasksCompletedThisMonth: int("tasks_completed_this_month").default(0).notNull(),
+  longestStuckHours: decimal("longest_stuck_hours", { precision: 10, scale: 2 }),
+  longestStuckWorkflowId: varchar("longest_stuck_workflow_id", { length: 36 }),
+  rejectedCount: int("rejected_count").default(0).notNull(),
+  lastCalculated: timestamp("last_calculated").defaultNow().notNull(),
+}, (table) => ({
+  lastCalculatedIdx: index("idx_last_calculated").on(table.lastCalculated),
+}));
+
+export type UserPerformanceMetrics = typeof userPerformanceMetrics.$inferSelect;
+export type InsertUserPerformanceMetrics = typeof userPerformanceMetrics.$inferInsert;
+
+/**
+ * =====================================================
+ * SALARY CACHE TABLE
+ * Cached salary data from Qapita API
+ * Synced monthly
+ * =====================================================
+ */
+export const salaryCache = mysqlTable("salary_cache", {
+  userId: int("user_id").primaryKey(),
+  salaryAmount: decimal("salary_amount", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 3 }).default("IDR").notNull(),
+  lastSynced: timestamp("last_synced").defaultNow().notNull(),
+});
+
+export type SalaryCache = typeof salaryCache.$inferSelect;
+export type InsertSalaryCache = typeof salaryCache.$inferInsert;

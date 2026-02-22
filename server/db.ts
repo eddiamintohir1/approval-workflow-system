@@ -1178,6 +1178,7 @@ export async function createWorkflowTemplate(template: {
 export async function getWorkflowTemplates(filters?: {
   workflowType?: string;
   isActive?: boolean;
+  isQuickAssignEnabled?: boolean;
 }) {
   let query = db.select().from(schema.workflowTemplates);
   
@@ -1186,6 +1187,9 @@ export async function getWorkflowTemplates(filters?: {
   }
   if (filters?.isActive !== undefined) {
     query = query.where(eq(schema.workflowTemplates.isActive, filters.isActive)) as any;
+  }
+  if (filters?.isQuickAssignEnabled !== undefined) {
+    query = query.where(eq(schema.workflowTemplates.isQuickAssignEnabled, filters.isQuickAssignEnabled)) as any;
   }
   
   const templates = await query.orderBy(desc(schema.workflowTemplates.createdAt));
@@ -1703,4 +1707,284 @@ export async function updateExcelTemplate(id: number, updates: {
 
 export async function deleteExcelTemplate(id: number) {
   await db.delete(schema.excelTemplates).where(eq(schema.excelTemplates.id, id));
+}
+
+// ============================================
+// Task Assignments
+// ============================================
+
+export async function createTaskAssignment(data: {
+  workflowId: string;
+  assignedTo: number;
+  assignedBy: number;
+}): Promise<schema.TaskAssignment> {
+  const assignment = {
+    id: randomUUID(),
+    ...data,
+  };
+  
+  await db.insert(schema.taskAssignments).values(assignment);
+  return assignment as schema.TaskAssignment;
+}
+
+export async function getTaskAssignmentsByUser(userId: number) {
+  return await db
+    .select({
+      assignment: schema.taskAssignments,
+      workflow: schema.workflows,
+    })
+    .from(schema.taskAssignments)
+    .leftJoin(schema.workflows, eq(schema.taskAssignments.workflowId, schema.workflows.id))
+    .where(eq(schema.taskAssignments.assignedTo, userId))
+    .orderBy(desc(schema.taskAssignments.assignedAt));
+}
+
+export async function getTeamAssignments(managerId: number) {
+  return await db
+    .select({
+      assignment: schema.taskAssignments,
+      workflow: schema.workflows,
+      assignedUser: schema.users,
+    })
+    .from(schema.taskAssignments)
+    .leftJoin(schema.workflows, eq(schema.taskAssignments.workflowId, schema.workflows.id))
+    .leftJoin(schema.users, eq(schema.taskAssignments.assignedTo, schema.users.id))
+    .where(eq(schema.taskAssignments.assignedBy, managerId))
+    .orderBy(desc(schema.taskAssignments.assignedAt));
+}
+
+// ============================================
+// User Performance Metrics
+// ============================================
+
+export async function calculateUserMetrics(userId: number) {
+  // Get current month start
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  // Calculate average completion time (hours)
+  const completedWorkflows = await db
+    .select({
+      id: schema.workflows.id,
+      createdAt: schema.workflows.createdAt,
+      completedAt: schema.workflows.completedAt,
+    })
+    .from(schema.workflows)
+    .where(
+      and(
+        eq(schema.workflows.createdBy, userId),
+        eq(schema.workflows.status, "completed")
+      )
+    );
+  
+  const avgCompletionHours = completedWorkflows.length > 0
+    ? completedWorkflows.reduce((sum, w) => {
+        const hours = (new Date(w.completedAt!).getTime() - new Date(w.createdAt).getTime()) / (1000 * 60 * 60);
+        return sum + hours;
+      }, 0) / completedWorkflows.length
+    : null;
+  
+  // Count tasks completed this month
+  const tasksCompletedThisMonth = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.workflows)
+    .where(
+      and(
+        eq(schema.workflows.createdBy, userId),
+        eq(schema.workflows.status, "completed"),
+        sql`${schema.workflows.completedAt} >= ${monthStart.toISOString()}`
+      )
+    )
+    .then(rows => rows[0]?.count || 0);
+  
+  // Find longest stuck task (in progress for longest time)
+  const inProgressWorkflows = await db
+    .select({
+      id: schema.workflows.id,
+      createdAt: schema.workflows.createdAt,
+    })
+    .from(schema.workflows)
+    .where(
+      and(
+        eq(schema.workflows.createdBy, userId),
+        eq(schema.workflows.status, "in_progress")
+      )
+    );
+  
+  let longestStuckHours = null;
+  let longestStuckWorkflowId = null;
+  
+  if (inProgressWorkflows.length > 0) {
+    const longestStuck = inProgressWorkflows.reduce((longest, w) => {
+      const hours = (now.getTime() - new Date(w.createdAt).getTime()) / (1000 * 60 * 60);
+      return hours > (longest.hours || 0) ? { hours, id: w.id } : longest;
+    }, { hours: 0, id: '' });
+    
+    longestStuckHours = longestStuck.hours;
+    longestStuckWorkflowId = longestStuck.id;
+  }
+  
+  // Count rejected tasks
+  const rejectedCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.workflows)
+    .where(
+      and(
+        eq(schema.workflows.createdBy, userId),
+        eq(schema.workflows.status, "rejected")
+      )
+    )
+    .then(rows => rows[0]?.count || 0);
+  
+  // Upsert metrics
+  const metrics = {
+    userId,
+    avgCompletionHours: avgCompletionHours ? avgCompletionHours.toFixed(2) : null,
+    tasksCompletedThisMonth,
+    longestStuckHours: longestStuckHours ? longestStuckHours.toFixed(2) : null,
+    longestStuckWorkflowId,
+    rejectedCount,
+    lastCalculated: new Date(),
+  };
+  
+  await db
+    .insert(schema.userPerformanceMetrics)
+    .values(metrics)
+    .onDuplicateKeyUpdate({
+      set: metrics,
+    });
+  
+  return metrics;
+}
+
+export async function getUserMetrics(userId: number) {
+  const [metrics] = await db
+    .select()
+    .from(schema.userPerformanceMetrics)
+    .where(eq(schema.userPerformanceMetrics.userId, userId))
+    .limit(1);
+  
+  return metrics || null;
+}
+
+export async function recalculateAllMetrics() {
+  // Get all active users
+  const users = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(schema.users.isActive, true));
+  
+  // Calculate metrics for each user
+  for (const user of users) {
+    await calculateUserMetrics(user.id);
+  }
+  
+  return { success: true, usersProcessed: users.length };
+}
+
+// ============================================
+// Salary Cache
+// ============================================
+
+export async function upsertSalaryCache(data: {
+  userId: number;
+  salaryAmount: number;
+  currency?: string;
+}) {
+  const salary = {
+    ...data,
+    currency: data.currency || 'IDR',
+    lastSynced: new Date(),
+  };
+  
+  await db
+    .insert(schema.salaryCache)
+    .values(salary)
+    .onDuplicateKeyUpdate({
+      set: salary,
+    });
+  
+  return salary;
+}
+
+export async function getUserSalary(userId: number) {
+  const [salary] = await db
+    .select()
+    .from(schema.salaryCache)
+    .where(eq(schema.salaryCache.userId, userId))
+    .limit(1);
+  
+  return salary || null;
+}
+
+export async function getAllSalaries() {
+  return await db
+    .select({
+      salary: schema.salaryCache,
+      user: schema.users,
+    })
+    .from(schema.salaryCache)
+    .leftJoin(schema.users, eq(schema.salaryCache.userId, schema.users.id));
+}
+
+// ============================================
+// Capacity Management
+// ============================================
+
+export async function getUserListPaginated(params: {
+  page: number;
+  pageSize: number;
+  department?: string;
+  managerId?: number; // For "My Team" filter
+}) {
+  const { page, pageSize, department, managerId } = params;
+  const offset = (page - 1) * pageSize;
+  
+  let query = db
+    .select({
+      user: schema.users,
+      metrics: schema.userPerformanceMetrics,
+      salary: schema.salaryCache,
+    })
+    .from(schema.users)
+    .leftJoin(schema.userPerformanceMetrics, eq(schema.users.id, schema.userPerformanceMetrics.userId))
+    .leftJoin(schema.salaryCache, eq(schema.users.id, schema.salaryCache.userId))
+    .where(eq(schema.users.isActive, true));
+  
+  // Filter by department
+  if (department && department !== 'My Team') {
+    query = query.where(eq(schema.users.role, department as any));
+  }
+  
+  // Filter by "My Team" (assigned users)
+  if (department === 'My Team' && managerId) {
+    const assignedUserIds = await db
+      .select({ userId: schema.taskAssignments.assignedTo })
+      .from(schema.taskAssignments)
+      .where(eq(schema.taskAssignments.assignedBy, managerId))
+      .then(rows => rows.map(r => r.userId));
+    
+    if (assignedUserIds.length > 0) {
+      query = query.where(sql`${schema.users.id} IN (${assignedUserIds.join(',')})`);
+    } else {
+      // No assigned users, return empty
+      return { users: [], total: 0 };
+    }
+  }
+  
+  // Get total count
+  const totalQuery = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.users)
+    .where(eq(schema.users.isActive, true));
+  
+  const total = totalQuery[0]?.count || 0;
+  
+  // Get paginated results
+  const users = await query
+    .limit(pageSize)
+    .offset(offset)
+    .orderBy(schema.users.fullName);
+  
+  return { users, total };
 }

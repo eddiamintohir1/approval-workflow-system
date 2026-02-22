@@ -16,6 +16,139 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+// ============================================
+// Task Assignments Router
+// ============================================
+const assignmentsRouter = router({
+  create: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+      assignedTo: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Only dept heads can assign tasks
+      const deptHeadRoles = ['PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'];
+      if (!deptHeadRoles.includes(ctx.user.role)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only department heads can assign tasks' });
+      }
+      
+      return await db.createTaskAssignment({
+        workflowId: input.workflowId,
+        assignedTo: input.assignedTo,
+        assignedBy: ctx.user.id,
+      });
+    }),
+  
+  getByUser: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .query(async ({ input }) => {
+      return await db.getTaskAssignmentsByUser(input.userId);
+    }),
+  
+  getTeamAssignments: protectedProcedure
+    .query(async ({ ctx }) => {
+      return await db.getTeamAssignments(ctx.user.id);
+    }),
+});
+
+// ============================================
+// Performance Metrics Router
+// ============================================
+const metricsRouter = router({
+  calculateUserMetrics: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input }) => {
+      return await db.calculateUserMetrics(input.userId);
+    }),
+  
+  getUserMetrics: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .query(async ({ input }) => {
+      return await db.getUserMetrics(input.userId);
+    }),
+  
+  recalculateAll: adminProcedure
+    .mutation(async () => {
+      return await db.recalculateAllMetrics();
+    }),
+});
+
+// ============================================
+// Salary Integration Router
+// ============================================
+const salaryRouter = router({
+  syncFromQapita: adminProcedure
+    .input(z.object({
+      userId: z.number(),
+      salaryAmount: z.number(),
+      currency: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      // TODO: Integrate with Qapita API when credentials are provided
+      return await db.upsertSalaryCache(input);
+    }),
+  
+  getUserSalary: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      // Only admin/CEO/CFO/COO can view salaries
+      const allowedRoles = ['admin', 'CEO', 'CFO', 'COO'];
+      if (!allowedRoles.includes(ctx.user.role)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not authorized to view salary data' });
+      }
+      
+      return await db.getUserSalary(input.userId);
+    }),
+  
+  syncAll: adminProcedure
+    .mutation(async () => {
+      // TODO: Implement batch sync from Qapita API
+      return { success: true, message: 'Qapita API integration pending' };
+    }),
+});
+
+// ============================================
+// Capacity Management Router
+// ============================================
+const capacityRouter = router({
+  getUserList: protectedProcedure
+    .input(z.object({
+      page: z.number().default(1),
+      pageSize: z.number().default(20),
+      department: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      // Only admin/CEO/CFO/COO/Exec Asst can access capacity page
+      const allowedRoles = ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'];
+      if (!allowedRoles.includes(ctx.user.role)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not authorized to access capacity management' });
+      }
+      
+      return await db.getUserListPaginated({
+        ...input,
+        managerId: input.department === 'My Team' ? ctx.user.id : undefined,
+      });
+    }),
+  
+  getUserDetails: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      // Get or calculate metrics
+      let metrics = await db.getUserMetrics(input.userId);
+      if (!metrics) {
+        metrics = await db.calculateUserMetrics(input.userId);
+      }
+      
+      // Get salary if authorized
+      const allowedRoles = ['admin', 'CEO', 'CFO', 'COO'];
+      const salary = allowedRoles.includes(ctx.user.role)
+        ? await db.getUserSalary(input.userId)
+        : null;
+      
+      return { metrics, salary };
+    }),
+});
+
 // Template router (defined before appRouter)
 const templatesRouter = router({
   // Create new template
@@ -107,6 +240,27 @@ const templatesRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
       return await db.deleteWorkflowTemplate(input.id);
+    }),
+  
+  // Toggle quick assign for template
+  toggleQuickAssign: protectedProcedure
+    .input(z.object({
+      id: z.string(),
+      isQuickAssignEnabled: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      return await db.updateWorkflowTemplate(input.id, {
+        isQuickAssignEnabled: input.isQuickAssignEnabled,
+      });
+    }),
+  
+  // Get templates enabled for quick assign
+  getQuickAssignTemplates: protectedProcedure
+    .query(async () => {
+      return await db.getWorkflowTemplates({
+        isActive: true,
+        isQuickAssignEnabled: true,
+      });
     }),
 });
 
@@ -1662,6 +1816,26 @@ export const appRouter = router({
         return { success: true, url };
       }),
   }),
+  
+  // ============================================
+  // Task Assignments
+  // ============================================
+  assignments: assignmentsRouter,
+  
+  // ============================================
+  // Performance Metrics
+  // ============================================
+  metrics: metricsRouter,
+  
+  // ============================================
+  // Salary Integration
+  // ============================================
+  salary: salaryRouter,
+  
+  // ============================================
+  // Capacity Management
+  // ============================================
+  capacity: capacityRouter,
 });
 
 // ============================================
