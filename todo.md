@@ -800,3 +800,24 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add CSS to hide default Google Translate UI elements
 - [x] Test Start Guide tutorial with red highlighting and tooltips
 - [x] Test language switcher EN/ID toggle functionality
+
+## Phase 45: Fix Start Guide and Language Switcher Issues
+- [x] Add Start Guide button to left sidebar (persistent access from any page)
+- [x] Debug EN/ID language switcher - Google Translate widget loads but .goog-te-combo select element never appears in DOM
+- [x] Test Start Guide opens from sidebar button (working)
+- [ ] Fix Google Translate integration - widget initializes but select dropdown not rendering
+- [ ] Consider alternative: Use browser's built-in translate feature or different translation library
+
+## Phase 46: Replace Google Translate with Microsoft Translator
+- [ ] Remove Google Translate widget implementation from LanguageSwitcher component
+- [ ] Implement Microsoft Translator widget with EN/ID language support
+- [ ] Update CSS to hide Microsoft Translator default UI elements
+- [ ] Test EN button switches to English
+- [ ] Test ID button switches to Indonesian (Bahasa Indonesia)
+- [ ] Verify translation works across all pages
+
+## Phase 47: Implement Browser Native Translate Button
+- [x] Replace LanguageSwitcher component with simple Translate button
+- [x] Add button that triggers browser's built-in translate feature
+- [x] Test translate button functionality - shows tooltip with browser-specific instructions
+- [ ] Create checkpoint with working translate feature

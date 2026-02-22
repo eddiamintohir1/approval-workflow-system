@@ -29,11 +29,13 @@ import { HelpButton } from './HelpButton';
 import { useCognitoAuth } from '@/hooks/useCognitoAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { LanguageSwitcher } from './LanguageSwitcher';
+import { StartGuide } from './StartGuide';
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: UserCog, label: "Capacity", path: "/capacity" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
+  { icon: HelpCircle, label: "Start Guide", path: "#guide", isAction: true },
 ];
 
 const adminMenuItems = [
@@ -124,6 +126,7 @@ function DashboardLayoutContent({
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
@@ -206,7 +209,13 @@ function DashboardLayoutContent({
                   <SidebarMenuItem key={item.path}>
                     <SidebarMenuButton
                       isActive={isActive}
-                      onClick={() => setLocation(item.path)}
+                      onClick={() => {
+                        if (item.isAction && item.path === '#guide') {
+                          setGuideOpen(true);
+                        } else {
+                          setLocation(item.path);
+                        }
+                      }}
                       tooltip={item.label}
                       className={`h-10 transition-all font-normal`}
                     >
@@ -328,6 +337,7 @@ function DashboardLayoutContent({
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
       <HelpButton />
+      <StartGuide isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
     </>
   );
 }
