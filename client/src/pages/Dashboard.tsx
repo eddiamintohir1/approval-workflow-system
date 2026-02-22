@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2, FileSpreadsheet, Star } from "lucide-react";
+import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2, FileSpreadsheet, Star, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ import { HelpButton } from "@/components/HelpButton";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import DashboardLayout from "@/components/DashboardLayout";
 import { QuickAssignModal } from "@/components/QuickAssignModal";
+import { StartGuide } from "@/components/StartGuide";
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
   const [quickAssignOpen, setQuickAssignOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const utils = trpc.useUtils();
 
   // Load filters from localStorage on mount
@@ -240,7 +242,7 @@ export default function Dashboard() {
       <RoleSwitcher />
       <div className="space-y-8">
         {/* Statistics Cards */}
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-5" data-guide="stats-cards">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Workflows</CardTitle>
@@ -301,15 +303,19 @@ export default function Dashboard() {
                 <CardDescription>View and manage your approval workflows</CardDescription>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setGuideOpen(true)} className="mr-2">
+                  <HelpCircle className="h-4 w-4 mr-2" />
+                  Start Guide
+                </Button>
                 <Link href="/workflows/create">
-                  <Button>
+                  <Button data-guide="new-workflow-btn">
                     <Plus className="h-4 w-4 mr-2" />
                     New Workflow
                   </Button>
                 </Link>
                 {/* Quick Assign button - for admin, executives, and dept heads */}
                 {['admin', 'CEO', 'CFO', 'COO', 'PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(user?.role || '') && (
-                  <Button variant="outline" onClick={() => setQuickAssignOpen(true)}>
+                  <Button variant="outline" onClick={() => setQuickAssignOpen(true)} data-guide="quick-assign-btn">
                     <Users className="h-4 w-4 mr-2" />
                     Quick Assign
                   </Button>
@@ -319,7 +325,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Search Input */}
-            <div className="relative">
+            <div className="relative" data-guide="search-input">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by workflow ID or title..."
@@ -332,7 +338,7 @@ export default function Dashboard() {
             {/* Filters Row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               {/* Status Filter */}
-              <div>
+              <div data-guide="status-filter">
                 <label className="text-sm font-medium mb-1.5 block">Status</label>
                 <select
                   value={statusFilter}
@@ -348,7 +354,7 @@ export default function Dashboard() {
               </div>
 
               {/* Type Filter */}
-              <div>
+              <div data-guide="type-filter">
                 <label className="text-sm font-medium mb-1.5 block">Type</label>
                 <select
                   value={typeFilter}
@@ -364,7 +370,7 @@ export default function Dashboard() {
               </div>
 
               {/* Department Filter */}
-              <div>
+              <div data-guide="department-filter">
                 <label className="text-sm font-medium mb-1.5 block">Department</label>
                 <select
                   value={departmentFilter}
@@ -400,7 +406,7 @@ export default function Dashboard() {
             </div>
 
             {/* Date Range Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-guide="date-filters">
               <div>
                 <label className="text-sm font-medium mb-1.5 block">From Date</label>
                 <Input
@@ -462,7 +468,7 @@ export default function Dashboard() {
                 )}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3" data-guide="workflow-list">
                 {filteredWorkflows.map((workflow) => {
                   const isPinned = user?.pinnedWorkflows?.includes(workflow.id) || false;
                   return (
@@ -506,6 +512,7 @@ export default function Dashboard() {
                             onClick={(e) => handlePinToggle(e, workflow.id)}
                             className={isPinned ? 'text-yellow-500 hover:text-yellow-600' : 'text-muted-foreground hover:text-foreground'}
                             title={isPinned ? 'Unpin workflow' : 'Pin workflow'}
+                            data-guide="pin-btn"
                           >
                             <Star className={`h-4 w-4 ${isPinned ? 'fill-current' : ''}`} />
                           </Button>
@@ -567,16 +574,14 @@ export default function Dashboard() {
 
       {/* Help Button */}
       <HelpButton />
-      
       {/* Quick Assign Modal */}
-      <QuickAssignModal 
-        open={quickAssignOpen} 
-        onOpenChange={setQuickAssignOpen}
-        onSuccess={() => {
-          utils.workflows.getAll.invalidate();
-          toast.success('Workflow assigned successfully');
-        }}
+      <QuickAssignModal
+        open={quickAssignOpen}
+        onClose={() => setQuickAssignOpen(false)}
       />
+
+      {/* Start Guide */}
+      <StartGuide isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
       </div>
     </DashboardLayout>
   );

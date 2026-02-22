@@ -789,3 +789,14 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Fix Quick Assign toggle Switch not responding to clicks in TemplateList
 - [x] Make Quick Assign button visible next to New Workflow button on Dashboard
 - [x] Fix Quick Assign toggle persistence with query invalidation
+
+## Phase 44: UI Improvements - Sidebar, Start Guide, and Language Switcher
+- [x] Remove duplicate "Workflows" button from sidebar (Dashboard and Workflows showed same page)
+- [x] Add "Start Guide" button with interactive tutorial showing UI element functions
+- [x] Create StartGuide component with red markings and step-by-step navigation (10 steps)
+- [x] Add data-guide attributes to Dashboard UI elements for tutorial targeting
+- [x] Implement Google Translate widget integration for bilingual support
+- [x] Create LanguageSwitcher component with EN/ID toggle buttons in top right header
+- [x] Add CSS to hide default Google Translate UI elements
+- [x] Test Start Guide tutorial with red highlighting and tooltips
+- [x] Test language switcher EN/ID toggle functionality

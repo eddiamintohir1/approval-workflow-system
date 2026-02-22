@@ -28,10 +28,10 @@ import { Button } from "./ui/button";
 import { HelpButton } from './HelpButton';
 import { useCognitoAuth } from '@/hooks/useCognitoAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: FileText, label: "Workflows", path: "/" },
   { icon: UserCog, label: "Capacity", path: "/capacity" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
 ];
@@ -307,20 +307,24 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
+        {/* Top header with language switcher */}
+        <div className="flex border-b h-14 items-center justify-between bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="flex items-center gap-2">
+            {isMobile && (
+              <>
+                <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="tracking-tight text-foreground">
+                      {activeMenuItem?.label ?? "Menu"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
-        )}
+          <LanguageSwitcher />
+        </div>
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
       <HelpButton />

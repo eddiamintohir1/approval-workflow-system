@@ -178,3 +178,31 @@
     }
   }
 }
+/* Hide Google Translate elements */
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+.goog-logo-link,
+.goog-te-gadget {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+.skiptranslate {
+  display: none !important;
+}
+
+/* Hide Google Translate top bar */
+body > .skiptranslate {
+  display: none !important;
+}
+
+iframe.skiptranslate {
+  display: none !important;
+}
+
+.goog-te-spinner-pos {
+  display: none !important;
+}
