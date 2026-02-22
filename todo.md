@@ -784,3 +784,7 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Grant dept heads access to Templates page
 - [x] Grant dept heads access to Form Templates page
 - [x] Grant dept heads access to Excel Templates page
+
+- [x] Remove duplicate Role column from Capacity page (Department and Role show same value)
+- [x] Fix Quick Assign toggle Switch not responding to clicks in TemplateList
+- [x] Make Quick Assign button visible next to New Workflow button on Dashboard

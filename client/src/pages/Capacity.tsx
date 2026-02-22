@@ -162,7 +162,6 @@ export default function Capacity() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Department</TableHead>
-                  <TableHead>Role</TableHead>
                   <TableHead className="text-right">Active Tasks</TableHead>
                   {canViewSalary && <TableHead className="text-right">Salary</TableHead>}
                 </TableRow>
@@ -170,7 +169,7 @@ export default function Capacity() {
               <TableBody>
                 {users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={canViewSalary ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={canViewSalary ? 5 : 4} className="text-center py-8 text-muted-foreground">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -184,10 +183,7 @@ export default function Capacity() {
                       <TableCell className="font-medium">{user.fullName}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{user.department || user.role}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge>{user.role}</Badge>
+                        <Badge variant="outline">{user.role}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge variant="secondary">{user.activeTaskCount || 0}</Badge>

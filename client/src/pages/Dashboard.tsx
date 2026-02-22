@@ -307,8 +307,8 @@ export default function Dashboard() {
                     New Workflow
                   </Button>
                 </Link>
-                {/* Quick Assign button - only for dept heads */}
-                {['PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(user?.role || '') && (
+                {/* Quick Assign button - for admin, executives, and dept heads */}
+                {['admin', 'CEO', 'CFO', 'COO', 'PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(user?.role || '') && (
                   <Button variant="outline" onClick={() => setQuickAssignOpen(true)}>
                     <Users className="h-4 w-4 mr-2" />
                     Quick Assign

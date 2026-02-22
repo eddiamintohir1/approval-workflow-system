@@ -161,14 +161,14 @@ export default function TemplateList() {
                       <Badge variant="secondary">Inactive</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground cursor-pointer flex items-center gap-2">
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="text-xs text-muted-foreground flex items-center gap-2">
                       <Switch
                         checked={template.isQuickAssignEnabled || false}
                         onCheckedChange={(checked) => handleToggleQuickAssign(template.id, checked)}
                       />
                       <span>Quick Assign</span>
-                    </label>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
