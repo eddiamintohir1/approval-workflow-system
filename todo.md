@@ -777,3 +777,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Fix quick assign template toggle checkmark not showing when toggled
 - [x] Verify Quick Assign button visibility for dept heads
 - [x] Test complete assignment workflow from creation to completion
+
+## Sidebar Navigation Updates
+- [x] Add Form Templates menu item to sidebar ADMINISTRATION section
+- [x] Add Excel Templates menu item to sidebar ADMINISTRATION section
+- [x] Grant dept heads access to Templates page
+- [x] Grant dept heads access to Form Templates page
+- [x] Grant dept heads access to Excel Templates page

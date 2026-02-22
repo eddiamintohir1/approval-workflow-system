@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -38,7 +38,9 @@ const menuItems = [
 
 const adminMenuItems = [
   { icon: Users, label: "User Management", path: "/users" },
-  { icon: FileText, label: "Templates", path: "/templates" },
+  { icon: FileText, label: "Workflow Templates", path: "/templates" },
+  { icon: FileSpreadsheet, label: "Form Templates", path: "/admin/form-templates" },
+  { icon: Upload, label: "Excel Templates", path: "/admin/excel-templates" },
   { icon: FileEdit, label: "Sequence Generator", path: "/admin/sequences" },
 ];
 
@@ -219,7 +221,7 @@ function DashboardLayoutContent({
             </SidebarMenu>
             
             {/* Admin Menu Section */}
-            {userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'].includes(userWithRole.role) && (
+            {userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst', 'PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(userWithRole.role) && (
               <>
                 {!isCollapsed && (
                   <div className="px-4 py-2 mt-4">
