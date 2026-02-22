@@ -33,9 +33,9 @@ import { StartGuide } from './StartGuide';
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: HelpCircle, label: "Start Guide", path: "#guide", isAction: true },
   { icon: UserCog, label: "Capacity", path: "/capacity" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
-  { icon: HelpCircle, label: "Start Guide", path: "#guide", isAction: true },
 ];
 
 const adminMenuItems = [

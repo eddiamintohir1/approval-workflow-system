@@ -821,3 +821,8 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add button that triggers browser's built-in translate feature
 - [x] Test translate button functionality - shows tooltip with browser-specific instructions
 - [ ] Create checkpoint with working translate feature
+
+## Phase 48: Reorder Sidebar Menu Items
+- [x] Move Start Guide button to appear directly after Dashboard (before Capacity)
+- [x] Test sidebar order is correct - verified in browser
+- [ ] Create checkpoint
