@@ -826,3 +826,9 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Move Start Guide button to appear directly after Dashboard (before Capacity)
 - [x] Test sidebar order is correct - verified in browser
 - [ ] Create checkpoint
+
+## Phase 49: Remove Duplicate Start Guide Button from Dashboard
+- [x] Remove Start Guide button from Workflows section header on Dashboard page
+- [x] Keep only the sidebar Start Guide button
+- [x] Test Dashboard layout - verified in browser
+- [ ] Create checkpoint

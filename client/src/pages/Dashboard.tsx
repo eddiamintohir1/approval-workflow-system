@@ -24,7 +24,7 @@ import { HelpButton } from "@/components/HelpButton";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import DashboardLayout from "@/components/DashboardLayout";
 import { QuickAssignModal } from "@/components/QuickAssignModal";
-import { StartGuide } from "@/components/StartGuide";
+
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
@@ -38,7 +38,7 @@ export default function Dashboard() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
   const [quickAssignOpen, setQuickAssignOpen] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
+
   const utils = trpc.useUtils();
 
   // Load filters from localStorage on mount
@@ -303,10 +303,6 @@ export default function Dashboard() {
                 <CardDescription>View and manage your approval workflows</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setGuideOpen(true)} className="mr-2">
-                  <HelpCircle className="h-4 w-4 mr-2" />
-                  Start Guide
-                </Button>
                 <Link href="/workflows/create">
                   <Button data-guide="new-workflow-btn">
                     <Plus className="h-4 w-4 mr-2" />
@@ -580,8 +576,7 @@ export default function Dashboard() {
         onClose={() => setQuickAssignOpen(false)}
       />
 
-      {/* Start Guide */}
-      <StartGuide isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
+
       </div>
     </DashboardLayout>
   );
