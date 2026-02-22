@@ -3,6 +3,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -161,14 +162,12 @@ export default function TemplateList() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5">
-                      <input
-                        type="checkbox"
+                    <label className="text-xs text-muted-foreground cursor-pointer flex items-center gap-2">
+                      <Switch
                         checked={template.isQuickAssignEnabled || false}
-                        onChange={(e) => handleToggleQuickAssign(template.id, e.target.checked)}
-                        className="h-4 w-4 rounded border-gray-300"
+                        onCheckedChange={(checked) => handleToggleQuickAssign(template.id, checked)}
                       />
-                      Quick Assign
+                      <span>Quick Assign</span>
                     </label>
                   </div>
                 </div>

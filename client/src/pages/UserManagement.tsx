@@ -73,12 +73,14 @@ export default function UserManagement() {
     { value: "CEO", label: "CEO" },
     { value: "COO", label: "COO" },
     { value: "CFO", label: "CFO" },
+    { value: "Exec Asst", label: "Exec Asst" },
     { value: "PPIC", label: "PPIC" },
     { value: "Purchasing", label: "Purchasing" },
     { value: "GA", label: "GA" },
     { value: "Finance", label: "Finance" },
     { value: "Production", label: "Production" },
     { value: "Logistics", label: "Logistics" },
+    { value: "Staff", label: "Staff" },
   ];
 
   return (

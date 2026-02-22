@@ -769,3 +769,11 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add database indexes for performance optimization
 - [x] Test with existing users
 - [x] Push to GitHub after successful deployment
+
+## Capacity Management Bug Fixes
+
+- [x] Add Exec Asst and Staff roles to User Management dropdown
+- [x] Fix Capacity page to display user names and emails from Cognito
+- [x] Fix quick assign template toggle checkmark not showing when toggled
+- [x] Verify Quick Assign button visibility for dept heads
+- [x] Test complete assignment workflow from creation to completion

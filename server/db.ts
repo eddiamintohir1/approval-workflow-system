@@ -1981,10 +1981,21 @@ export async function getUserListPaginated(params: {
   const total = totalQuery[0]?.count || 0;
   
   // Get paginated results
-  const users = await query
+  const results = await query
     .limit(pageSize)
     .offset(offset)
     .orderBy(schema.users.fullName);
+  
+  // Flatten the nested structure for frontend
+  const users = results.map(row => ({
+    id: row.user.id,
+    fullName: row.user.fullName,
+    email: row.user.email,
+    role: row.user.role,
+    department: row.user.role, // Use role as department for now
+    activeTaskCount: 0, // TODO: Calculate from workflows
+    salary: row.salary?.salary || null,
+  }));
   
   return { users, total };
 }

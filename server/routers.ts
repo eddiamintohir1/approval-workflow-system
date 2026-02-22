@@ -526,6 +526,47 @@ export const appRouter = router({
         return workflow;
       }),
 
+    createFromTemplate: protectedProcedure
+      .input(z.object({
+        templateId: z.string(),
+        assignToUserId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Get template
+        const template = await db.getWorkflowTemplateById(input.templateId);
+        if (!template) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Template not found' });
+        }
+        
+        // Create workflow from template
+        const workflow = await db.createWorkflow({
+          workflowType: template.workflowType,
+          title: `${template.name} - ${new Date().toLocaleDateString()}`,
+          description: template.description || '',
+          department: ctx.user.role,
+          requesterId: ctx.user.id,
+          templateId: input.templateId,
+        });
+        
+        // Create stages from template
+        if (template.stages) {
+          for (const stage of template.stages) {
+            await db.createWorkflowStage({
+              workflowId: workflow.id,
+              stageOrder: stage.stageOrder,
+              stageName: stage.stageName,
+              stageType: stage.approvalRequired ? 'approval' : 'review',
+              requiredRole: stage.requiredRole,
+              requiresOneOf: stage.requiresOneOf,
+              requiresFileUpload: stage.requiresFileUpload,
+              visibleToDepartments: stage.visibleToDepartments,
+            });
+          }
+        }
+        
+        return workflow;
+      }),
+
     search: protectedProcedure
       .input(z.object({ 
         query: z.string(),
