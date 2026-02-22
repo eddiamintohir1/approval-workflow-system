@@ -756,16 +756,16 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Create tRPC endpoints for salary integration (syncFromQapita, getUserSalary, syncAll)
 - [x] Create tRPC endpoints for template quick assign toggle
 - [x] Create tRPC endpoint for paginated capacity user list
-- [ ] Add "Quick Assign" button next to "New Workflow" on Dashboard
-- [ ] Create Quick Assign modal with enabled templates
-- [ ] Add quick assign toggle to template cards
-- [ ] Redesign Capacity page with pagination (20 users/page)
-- [ ] Add department filter with "My Team" option
-- [ ] Create user detail popup with performance metrics
-- [ ] Add salary display for admin/CEO/CFO/COO only
-- [ ] Update DashboardLayout role-based menu visibility
-- [ ] Hide ADMINISTRATION section from Dept heads and Staff
-- [ ] Hide Capacity and Analytics from Dept heads and Staff
-- [ ] Add database indexes for performance optimization
-- [ ] Test with 100 test users
-- [ ] Push to GitHub after successful deployment
+- [x] Add "Quick Assign" button next to "New Workflow" on Dashboard
+- [x] Create Quick Assign modal with enabled templates
+- [x] Add quick assign toggle to template cards
+- [x] Redesign Capacity page with pagination (20 users/page)
+- [x] Add department filter with "My Team" option
+- [x] Create user detail popup with performance metrics
+- [x] Add salary display for admin/CEO/CFO/COO only
+- [x] Update DashboardLayout role-based menu visibility
+- [x] Hide ADMINISTRATION section from Dept heads and Staff
+- [x] Hide Capacity and Analytics from Dept heads and Staff
+- [x] Add database indexes for performance optimization
+- [x] Test with existing users
+- [x] Push to GitHub after successful deployment

@@ -23,6 +23,7 @@ import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { HelpButton } from "@/components/HelpButton";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import DashboardLayout from "@/components/DashboardLayout";
+import { QuickAssignModal } from "@/components/QuickAssignModal";
 
 export default function Dashboard() {
   const { signOut } = useCognitoAuth();
@@ -35,6 +36,7 @@ export default function Dashboard() {
   const [dateTo, setDateTo] = useState<string>("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
+  const [quickAssignOpen, setQuickAssignOpen] = useState(false);
   const utils = trpc.useUtils();
 
   // Load filters from localStorage on mount
@@ -298,12 +300,21 @@ export default function Dashboard() {
                 <CardTitle>Workflows</CardTitle>
                 <CardDescription>View and manage your approval workflows</CardDescription>
               </div>
-              <Link href="/workflows/create">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Workflow
-                </Button>
-              </Link>
+              <div className="flex gap-2">
+                <Link href="/workflows/create">
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Workflow
+                  </Button>
+                </Link>
+                {/* Quick Assign button - only for dept heads */}
+                {['PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(user?.role || '') && (
+                  <Button variant="outline" onClick={() => setQuickAssignOpen(true)}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Quick Assign
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -556,6 +567,16 @@ export default function Dashboard() {
 
       {/* Help Button */}
       <HelpButton />
+      
+      {/* Quick Assign Modal */}
+      <QuickAssignModal 
+        open={quickAssignOpen} 
+        onOpenChange={setQuickAssignOpen}
+        onSuccess={() => {
+          utils.workflows.getAll.invalidate();
+          toast.success('Workflow assigned successfully');
+        }}
+      />
       </div>
     </DashboardLayout>
   );

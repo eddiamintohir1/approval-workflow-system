@@ -28,6 +28,7 @@ export default function TemplateList() {
 
   const { data: templates, isLoading, refetch } = trpc.templates.getAll.useQuery();
   const deleteTemplate = trpc.templates.delete.useMutation();
+  const toggleQuickAssign = trpc.templates.toggleQuickAssign.useMutation();
   const utils = trpc.useUtils();
 
   const filteredTemplates = templates?.filter((template) =>
@@ -62,6 +63,20 @@ export default function TemplateList() {
     } catch (error) {
       toast.error("Failed to load template preview");
       console.error("Preview error:", error);
+    }
+  };
+  
+  const handleToggleQuickAssign = async (templateId: string, enabled: boolean) => {
+    try {
+      await toggleQuickAssign.mutateAsync({
+        id: templateId,
+        isQuickAssignEnabled: enabled,
+      });
+      toast.success(enabled ? 'Template enabled for quick assign' : 'Template disabled for quick assign');
+      refetch();
+    } catch (error) {
+      toast.error('Failed to update template');
+      console.error('Toggle error:', error);
     }
   };
 
@@ -138,11 +153,24 @@ export default function TemplateList() {
                     </Badge>
                   )}
                 </div>
-                <div className="flex gap-2 mt-2">
-                  <Badge variant="outline">{template.workflowType}</Badge>
-                  {!template.isActive && (
-                    <Badge variant="secondary">Inactive</Badge>
-                  )}
+                <div className="flex items-center justify-between gap-2 mt-2">
+                  <div className="flex gap-2">
+                    <Badge variant="outline">{template.workflowType}</Badge>
+                    {!template.isActive && (
+                      <Badge variant="secondary">Inactive</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={template.isQuickAssignEnabled || false}
+                        onChange={(e) => handleToggleQuickAssign(template.id, e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      Quick Assign
+                    </label>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

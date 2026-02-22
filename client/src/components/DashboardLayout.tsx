@@ -192,7 +192,13 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
+              {menuItems.filter(item => {
+                // Hide Capacity and Analytics from Dept Heads and Staff
+                if (['Capacity', 'Analytics'].includes(item.label)) {
+                  return userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'].includes(userWithRole.role);
+                }
+                return true;
+              }).map(item => {
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>
@@ -213,7 +219,7 @@ function DashboardLayoutContent({
             </SidebarMenu>
             
             {/* Admin Menu Section */}
-            {userWithRole && ['admin', 'ceo', 'cfo', 'coo'].includes(userWithRole.role) && (
+            {userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'].includes(userWithRole.role) && (
               <>
                 {!isCollapsed && (
                   <div className="px-4 py-2 mt-4">
