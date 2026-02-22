@@ -788,3 +788,4 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Remove duplicate Role column from Capacity page (Department and Role show same value)
 - [x] Fix Quick Assign toggle Switch not responding to clicks in TemplateList
 - [x] Make Quick Assign button visible next to New Workflow button on Dashboard
+- [x] Fix Quick Assign toggle persistence with query invalidation

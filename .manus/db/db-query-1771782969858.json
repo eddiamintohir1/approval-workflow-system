@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, name, is_quick_assign_enabled FROM workflow_templates LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute SELECT id, name, is_quick_assign_enabled FROM workflow_templates LIMIT 10;",
+  "rows": [
+    {
+      "id": "011071f1-223e-4985-9a68-125ec7af8d7d",
+      "name": "Material Authorization Form (MAF)",
+      "is_quick_assign_enabled": "0"
+    },
+    {
+      "id": "1ec7cab7-aa19-4c55-a309-c09e593c191e",
+      "name": "Purchase Request (PR)",
+      "is_quick_assign_enabled": "0"
+    },
+    {
+      "id": "281b470d-9105-4737-8b5f-1ba4975940cf",
+      "name": "Test 1 MAF",
+      "is_quick_assign_enabled": "0"
+    },
+    {
+      "id": "7a44c698-911d-4c47-a4a7-587cdde8f899",
+      "name": "Expense Reimbursement",
+      "is_quick_assign_enabled": "0"
+    },
+    {
+      "id": "80e46701-7f54-47b0-a356-cccd1ff51799",
+      "name": "Material Authorization Form (MAF)",
+      "is_quick_assign_enabled": "0"
+    },
+    {
+      "id": "e355aa19-3dc1-4426-b32f-ea96eca7b116",
+      "name": "Material Authorization Form (MAF)",
+      "is_quick_assign_enabled": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tis_quick_assign_enabled\n011071f1-223e-4985-9a68-125ec7af8d7d\tMaterial Authorization Form (MAF)\t0\n1ec7cab7-aa19-4c55-a309-c09e593c191e\tPurchase Request (PR)\t0\n281b470d-9105-4737-8b5f-1ba4975940cf\tTest 1 MAF\t0\n7a44c698-911d-4c47-a4a7-587cdde8f899\tExpense Reimbursement\t0\n80e46701-7f54-47b0-a356-cccd1ff51799\tMaterial Authorization Form (MAF)\t0\ne355aa19-3dc1-4426-b32f-ea96eca7b116\tMaterial Authorization Form (MAF)\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1603
+}

@@ -28,9 +28,13 @@ export default function TemplateList() {
   const [previewTemplate, setPreviewTemplate] = useState<any | null>(null);
 
   const { data: templates, isLoading, refetch } = trpc.templates.getAll.useQuery();
-  const deleteTemplate = trpc.templates.delete.useMutation();
-  const toggleQuickAssign = trpc.templates.toggleQuickAssign.useMutation();
   const utils = trpc.useUtils();
+  const deleteTemplate = trpc.templates.delete.useMutation();
+  const toggleQuickAssign = trpc.templates.toggleQuickAssign.useMutation({
+    onSuccess: () => {
+      utils.templates.getAll.invalidate();
+    },
+  });
 
   const filteredTemplates = templates?.filter((template) =>
     template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

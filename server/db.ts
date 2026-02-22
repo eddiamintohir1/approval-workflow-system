@@ -1267,6 +1267,7 @@ export async function updateWorkflowTemplate(
     description?: string;
     isDefault?: boolean;
     isActive?: boolean;
+    isQuickAssignEnabled?: boolean;
     stages?: Array<{
       id?: string;
       stageOrder: number;
@@ -1291,6 +1292,7 @@ export async function updateWorkflowTemplate(
       description: updates.description,
       isDefault: updates.isDefault,
       isActive: updates.isActive,
+      isQuickAssignEnabled: updates.isQuickAssignEnabled,
       updatedAt: new Date(),
     })
     .where(eq(schema.workflowTemplates.id, templateId));
