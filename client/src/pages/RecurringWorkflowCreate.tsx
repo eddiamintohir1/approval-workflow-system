@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -16,7 +17,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { CalendarIcon, ArrowLeft, Loader2, Home } from "lucide-react";
+import { CalendarIcon, ArrowLeft, Loader2, Home, Users } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +35,15 @@ export default function RecurringWorkflowCreate() {
   const [dayOfMonth, setDayOfMonth] = useState<number>(1);
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [assigneePresets, setAssigneePresets] = useState<Record<string, number[]>>({});
 
   // Queries
   const { data: templates, isLoading: templatesLoading } = trpc.templates.getAll.useQuery();
+  const { data: users, isLoading: usersLoading } = trpc.users.getAll.useQuery();
+  const { data: templateStages } = trpc.templates.getById.useQuery(
+    { id: templateId },
+    { enabled: !!templateId }
+  );
   const createMutation = trpc.recurringWorkflows.create.useMutation();
 
   const handleSubmit = async () => {
@@ -56,6 +63,7 @@ export default function RecurringWorkflowCreate() {
         dayOfMonth: frequency === "monthly" ? dayOfMonth : undefined,
         startDate,
         endDate,
+        assigneePresets: Object.keys(assigneePresets).length > 0 ? assigneePresets : undefined,
       });
 
       toast.success("Recurring workflow created", {
@@ -71,6 +79,23 @@ export default function RecurringWorkflowCreate() {
   };
 
   const selectedTemplate = templates?.find(t => t.id === templateId);
+  const stages = templateStages?.stages || [];
+
+  const toggleAssignee = (stageName: string, userId: number) => {
+    setAssigneePresets(prev => {
+      const current = prev[stageName] || [];
+      const updated = current.includes(userId)
+        ? current.filter(id => id !== userId)
+        : [...current, userId];
+      
+      if (updated.length === 0) {
+        const { [stageName]: _, ...rest } = prev;
+        return rest;
+      }
+      
+      return { ...prev, [stageName]: updated };
+    });
+  };
 
   return (
     <div className="container max-w-4xl py-8">
@@ -102,26 +127,19 @@ export default function RecurringWorkflowCreate() {
 
       {/* Progress Steps */}
       <div className="flex items-center justify-center mb-8 gap-2">
-        <div className={cn(
-          "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium",
-          step >= 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-        )}>
-          1
-        </div>
-        <div className={cn("h-0.5 w-16", step >= 2 ? "bg-primary" : "bg-muted")} />
-        <div className={cn(
-          "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium",
-          step >= 2 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-        )}>
-          2
-        </div>
-        <div className={cn("h-0.5 w-16", step >= 3 ? "bg-primary" : "bg-muted")} />
-        <div className={cn(
-          "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium",
-          step >= 3 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-        )}>
-          3
-        </div>
+        {[1, 2, 3, 4].map((s, idx) => (
+          <>
+            <div key={s} className={cn(
+              "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium",
+              step >= s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            )}>
+              {s}
+            </div>
+            {idx < 3 && (
+              <div key={`line-${s}`} className={cn("h-0.5 w-12", step > s ? "bg-primary" : "bg-muted")} />
+            )}
+          </>
+        ))}
       </div>
 
       {/* Step 1: Basic Information */}
@@ -203,6 +221,9 @@ export default function RecurringWorkflowCreate() {
                   <SelectItem value="Production">Production</SelectItem>
                   <SelectItem value="Logistics">Logistics</SelectItem>
                   <SelectItem value="Sales">Sales</SelectItem>
+                  <SelectItem value="R&D">R&D</SelectItem>
+                  <SelectItem value="Marketing">Marketing</SelectItem>
+                  <SelectItem value="Operations">Operations</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -248,7 +269,7 @@ export default function RecurringWorkflowCreate() {
             {frequency === "weekly" && (
               <div className="space-y-2">
                 <Label>Day of Week *</Label>
-                <Select value={dayOfWeek.toString()} onValueChange={(v) => setDayOfWeek(parseInt(v))}>
+                <Select value={String(dayOfWeek)} onValueChange={(v) => setDayOfWeek(Number(v))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -269,21 +290,18 @@ export default function RecurringWorkflowCreate() {
             {frequency === "monthly" && (
               <div className="space-y-2">
                 <Label>Day of Month *</Label>
-                <Select value={dayOfMonth.toString()} onValueChange={(v) => setDayOfMonth(parseInt(v))}>
+                <Select value={String(dayOfMonth)} onValueChange={(v) => setDayOfMonth(Number(v))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                      <SelectItem key={day} value={day.toString()}>
-                        {day}
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                      <SelectItem key={day} value={String(day)}>
+                        Day {day}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-sm text-muted-foreground">
-                  Workflow will be generated on this day of each month
-                </p>
               </div>
             )}
 
@@ -312,9 +330,6 @@ export default function RecurringWorkflowCreate() {
                   />
                 </PopoverContent>
               </Popover>
-              <p className="text-sm text-muted-foreground">
-                First workflow will be generated on or after this date
-              </p>
             </div>
 
             {/* End Date */}
@@ -339,12 +354,11 @@ export default function RecurringWorkflowCreate() {
                     selected={endDate}
                     onSelect={setEndDate}
                     initialFocus
-                    disabled={(date) => date < startDate}
                   />
                 </PopoverContent>
               </Popover>
               <p className="text-sm text-muted-foreground">
-                Leave empty to continue indefinitely
+                Leave empty for indefinite recurrence
               </p>
             </div>
 
@@ -353,6 +367,87 @@ export default function RecurringWorkflowCreate() {
                 Back
               </Button>
               <Button onClick={() => setStep(3)}>
+                Next: Assignees
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 3: Assignee Pre-Selection */}
+      {step === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignee Pre-Selection</CardTitle>
+            <CardDescription>
+              Pre-configure which approvers should be automatically assigned to each stage
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {usersLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : stages.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No approval stages found in this template</p>
+                <p className="text-sm mt-2">You can skip this step</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {stages
+                  .filter(stage => stage.approvalRequired)
+                  .map((stage) => (
+                    <div key={stage.id} className="border rounded-lg p-4 space-y-3">
+                      <div>
+                        <h4 className="font-semibold">{stage.stageName}</h4>
+                        {stage.stageDescription && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {stage.stageDescription}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground">
+                          Select approvers for this stage:
+                        </Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {users
+                            ?.filter(user => user.isActive)
+                            .map((user) => (
+                              <div key={user.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`${stage.stageName}-${user.id}`}
+                                  checked={assigneePresets[stage.stageName]?.includes(user.id) || false}
+                                  onCheckedChange={() => toggleAssignee(stage.stageName, user.id)}
+                                />
+                                <label
+                                  htmlFor={`${stage.stageName}-${user.id}`}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                >
+                                  {user.fullName} ({user.role})
+                                </label>
+                              </div>
+                            ))}
+                        </div>
+                        {assigneePresets[stage.stageName]?.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            {assigneePresets[stage.stageName].length} approver(s) selected
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            <div className="flex justify-between gap-2 pt-4">
+              <Button variant="outline" onClick={() => setStep(2)}>
+                Back
+              </Button>
+              <Button onClick={() => setStep(4)}>
                 Next: Review
               </Button>
             </div>
@@ -360,8 +455,8 @@ export default function RecurringWorkflowCreate() {
         </Card>
       )}
 
-      {/* Step 3: Review and Create */}
-      {step === 3 && (
+      {/* Step 4: Review and Create */}
+      {step === 4 && (
         <Card>
           <CardHeader>
             <CardTitle>Review and Create</CardTitle>
@@ -370,56 +465,81 @@ export default function RecurringWorkflowCreate() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid gap-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-sm font-medium text-muted-foreground">Template:</div>
-                <div className="col-span-2 text-sm">
+            <div className="space-y-4">
+              <div>
+                <Label className="text-muted-foreground">Template</Label>
+                <p className="font-medium">
                   {selectedTemplate?.name} ({selectedTemplate?.workflowType})
-                </div>
+                </p>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-sm font-medium text-muted-foreground">Title:</div>
-                <div className="col-span-2 text-sm">{title}</div>
+              
+              <div>
+                <Label className="text-muted-foreground">Title</Label>
+                <p className="font-medium">{title}</p>
               </div>
+              
               {description && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-sm font-medium text-muted-foreground">Description:</div>
-                  <div className="col-span-2 text-sm">{description}</div>
+                <div>
+                  <Label className="text-muted-foreground">Description</Label>
+                  <p className="font-medium">{description}</p>
                 </div>
               )}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-sm font-medium text-muted-foreground">Department:</div>
-                <div className="col-span-2 text-sm">{department}</div>
+              
+              <div>
+                <Label className="text-muted-foreground">Department</Label>
+                <p className="font-medium">{department}</p>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-sm font-medium text-muted-foreground">Frequency:</div>
-                <div className="col-span-2 text-sm capitalize">
-                  {frequency}
-                  {frequency === "weekly" && ` on ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayOfWeek]}`}
-                  {frequency === "monthly" && ` on day ${dayOfMonth}`}
-                </div>
+              
+              <div>
+                <Label className="text-muted-foreground">Frequency</Label>
+                <p className="font-medium">
+                  {frequency === "daily" && "Daily"}
+                  {frequency === "weekly" && `Weekly on ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayOfWeek]}`}
+                  {frequency === "monthly" && `Monthly On Day ${dayOfMonth}`}
+                </p>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-sm font-medium text-muted-foreground">Start Date:</div>
-                <div className="col-span-2 text-sm">{format(startDate, "PPP")}</div>
+              
+              <div>
+                <Label className="text-muted-foreground">Start Date</Label>
+                <p className="font-medium">{format(startDate, "PPP")}</p>
               </div>
+              
               {endDate && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-sm font-medium text-muted-foreground">End Date:</div>
-                  <div className="col-span-2 text-sm">{format(endDate, "PPP")}</div>
+                <div>
+                  <Label className="text-muted-foreground">End Date</Label>
+                  <p className="font-medium">{format(endDate, "PPP")}</p>
+                </div>
+              )}
+
+              {Object.keys(assigneePresets).length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Pre-assigned Approvers</Label>
+                  <div className="mt-2 space-y-2">
+                    {Object.entries(assigneePresets).map(([stageName, userIds]) => (
+                      <div key={stageName} className="text-sm">
+                        <span className="font-medium">{stageName}:</span>{" "}
+                        {userIds.map(userId => {
+                          const user = users?.find(u => u.id === userId);
+                          return user?.fullName;
+                        }).filter(Boolean).join(", ")}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
             <div className="flex justify-between gap-2 pt-4">
-              <Button variant="outline" onClick={() => setStep(2)}>
+              <Button variant="outline" onClick={() => setStep(3)}>
                 Back
               </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={createMutation.isPending}
               >
-                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {createMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
                 Create Recurring Workflow
               </Button>
             </div>

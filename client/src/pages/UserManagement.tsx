@@ -80,6 +80,10 @@ export default function UserManagement() {
     { value: "Finance", label: "Finance" },
     { value: "Production", label: "Production" },
     { value: "Logistics", label: "Logistics" },
+    { value: "R&D", label: "R&D" },
+    { value: "Sales", label: "Sales" },
+    { value: "Marketing", label: "Marketing" },
+    { value: "Operations", label: "Operations" },
     { value: "Staff", label: "Staff" },
   ];
 

@@ -27,6 +27,10 @@ export const users = mysqlTable("users", {
     "Finance",
     "Production",
     "Logistics",
+    "R&D",
+    "Sales",
+    "Marketing",
+    "Operations",
     "Staff",
     "admin"
   ]).default("Staff").notNull(),
@@ -688,6 +692,10 @@ export const recurringWorkflows = mysqlTable("recurring_workflows", {
   // Owner information
   createdBy: int("created_by").notNull(),
   assignedTo: json("assigned_to").$type<number[]>(), // User IDs who should be assigned
+  
+  // Assignee presets for each approval stage
+  // Format: { "stage_name": [userId1, userId2, ...] }
+  assigneePresets: json("assignee_presets").$type<Record<string, number[]>>(),
   
   // Pre-filled form data (optional)
   formTemplateId: varchar("form_template_id", { length: 36 }),

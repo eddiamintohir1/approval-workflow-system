@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE recurring_workflows ADD COLUMN assignee_presets JSON AFTER assigned_to;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute ALTER TABLE recurring_workflows ADD COLUMN assignee_presets JSON AFTER assigned_to;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1854
+}

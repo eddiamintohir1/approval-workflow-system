@@ -1104,3 +1104,18 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Test complete creation flow from start to finish
 - [ ] Save checkpoint
 - [x] Add home/dashboard button to recurring workflow pages (Create, Edit, My Personalized WF)
+
+
+## Phase 64: Assignee Pre-Selection & New User Roles
+
+- [x] Add R- [ ] Add R&D, Sales, Marketing, Operations roles to user schemaD, Sales, Marketing, Operations roles to user schema
+- [ ] Update database migration to add new role enum values
+- [ ] Update user management dropdown to show new roles
+- [ ] Add assignee_presets JSON field to recurring_workflows table
+- [ ] Create UI component for selecting approvers for each stage
+- [ ] Add assignee pre-selection step to recurring workflow creation wizard
+- [ ] Update recurring workflow edit page to include assignee configuration
+- [ ] Modify workflow generation logic to auto-assign pre-configured approvers
+- [ ] Test new roles in user management
+- [ ] Test assignee pre-selection in recurring workflow creation
+- [ ] Test auto-assignment when recurring workflow generates new workflow instance

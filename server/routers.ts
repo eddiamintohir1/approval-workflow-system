@@ -1994,6 +1994,7 @@ export const appRouter = router({
         startDate: z.date(),
         endDate: z.date().optional(),
         assignedTo: z.array(z.number()).optional(),
+        assigneePresets: z.record(z.array(z.number())).optional(), // { "stage_name": [userId1, userId2] }
         formTemplateId: z.string().optional(),
         formData: z.record(z.any()).optional(),
         contingencyWorkflowIds: z.array(z.string()).optional(),
@@ -2043,6 +2044,7 @@ export const appRouter = router({
         startDate: z.date().optional(),
         endDate: z.date().optional(),
         assignedTo: z.array(z.number()).optional(),
+        assigneePresets: z.record(z.array(z.number())).optional(),
         formData: z.record(z.any()).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
