@@ -193,11 +193,11 @@ export default function TermsOfService() {
             </div>
             
             <div className="flex items-center gap-4 text-sm">
-              <Link href="/privacy-policy">
-                <a className="text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
+              <Link href="/privacy-policy" className="text-muted-foreground hover:text-foreground transition-colors">
+                Privacy Policy
               </Link>
-              <Link href="/terms-of-service">
-                <a className="text-muted-foreground hover:text-foreground transition-colors">Terms of Service</a>
+              <Link href="/terms-of-service" className="text-muted-foreground hover:text-foreground transition-colors">
+                Terms of Service
               </Link>
               <a href="https://www.compawnion.co/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
                 Contact Us

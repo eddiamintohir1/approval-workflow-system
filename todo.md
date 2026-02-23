@@ -867,3 +867,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Fix by replacing <button> with <span> inside <Link> component
 - [x] Test login page to verify error is resolved - console clean, no errors
 - [ ] Create checkpoint
+
+## Phase 55: Fix Nested Anchor Tag Error on Dashboard Page
+- [x] Locate nested <a> tags - found in Dashboard.tsx, PrivacyPolicy.tsx, TermsOfService.tsx footers
+- [x] Fix by moving className to Link component and removing inner <a> tags
+- [x] Fixed all three pages: Dashboard, PrivacyPolicy, TermsOfService
+- [ ] Test pages to verify errors are resolved
+- [ ] Create checkpoint
