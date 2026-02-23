@@ -536,8 +536,30 @@ export default function Dashboard() {
       {/* Copyright Footer */}
       {/* IP Owner: Eddie Amintohir */}
       <footer className="border-t bg-card mt-8">
-        <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
-          © Compawnion Jadi Berkat. All rights reserved.
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            {/* Logo and Copyright */}
+            <div className="flex items-center gap-3">
+              <img src="/compawnion-logo.png" alt="Compawnion" className="h-8 w-auto" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              <span className="text-sm text-muted-foreground">
+                © Compawnion Jadi Berkat. All rights reserved.
+              </span>
+            </div>
+            
+            {/* Links */}
+            <div className="flex items-center gap-4 text-sm">
+              <Link href="/privacy-policy">
+                <a className="text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
+              </Link>
+              <Link href="/terms-of-service">
+                <a className="text-muted-foreground hover:text-foreground transition-colors">Terms of Service</a>
+              </Link>
+              <a href="https://www.compawnion.co/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                Contact Us
+              </a>
+              <span className="text-muted-foreground">v1.03</span>
+            </div>
+          </div>
         </div>
       </footer>
 
