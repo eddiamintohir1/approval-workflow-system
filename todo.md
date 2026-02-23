@@ -861,3 +861,9 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Ensure image doesn't get cut off
 - [x] Test login page layout - verified in browser, dog now stays in corner
 - [ ] Create checkpoint
+
+## Phase 54: Fix Nested Anchor Tag Error on Login Page
+- [x] Locate nested <a> tags - found in Login.tsx "Forgot password?" link
+- [x] Fix by replacing <button> with <span> inside <Link> component
+- [x] Test login page to verify error is resolved - console clean, no errors
+- [ ] Create checkpoint
