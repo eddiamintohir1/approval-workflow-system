@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { CognitoUser } from "amazon-cognito-identity-js";
 import { userPool } from "@/lib/cognito";
 
 export default function ForgotPassword() {
+  const { t } = useTranslation();
   const [step, setStep] = useState<"email" | "code" | "success">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -108,11 +110,11 @@ export default function ForgotPassword() {
             <Link href="/login">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Login
+                {t('auth.backToLogin')}
               </Button>
             </Link>
           </div>
-          <CardTitle className="text-2xl">Reset Password</CardTitle>
+          <CardTitle className="text-2xl">{t('auth.resetPassword')}</CardTitle>
           <CardDescription>
             {step === "email" && "Enter your email to receive a verification code"}
             {step === "code" && "Enter the code sent to your email and set a new password"}
@@ -123,7 +125,7 @@ export default function ForgotPassword() {
           {step === "email" && (
             <form onSubmit={handleSendCode} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">{t('auth.email')}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -145,7 +147,7 @@ export default function ForgotPassword() {
                     Sending Code...
                   </>
                 ) : (
-                  "Send Verification Code"
+                  t('auth.sendResetCode')
                 )}
               </Button>
               <p className="text-sm text-muted-foreground text-center">
@@ -157,7 +159,7 @@ export default function ForgotPassword() {
           {step === "code" && (
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="code">Verification Code</Label>
+                <Label htmlFor="code">{t('auth.verificationCode')}</Label>
                 <Input
                   id="code"
                   type="text"
@@ -170,7 +172,7 @@ export default function ForgotPassword() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="newPassword">New Password</Label>
+                <Label htmlFor="newPassword">{t('auth.newPassword')}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -186,7 +188,7 @@ export default function ForgotPassword() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -208,7 +210,7 @@ export default function ForgotPassword() {
                     Resetting Password...
                   </>
                 ) : (
-                  "Reset Password"
+                  t('auth.resetPassword')
                 )}
               </Button>
               <Button

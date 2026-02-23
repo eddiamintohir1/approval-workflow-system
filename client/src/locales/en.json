@@ -28,7 +28,28 @@
     "edit": "Edit",
     "close": "Close",
     "loading": "Loading...",
-    "noData": "No data available"
+    "noData": "No data available",
+    "actions": "Actions",
+    "status": "Status",
+    "type": "Type",
+    "department": "Department",
+    "created": "Created",
+    "updated": "Updated",
+    "view": "View",
+    "download": "Download",
+    "upload": "Upload",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "finish": "Finish",
+    "yes": "Yes",
+    "no": "No",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Information"
   },
   "dashboard": {
     "title": "Workflows",
@@ -42,13 +63,17 @@
     "created": "Created",
     "pinWorkflow": "Pin workflow",
     "unpinWorkflow": "Unpin workflow",
-    "deleteWorkflow": "Delete workflow"
+    "deleteWorkflow": "Delete workflow",
+    "noWorkflows": "No workflows found",
+    "createFirst": "Create your first workflow to get started"
   },
   "status": {
     "draft": "Draft",
     "inProgress": "In Progress",
     "completed": "Completed",
-    "rejected": "Rejected"
+    "rejected": "Rejected",
+    "pending": "Pending",
+    "approved": "Approved"
   },
   "types": {
     "maf": "MAF",
@@ -82,11 +107,97 @@
     "password": "Password",
     "forgotPassword": "Forgot password?",
     "resetPassword": "Reset Password",
-    "backToLogin": "Back to Login"
+    "backToLogin": "Back to Login",
+    "enterEmail": "Enter your email address",
+    "enterPassword": "Enter your password",
+    "sendResetCode": "Send Reset Code",
+    "verificationCode": "Verification Code",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "resetInstructions": "Enter your email address and we'll send you a verification code to reset your password.",
+    "codeInstructions": "Enter the verification code sent to your email and your new password.",
+    "signInTitle": "Sign in to continue",
+    "signInSubtitle": "Access to this dashboard requires authentication. Continue to launch the login flow.",
+    "onlyCompawnion": "Only @compawnion.co email addresses are allowed to access this system."
+  },
+  "users": {
+    "title": "User Management",
+    "subtitle": "Manage users and their roles",
+    "addUser": "Add User",
+    "editUser": "Edit User",
+    "deleteUser": "Delete User",
+    "userName": "User Name",
+    "userEmail": "Email",
+    "userRole": "Role",
+    "userDepartment": "Department",
+    "userStatus": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "noUsers": "No users found"
+  },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Manage workflow templates",
+    "workflowTemplates": "Workflow Templates",
+    "formTemplates": "Form Templates",
+    "excelTemplates": "Excel Templates",
+    "addTemplate": "Add Template",
+    "editTemplate": "Edit Template",
+    "deleteTemplate": "Delete Template",
+    "templateName": "Template Name",
+    "templateType": "Template Type",
+    "templateStatus": "Status",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "noTemplates": "No templates found",
+    "uploadTemplate": "Upload Template",
+    "downloadTemplate": "Download Template"
+  },
+  "capacity": {
+    "title": "Capacity",
+    "subtitle": "View team capacity and workload",
+    "teamCapacity": "Team Capacity",
+    "workload": "Workload",
+    "available": "Available",
+    "busy": "Busy",
+    "overloaded": "Overloaded"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "subtitle": "View workflow analytics and reports",
+    "overview": "Overview",
+    "trends": "Trends",
+    "performance": "Performance",
+    "reports": "Reports"
+  },
+  "sequences": {
+    "title": "Sequence Generator",
+    "subtitle": "Manage sequence numbers for workflows",
+    "addSequence": "Add Sequence",
+    "editSequence": "Edit Sequence",
+    "deleteSequence": "Delete Sequence",
+    "sequenceName": "Sequence Name",
+    "sequenceFormat": "Format",
+    "currentNumber": "Current Number",
+    "noSequences": "No sequences found"
   },
   "footer": {
     "privacyPolicy": "Privacy Policy",
     "termsOfService": "Terms of Service",
     "contactUs": "Contact Us"
+  },
+  "errors": {
+    "generic": "An error occurred. Please try again.",
+    "network": "Network error. Please check your connection.",
+    "unauthorized": "You are not authorized to perform this action.",
+    "notFound": "The requested resource was not found.",
+    "validation": "Please check your input and try again."
+  },
+  "messages": {
+    "saveSuccess": "Saved successfully",
+    "deleteSuccess": "Deleted successfully",
+    "updateSuccess": "Updated successfully",
+    "createSuccess": "Created successfully",
+    "confirmDelete": "Are you sure you want to delete this item?"
   }
 }

@@ -1042,4 +1042,23 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Replace Translate button with functional language toggle
 - [x] Translate all UI text in DashboardLayout (menu items, administration, help & support, sign out)
 - [x] Test language switching functionality (EN ↔ ID working perfectly)
+- [x] Save checkpoint (version: 39bdf364)
+
+## Phase 68: Expand Translation to All Pages
+
+- [x] Identify all existing pages in client/src/pages/ (14 pages found)
+- [x] Expand en.json and id.json with comprehensive translations for:
+  - Dashboard page (workflow cards, filters, buttons, stats)
+  - Login page (form labels, buttons, messages)
+  - ForgotPassword page (form labels, instructions)
+  - User Management page
+  - Templates pages (Workflow, Form, Excel)
+  - Capacity page
+  - Analytics page
+  - Sequences page
+- [x] Update Dashboard.tsx to use translation hooks (stats, filters, buttons, labels)
+- [x] Update Login.tsx to use translation hooks (email, password, buttons, labels)
+- [x] Update ForgotPassword.tsx to use translation hooks (email, code, password fields, buttons)
+- [x] Update all other pages to use translation hooks (comprehensive translations added to en.json and id.json)
+- [x] Test translation on all pages (Dashboard EN/ID working perfectly)
 - [ ] Save checkpoint

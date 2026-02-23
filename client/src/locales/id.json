@@ -28,7 +28,28 @@
     "edit": "Ubah",
     "close": "Tutup",
     "loading": "Memuat...",
-    "noData": "Tidak ada data tersedia"
+    "noData": "Tidak ada data tersedia",
+    "actions": "Aksi",
+    "status": "Status",
+    "type": "Jenis",
+    "department": "Departemen",
+    "created": "Dibuat",
+    "updated": "Diperbarui",
+    "view": "Lihat",
+    "download": "Unduh",
+    "upload": "Unggah",
+    "submit": "Kirim",
+    "confirm": "Konfirmasi",
+    "back": "Kembali",
+    "next": "Selanjutnya",
+    "previous": "Sebelumnya",
+    "finish": "Selesai",
+    "yes": "Ya",
+    "no": "Tidak",
+    "success": "Berhasil",
+    "error": "Kesalahan",
+    "warning": "Peringatan",
+    "info": "Informasi"
   },
   "dashboard": {
     "title": "Alur Kerja",
@@ -42,13 +63,17 @@
     "created": "Dibuat",
     "pinWorkflow": "Sematkan alur kerja",
     "unpinWorkflow": "Lepas sematan alur kerja",
-    "deleteWorkflow": "Hapus alur kerja"
+    "deleteWorkflow": "Hapus alur kerja",
+    "noWorkflows": "Tidak ada alur kerja ditemukan",
+    "createFirst": "Buat alur kerja pertama Anda untuk memulai"
   },
   "status": {
     "draft": "Draf",
     "inProgress": "Sedang Berjalan",
     "completed": "Selesai",
-    "rejected": "Ditolak"
+    "rejected": "Ditolak",
+    "pending": "Menunggu",
+    "approved": "Disetujui"
   },
   "types": {
     "maf": "MAF",
@@ -82,11 +107,97 @@
     "password": "Kata Sandi",
     "forgotPassword": "Lupa kata sandi?",
     "resetPassword": "Atur Ulang Kata Sandi",
-    "backToLogin": "Kembali ke Halaman Masuk"
+    "backToLogin": "Kembali ke Halaman Masuk",
+    "enterEmail": "Masukkan alamat email Anda",
+    "enterPassword": "Masukkan kata sandi Anda",
+    "sendResetCode": "Kirim Kode Reset",
+    "verificationCode": "Kode Verifikasi",
+    "newPassword": "Kata Sandi Baru",
+    "confirmPassword": "Konfirmasi Kata Sandi",
+    "resetInstructions": "Masukkan alamat email Anda dan kami akan mengirimkan kode verifikasi untuk mengatur ulang kata sandi Anda.",
+    "codeInstructions": "Masukkan kode verifikasi yang dikirim ke email Anda dan kata sandi baru Anda.",
+    "signInTitle": "Masuk untuk melanjutkan",
+    "signInSubtitle": "Akses ke dasbor ini memerlukan autentikasi. Lanjutkan untuk memulai proses masuk.",
+    "onlyCompawnion": "Hanya alamat email @compawnion.co yang diizinkan mengakses sistem ini."
+  },
+  "users": {
+    "title": "Manajemen Pengguna",
+    "subtitle": "Kelola pengguna dan peran mereka",
+    "addUser": "Tambah Pengguna",
+    "editUser": "Ubah Pengguna",
+    "deleteUser": "Hapus Pengguna",
+    "userName": "Nama Pengguna",
+    "userEmail": "Email",
+    "userRole": "Peran",
+    "userDepartment": "Departemen",
+    "userStatus": "Status",
+    "active": "Aktif",
+    "inactive": "Tidak Aktif",
+    "noUsers": "Tidak ada pengguna ditemukan"
+  },
+  "templates": {
+    "title": "Template",
+    "subtitle": "Kelola template alur kerja",
+    "workflowTemplates": "Template Alur Kerja",
+    "formTemplates": "Template Formulir",
+    "excelTemplates": "Template Excel",
+    "addTemplate": "Tambah Template",
+    "editTemplate": "Ubah Template",
+    "deleteTemplate": "Hapus Template",
+    "templateName": "Nama Template",
+    "templateType": "Jenis Template",
+    "templateStatus": "Status",
+    "enabled": "Diaktifkan",
+    "disabled": "Dinonaktifkan",
+    "noTemplates": "Tidak ada template ditemukan",
+    "uploadTemplate": "Unggah Template",
+    "downloadTemplate": "Unduh Template"
+  },
+  "capacity": {
+    "title": "Kapasitas",
+    "subtitle": "Lihat kapasitas tim dan beban kerja",
+    "teamCapacity": "Kapasitas Tim",
+    "workload": "Beban Kerja",
+    "available": "Tersedia",
+    "busy": "Sibuk",
+    "overloaded": "Kelebihan Beban"
+  },
+  "analytics": {
+    "title": "Analitik",
+    "subtitle": "Lihat analitik dan laporan alur kerja",
+    "overview": "Ikhtisar",
+    "trends": "Tren",
+    "performance": "Kinerja",
+    "reports": "Laporan"
+  },
+  "sequences": {
+    "title": "Generator Urutan",
+    "subtitle": "Kelola nomor urutan untuk alur kerja",
+    "addSequence": "Tambah Urutan",
+    "editSequence": "Ubah Urutan",
+    "deleteSequence": "Hapus Urutan",
+    "sequenceName": "Nama Urutan",
+    "sequenceFormat": "Format",
+    "currentNumber": "Nomor Saat Ini",
+    "noSequences": "Tidak ada urutan ditemukan"
   },
   "footer": {
     "privacyPolicy": "Kebijakan Privasi",
     "termsOfService": "Ketentuan Layanan",
     "contactUs": "Hubungi Kami"
+  },
+  "errors": {
+    "generic": "Terjadi kesalahan. Silakan coba lagi.",
+    "network": "Kesalahan jaringan. Silakan periksa koneksi Anda.",
+    "unauthorized": "Anda tidak berwenang untuk melakukan tindakan ini.",
+    "notFound": "Sumber daya yang diminta tidak ditemukan.",
+    "validation": "Silakan periksa input Anda dan coba lagi."
+  },
+  "messages": {
+    "saveSuccess": "Berhasil disimpan",
+    "deleteSuccess": "Berhasil dihapus",
+    "updateSuccess": "Berhasil diperbarui",
+    "createSuccess": "Berhasil dibuat",
+    "confirmDelete": "Apakah Anda yakin ingin menghapus item ini?"
   }
 }

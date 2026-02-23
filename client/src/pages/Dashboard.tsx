@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
 import { useCognitoAuth } from "@/hooks/useCognitoAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -27,6 +28,7 @@ import { QuickAssignModal } from "@/components/QuickAssignModal";
 
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { signOut } = useCognitoAuth();
   const { user, loading: authLoading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
@@ -257,7 +259,7 @@ export default function Dashboard() {
         <div className="grid gap-4 md:grid-cols-5" data-guide="stats-cards">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Workflows</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.totalWorkflows')}</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -267,7 +269,7 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Draft</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.draft')}</CardTitle>
               <FileText className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
@@ -277,7 +279,7 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.inProgress')}</CardTitle>
               <Clock className="h-4 w-4 text-blue-400" />
             </CardHeader>
             <CardContent>
@@ -287,7 +289,7 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.completed')}</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-400" />
             </CardHeader>
             <CardContent>
@@ -297,7 +299,7 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.rejected')}</CardTitle>
               <XCircle className="h-4 w-4 text-red-400" />
             </CardHeader>
             <CardContent>
@@ -311,21 +313,21 @@ export default function Dashboard() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Workflows</CardTitle>
-                <CardDescription>View and manage your approval workflows</CardDescription>
+                <CardTitle>{t('dashboard.title')}</CardTitle>
+                <CardDescription>{t('dashboard.subtitle')}</CardDescription>
               </div>
               <div className="flex gap-2">
                 <Link href="/workflows/create">
                   <Button data-guide="new-workflow-btn">
                     <Plus className="h-4 w-4 mr-2" />
-                    New Workflow
+                    {t('common.newWorkflow')}
                   </Button>
                 </Link>
                 {/* Quick Assign button - for admin, executives, and dept heads */}
                 {['admin', 'CEO', 'CFO', 'COO', 'PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(user?.role || '') && (
                   <Button variant="outline" onClick={() => setQuickAssignOpen(true)} data-guide="quick-assign-btn">
                     <Users className="h-4 w-4 mr-2" />
-                    Quick Assign
+                    {t('common.quickAssign')}
                   </Button>
                 )}
               </div>
@@ -336,7 +338,7 @@ export default function Dashboard() {
             <div className="relative" data-guide="search-input">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by workflow ID or title..."
+                placeholder={t('common.search')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -353,7 +355,7 @@ export default function Dashboard() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="all">All Status</option>
+                  <option value="all">{t('common.allStatus')}</option>
                   <option value="draft">Draft</option>
                   <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
@@ -369,7 +371,7 @@ export default function Dashboard() {
                   onChange={(e) => setTypeFilter(e.target.value)}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="all">All Types</option>
+                  <option value="all">{t('common.allTypes')}</option>
                   <option value="MAF">MAF</option>
                   <option value="PR">PR</option>
                   <option value="Reimbursement">Reimbursement</option>
@@ -379,13 +381,13 @@ export default function Dashboard() {
 
               {/* Department Filter */}
               <div data-guide="department-filter">
-                <label className="text-sm font-medium mb-1.5 block">Department</label>
+                <label className="text-sm font-medium mb-1.5 block">{t('common.department')}</label>
                 <select
                   value={departmentFilter}
                   onChange={(e) => setDepartmentFilter(e.target.value)}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="all">All Departments</option>
+                  <option value="all">{t('common.allDepartments')}</option>
                   <option value="PPIC">PPIC</option>
                   <option value="Purchasing">Purchasing</option>
                   <option value="GA">GA</option>
@@ -403,7 +405,7 @@ export default function Dashboard() {
                   disabled={activeFilterCount === 0}
                   className="w-full"
                 >
-                  Clear Filters
+                  {t('common.clearFilters')}
                   {activeFilterCount > 0 && (
                     <Badge variant="secondary" className="ml-2">
                       {activeFilterCount}
@@ -416,7 +418,7 @@ export default function Dashboard() {
             {/* Date Range Filters */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-guide="date-filters">
               <div>
-                <label className="text-sm font-medium mb-1.5 block">From Date</label>
+                <label className="text-sm font-medium mb-1.5 block">{t('common.fromDate')}</label>
                 <Input
                   type="date"
                   value={dateFrom}
@@ -425,7 +427,7 @@ export default function Dashboard() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">To Date</label>
+                <label className="text-sm font-medium mb-1.5 block">{t('common.toDate')}</label>
                 <Input
                   type="date"
                   value={dateTo}

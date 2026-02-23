@@ -1,6 +1,7 @@
 /* IP Owner: Eddie Amintohir */
 import { useState, useEffect, useMemo } from "react";
 import { useLocation, Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ const DOG_IMAGES = [
 ];
 
 export default function Login() {
+  const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -68,17 +70,17 @@ export default function Login() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">CJB Workflow Hub</CardTitle>
           <CardDescription>
-            Sign in with your @compawnion.co email address
+            {t('auth.onlyCompawnion')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">{t('auth.email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="your.name@compawnion.co"
+                placeholder={t('auth.enterEmail')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -88,17 +90,17 @@ export default function Login() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t('auth.password')}</Label>
                 <Link href="/forgot-password">
                   <span className="text-sm text-primary hover:underline cursor-pointer">
-                    Forgot password?
+                    {t('auth.forgotPassword')}
                   </span>
                 </Link>
               </div>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder={t('auth.enterPassword')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -121,7 +123,7 @@ export default function Login() {
               ) : (
                 <>
                   <Lock className="mr-2 h-4 w-4" />
-                  Sign In
+                  {t('auth.signIn')}
                 </>
               )}
             </Button>
