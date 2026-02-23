@@ -33,16 +33,26 @@ import { useUserRole } from "@/hooks/useUserRole";
 export default function Capacity() {
   const { user: currentUser } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const pageSize = 20;
 
+  // Debounce search query to avoid triggering query on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300); // Wait 300ms after user stops typing
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Get user list with pagination
   const { data: usersData, isLoading } = trpc.capacity.getUserList.useQuery({
     page,
     pageSize,
-    search: searchQuery,
+    search: debouncedSearch,
     department: departmentFilter === "all" ? undefined : departmentFilter,
   });
 
