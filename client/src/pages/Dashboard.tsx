@@ -608,7 +608,11 @@ export default function Dashboard() {
       {/* Quick Assign Modal */}
       <QuickAssignModal
         open={quickAssignOpen}
-        onClose={() => setQuickAssignOpen(false)}
+        onOpenChange={setQuickAssignOpen}
+        onSuccess={() => {
+          utils.workflows.list.invalidate();
+          toast.success('Workflow assigned successfully');
+        }}
       />
 
 

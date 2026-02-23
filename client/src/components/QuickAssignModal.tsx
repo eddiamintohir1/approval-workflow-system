@@ -60,7 +60,6 @@ export function QuickAssignModal({ open, onOpenChange, onSuccess }: QuickAssignM
   
   const assignWorkflow = trpc.assignments.create.useMutation({
     onSuccess: () => {
-      toast.success('Workflow assigned successfully');
       onSuccess();
       onOpenChange(false);
       // Reset form

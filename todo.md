@@ -1000,4 +1000,35 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Update frontend login to try both email and hyphenated username formats
 - [x] Test login with email format usernames (test@compawnion.co) - SUCCESS
 - [x] Test login with hyphenated usernames (eddie-amintohir) - SUCCESS with fallback
-- [ ] Save checkpoint after successful testing
+- [x] Save checkpoint after successful testing (version: f59bc508)
+
+## Phase 63: Export Cognito Users for us-west-2 Import
+
+- [x] Fetch all active users from ap-southeast-1 Cognito user pool (36 users)
+- [x] Format user data as CSV with all necessary fields (username, email, status, attributes)
+- [x] Create export file suitable for Cognito import
+- [ ] Deliver export file to user
+
+## Phase 64: Reformat Cognito Export to Match Template
+
+- [x] Analyze template.csv format and column structure
+- [x] Reformat cognito_users_export.csv to match template format
+- [ ] Deliver reformatted export file to user
+
+## Phase 65: Migrate Cognito from ap-southeast-1 to us-west-2
+
+- [x] Update VITE_COGNITO_USER_POOL_ID to us-west-2_dC2E0NA7Y
+- [x] Update VITE_COGNITO_REGION to us-west-2
+- [x] Update VITE_COGNITO_CLIENT_ID to 2asth4g7rnfm9vt76a0arhkroc
+- [x] Add COGNITO_CLIENT_SECRET environment variable
+- [x] Configure us-west-2 user pool with SES email settings (noreply@compawnion.co)
+- [x] Configure us-west-2 user pool with AutoVerifiedAttributes
+- [x] Test login with migrated users (test@compawnion.co - SUCCESS)
+- [x] Test password reset email delivery (valerie.amintohir@compawnion.co - code sent)
+- [ ] Save checkpoint after successful migration
+
+## Phase 66: Fix QuickAssignModal onOpenChange Error
+
+- [x] Fix onOpenChange is not a function error in QuickAssignModal.tsx (changed onClose to onOpenChange)
+- [x] Test Quick Assign functionality (modal opens and closes without errors)
+- [ ] Save checkpoint
