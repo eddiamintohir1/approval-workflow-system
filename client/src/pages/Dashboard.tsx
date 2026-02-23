@@ -30,6 +30,7 @@ export default function Dashboard() {
   const { signOut } = useCognitoAuth();
   const { user, loading: authLoading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
@@ -48,6 +49,7 @@ export default function Dashboard() {
       try {
         const filters = JSON.parse(savedFilters);
         setSearchQuery(filters.search || "");
+        setDebouncedSearch(filters.search || "");
         setStatusFilter(filters.status || "all");
         setTypeFilter(filters.type || "all");
         setDepartmentFilter(filters.department || "all");
@@ -59,10 +61,19 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Debounce search query to avoid triggering filter on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300); // Wait 300ms after user stops typing
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Save filters to localStorage whenever they change
   useEffect(() => {
     const filters = {
-      search: searchQuery,
+      search: debouncedSearch,
       status: statusFilter,
       type: typeFilter,
       department: departmentFilter,
@@ -70,11 +81,12 @@ export default function Dashboard() {
       dateTo,
     };
     localStorage.setItem("workflowFilters", JSON.stringify(filters));
-  }, [searchQuery, statusFilter, typeFilter, departmentFilter, dateFrom, dateTo]);
+  }, [debouncedSearch, statusFilter, typeFilter, departmentFilter, dateFrom, dateTo]);
 
   // Clear all filters
   const clearFilters = () => {
     setSearchQuery("");
+    setDebouncedSearch("");
     setStatusFilter("all");
     setTypeFilter("all");
     setDepartmentFilter("all");
@@ -84,7 +96,7 @@ export default function Dashboard() {
 
   // Count active filters
   const activeFilterCount = [
-    searchQuery !== "",
+    debouncedSearch !== "",
     statusFilter !== "all",
     typeFilter !== "all",
     departmentFilter !== "all",
@@ -197,10 +209,10 @@ export default function Dashboard() {
 
   // Filter and sort workflows (pinned first, then by date)
   const filteredWorkflows = workflows?.filter((w) => {
-    // Search filter (ID or title)
-    const matchesSearch = !searchQuery ||
-      w.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      w.workflowNumber.toLowerCase().includes(searchQuery.toLowerCase());
+    // Search filter (ID or title) - uses debounced search
+    const matchesSearch = !debouncedSearch ||
+      w.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      w.workflowNumber.toLowerCase().includes(debouncedSearch.toLowerCase());
 
     // Status filter
     const matchesStatus = statusFilter === "all" || w.overallStatus === statusFilter;

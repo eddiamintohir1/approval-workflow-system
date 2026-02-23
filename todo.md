@@ -900,3 +900,21 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Implementation: Fetch file as blob, create download link programmatically
 - [x] Test: CATTO template downloaded successfully (4.1 MB)
 - [ ] Create checkpoint
+
+## Phase 58: Dashboard Workflow Search Debouncing
+- [x] Read Dashboard.tsx to locate workflow search implementation
+- [x] Add debounced search state with 300ms delay (same pattern as Capacity page)
+- [x] Update tRPC query to use debouncedSearch instead of immediate searchQuery
+- [x] Test search box doesn't trigger query on every keystroke
+- [x] Verify search works correctly after user stops typing
+
+## Phase 59: Automated Database Backup System
+- [x] Create database backup script using mysqldump (scripts/backup-database.mjs)
+- [x] Upload backup files to S3 with timestamp naming (s3://compawnion-approval-forms/database-backups/)
+- [x] Implement 30-day retention policy (delete old backups automatically)
+- [x] Create cron job setup script for 12:00 AM WIB (5:00 PM UTC previous day)
+- [x] Add logging for backup success/failure (logs/backup.log)
+- [x] Create comprehensive README with installation, troubleshooting, and restore instructions
+- [ ] Test backup script manually
+- [ ] Install cron job on production server
+- [ ] Create checkpoint
