@@ -940,3 +940,30 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Test email sending with real AWS SES
 - [ ] Verify email logs are saved to database
 - [ ] Create checkpoint
+
+## Phase 61: WorkMail SMTP Integration with AWS Secrets Manager
+- [x] Install nodemailer and AWS Secrets Manager SDK packages
+- [x] Create server/secrets.ts helper module for AWS Secrets Manager
+- [x] Update server/email.ts to use WorkMail SMTP instead of SES
+- [x] Configure nodemailer with WorkMail SMTP endpoint (smtp.mail.us-west-2.awsapps.com:465)
+- [x] Update sendMilestoneCompletionEmail to use user's WorkMail credentials
+- [x] Update sendRejectionEmail to use user's WorkMail credentials
+- [x] Update sendCompletionEmail to use user's WorkMail credentials
+- [x] Update sendDeadlineReminderEmail to use user's WorkMail credentials
+- [x] Update server/routers.ts approval mutation to pass user email
+- [x] Update server/routers.ts rejection mutation to pass user email
+- [x] Create scripts/setup-workmail-password.mjs for storing passwords in Secrets Manager
+- [ ] User: Run setup script to store WorkMail password in Secrets Manager
+- [ ] Test email sending with real WorkMail credentials
+- [ ] Verify emails are sent from logged-in user's address
+- [ ] Verify email logs are saved to database
+- [ ] Create checkpoint
+
+## Phase 62: Cognito-WorkMail Password Synchronization (Future)
+- [ ] Research AWS WorkMail API for password updates
+- [ ] Create Lambda function or API endpoint for password sync
+- [ ] Implement Cognito post-authentication trigger
+- [ ] Update password reset flow to sync with WorkMail
+- [ ] Test password reset with both systems
+- [ ] Add error handling for sync failures
+- [ ] Document password sync process

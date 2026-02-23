@@ -964,7 +964,7 @@ export const appRouter = router({
                   approverEmail: approver.email,
                   workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
                   completedBy: ctx.user.fullName,
-                }, workflow.id);
+                }, workflow.id, ctx.user.email); // Pass logged-in user's email
               } catch (emailError) {
                 console.error(`Failed to send email to ${approver.email}:`, emailError);
                 // Don't fail the approval if email fails
@@ -1012,7 +1012,7 @@ export const appRouter = router({
                 recipientName: creator.fullName,
                 recipientEmail: creator.email,
                 workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
-              }, workflow.id);
+              }, workflow.id, ctx.user.email); // Pass logged-in user's email (final approver)
             } catch (emailError) {
               console.error(`Failed to send completion email to ${creator.email}:`, emailError);
               // Don't fail the approval if email fails
@@ -1081,7 +1081,7 @@ export const appRouter = router({
                 creatorName: creator.fullName,
                 creatorEmail: creator.email,
                 workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
-              }, workflow.id);
+              }, workflow.id, ctx.user.email); // Pass logged-in user's email (rejector)
             } catch (emailError) {
               console.error(`Failed to send rejection email to ${creator.email}:`, emailError);
               // Don't fail the rejection if email fails
