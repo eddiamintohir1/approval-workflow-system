@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -174,12 +174,49 @@ function SortableStage({ stage, onEdit, onDelete }: SortableStageProps) {
 
 export default function TemplateBuilder() {
   const [, navigate] = useLocation();
+  
+  // Get template ID from URL query params for edit mode
+  const searchParams = new URLSearchParams(window.location.search);
+  const templateId = searchParams.get('id');
+  const isEditMode = !!templateId;
+  
   const [templateName, setTemplateName] = useState("");
   const [templateDescription, setTemplateDescription] = useState("");
   const [workflowType, setWorkflowType] = useState("");
   const [stages, setStages] = useState<TemplateStage[]>([]);
   const [editingStage, setEditingStage] = useState<TemplateStage | null>(null);
   const [showStageEditor, setShowStageEditor] = useState(false);
+  
+  // Load template data if in edit mode
+  const { data: existingTemplate, isLoading: templateLoading } = trpc.templates.getById.useQuery(
+    { id: templateId! },
+    { enabled: isEditMode }
+  );
+  
+  // Populate form when template data is loaded
+  useEffect(() => {
+    if (existingTemplate) {
+      setTemplateName(existingTemplate.name);
+      setTemplateDescription(existingTemplate.description || "");
+      setWorkflowType(existingTemplate.workflowType);
+      if (existingTemplate.stages) {
+        setStages(existingTemplate.stages.map(stage => ({
+          id: stage.id,
+          stageOrder: stage.stageOrder,
+          stageName: stage.stageName,
+          stageDescription: stage.stageDescription,
+          department: stage.department,
+          requiredRole: stage.requiredRole,
+          requiresOneOf: stage.requiresOneOf,
+          approvalRequired: stage.approvalRequired,
+          fileUploadRequired: stage.fileUploadRequired,
+          notificationEmails: stage.notificationEmails,
+          visibleToDepartments: stage.visibleToDepartments,
+          approvalThreshold: stage.approvalThreshold,
+        })));
+      }
+    }
+  }, [existingTemplate]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -250,6 +287,7 @@ export default function TemplateBuilder() {
   };
 
   const createTemplate = trpc.templates.create.useMutation();
+  const updateTemplate = trpc.templates.update.useMutation();
 
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) {
@@ -266,7 +304,7 @@ export default function TemplateBuilder() {
     }
 
     try {
-      await createTemplate.mutateAsync({
+      const templateData = {
         name: templateName,
         description: templateDescription,
         workflowType,
@@ -283,11 +321,23 @@ export default function TemplateBuilder() {
           visibleToDepartments: stage.visibleToDepartments,
           approvalThreshold: stage.approvalThreshold,
         })),
-      });
-      toast.success("Template saved successfully");
-      navigate("/dashboard");
+      };
+      
+      if (isEditMode && templateId) {
+        // Update existing template
+        await updateTemplate.mutateAsync({
+          id: templateId,
+          ...templateData,
+        });
+        toast.success("Template updated successfully");
+      } else {
+        // Create new template
+        await createTemplate.mutateAsync(templateData);
+        toast.success("Template created successfully");
+      }
+      navigate("/templates");
     } catch (error) {
-      toast.error("Failed to save template");
+      toast.error(isEditMode ? "Failed to update template" : "Failed to create template");
       console.error(error);
     }
   };

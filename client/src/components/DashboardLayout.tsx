@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload, Repeat } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -35,6 +35,7 @@ import { useTranslation } from 'react-i18next';
 const getMenuItems = (t: (key: string) => string) => [
   { icon: LayoutDashboard, label: t('common.dashboard'), path: "/" },
   { icon: HelpCircle, label: t('common.startGuide'), path: "#guide", isAction: true },
+  { icon: Repeat, label: t('common.myPersonalizedWF'), path: "/my-personalized-workflows" },
   { icon: UserCog, label: t('common.capacity'), path: "/capacity" },
   { icon: BarChart3, label: t('common.analytics'), path: "/analytics" },
 ];

@@ -171,7 +171,7 @@ export async function updateUserPinnedWorkflows(userId: number, pinnedWorkflows:
 // ============================================
 
 export async function createWorkflow(workflow: {
-  workflowType: "MAF" | "PR" | "CATTO";
+  workflowType: string;
   title: string;
   description?: string;
   requesterId: number;
@@ -180,6 +180,8 @@ export async function createWorkflow(workflow: {
   currency?: string;
   requiresGa?: boolean;
   requiresPpic?: boolean;
+  templateId?: string;
+  contingencyWorkflowIds?: string[];
 }): Promise<schema.Workflow> {
   const workflowId = randomUUID();
   const workflowNumber = await generateWorkflowNumber(workflow.workflowType);
@@ -190,6 +192,7 @@ export async function createWorkflow(workflow: {
       id: workflowId,
       workflowNumber,
       workflowType: workflow.workflowType,
+      templateId: workflow.templateId,
       title: workflow.title,
       description: workflow.description,
       requesterId: workflow.requesterId,
@@ -198,6 +201,7 @@ export async function createWorkflow(workflow: {
       currency: workflow.currency || "IDR",
       requiresGa: workflow.requiresGa || false,
       requiresPpic: workflow.requiresPpic || false,
+      contingencyWorkflowIds: workflow.contingencyWorkflowIds,
       overallStatus: "draft",
     });
   
@@ -678,9 +682,17 @@ export async function getAuditLogsByEntity(
 // Sequence Number Generation
 // ============================================
 
-async function generateWorkflowNumber(type: "MAF" | "PR" | "CATTO" | "SKU" | "PAF"): Promise<string> {
+async function generateWorkflowNumber(type: string): Promise<string> {
   const today = new Date();
   const dateStr = today.toISOString().slice(2, 10).replace(/-/g, ""); // YYMMDD
+  
+  // Map custom types to predefined sequence types, or use "MAF" as default
+  const validTypes = ["MAF", "PR", "CATTO", "SKU", "PAF"] as const;
+  type ValidSequenceType = typeof validTypes[number];
+  
+  const sequenceType: ValidSequenceType = validTypes.includes(type as any) 
+    ? (type as ValidSequenceType) 
+    : "MAF"; // Default to MAF for custom workflow types
   
   // Try to get existing counter for today
   const [counter] = await db
@@ -688,7 +700,7 @@ async function generateWorkflowNumber(type: "MAF" | "PR" | "CATTO" | "SKU" | "PA
     .from(schema.sequenceCounters)
     .where(
       and(
-        eq(schema.sequenceCounters.sequenceType, type),
+        eq(schema.sequenceCounters.sequenceType, sequenceType),
         eq(schema.sequenceCounters.sequenceDate, dateStr)
       )
     )
@@ -710,13 +722,13 @@ async function generateWorkflowNumber(type: "MAF" | "PR" | "CATTO" | "SKU" | "PA
       .insert(schema.sequenceCounters)
       .values({
         id: randomUUID(),
-        sequenceType: type,
+        sequenceType: sequenceType,
         sequenceDate: dateStr,
         currentCounter: nextCounter,
       });
   }
   
-  // Format: WFMT-MAF-260209-001
+  // Format: WFMT-{TYPE}-260209-001 (use original type for display, not sequence type)
   const paddedCounter = nextCounter.toString().padStart(3, "0");
   return `WFMT-${type}-${dateStr}-${paddedCounter}`;
 }
@@ -2014,4 +2026,218 @@ export async function getUserListPaginated(params: {
   }));
   
   return { users, total };
+}
+
+// ============================================
+// Recurring Workflows
+// ============================================
+
+export type RecurringWorkflow = schema.RecurringWorkflow;
+export type InsertRecurringWorkflow = schema.InsertRecurringWorkflow;
+export type RecurringWorkflowHistory = schema.RecurringWorkflowHistory;
+
+export async function createRecurringWorkflow(data: {
+  templateId: string;
+  title: string;
+  description?: string;
+  department: string;
+  frequency: "daily" | "weekly" | "monthly";
+  dayOfMonth?: number;
+  dayOfWeek?: number;
+  startDate: Date;
+  endDate?: Date;
+  createdBy: number;
+  assignedTo?: number[];
+  formTemplateId?: string;
+  formData?: Record<string, any>;
+  contingencyWorkflowIds?: string[];
+}): Promise<schema.RecurringWorkflow> {
+  const id = randomUUID();
+  
+  // Calculate next scheduled date based on frequency
+  let nextScheduledDate = new Date(data.startDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  if (nextScheduledDate < today) {
+    // If start date is in the past, calculate next occurrence
+    if (data.frequency === "daily") {
+      nextScheduledDate = new Date(today);
+      nextScheduledDate.setDate(nextScheduledDate.getDate() + 1);
+    } else if (data.frequency === "weekly" && data.dayOfWeek !== undefined) {
+      nextScheduledDate = new Date(today);
+      const daysUntilTarget = (data.dayOfWeek - nextScheduledDate.getDay() + 7) % 7;
+      nextScheduledDate.setDate(nextScheduledDate.getDate() + (daysUntilTarget || 7));
+    } else if (data.frequency === "monthly" && data.dayOfMonth !== undefined) {
+      nextScheduledDate = new Date(today);
+      nextScheduledDate.setDate(data.dayOfMonth);
+      if (nextScheduledDate <= today) {
+        nextScheduledDate.setMonth(nextScheduledDate.getMonth() + 1);
+      }
+    }
+  }
+  
+  await db.insert(schema.recurringWorkflows).values({
+    id,
+    templateId: data.templateId,
+    title: data.title,
+    description: data.description,
+    department: data.department,
+    frequency: data.frequency,
+    dayOfMonth: data.dayOfMonth,
+    dayOfWeek: data.dayOfWeek,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    nextScheduledDate,
+    createdBy: data.createdBy,
+    assignedTo: data.assignedTo,
+    formTemplateId: data.formTemplateId,
+    formData: data.formData,
+    contingencyWorkflowIds: data.contingencyWorkflowIds,
+    isActive: true,
+    isPaused: false,
+  });
+  
+  const [created] = await db
+    .select()
+    .from(schema.recurringWorkflows)
+    .where(eq(schema.recurringWorkflows.id, id))
+    .limit(1);
+  
+  return created;
+}
+
+export async function getRecurringWorkflowsByUser(userId: number): Promise<schema.RecurringWorkflow[]> {
+  const workflows = await db
+    .select()
+    .from(schema.recurringWorkflows)
+    .where(
+      and(
+        eq(schema.recurringWorkflows.createdBy, userId),
+        eq(schema.recurringWorkflows.isActive, true)
+      )
+    )
+    .orderBy(desc(schema.recurringWorkflows.nextScheduledDate));
+  
+  return workflows;
+}
+
+export async function getRecurringWorkflowById(id: string): Promise<schema.RecurringWorkflow | undefined> {
+  const [workflow] = await db
+    .select()
+    .from(schema.recurringWorkflows)
+    .where(eq(schema.recurringWorkflows.id, id))
+    .limit(1);
+  
+  return workflow;
+}
+
+export async function updateRecurringWorkflow(
+  id: string,
+  data: Partial<InsertRecurringWorkflow>
+): Promise<schema.RecurringWorkflow> {
+  await db
+    .update(schema.recurringWorkflows)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.recurringWorkflows.id, id));
+  
+  const [updated] = await db
+    .select()
+    .from(schema.recurringWorkflows)
+    .where(eq(schema.recurringWorkflows.id, id))
+    .limit(1);
+  
+  return updated;
+}
+
+export async function pauseRecurringWorkflow(id: string): Promise<void> {
+  await db
+    .update(schema.recurringWorkflows)
+    .set({ isPaused: true, updatedAt: new Date() })
+    .where(eq(schema.recurringWorkflows.id, id));
+}
+
+export async function resumeRecurringWorkflow(id: string): Promise<void> {
+  await db
+    .update(schema.recurringWorkflows)
+    .set({ isPaused: false, updatedAt: new Date() })
+    .where(eq(schema.recurringWorkflows.id, id));
+}
+
+export async function deleteRecurringWorkflow(id: string): Promise<void> {
+  await db
+    .update(schema.recurringWorkflows)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(eq(schema.recurringWorkflows.id, id));
+}
+
+export async function getDueRecurringWorkflows(): Promise<schema.RecurringWorkflow[]> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const workflows = await db
+    .select()
+    .from(schema.recurringWorkflows)
+    .where(
+      and(
+        eq(schema.recurringWorkflows.isActive, true),
+        eq(schema.recurringWorkflows.isPaused, false),
+        sql`${schema.recurringWorkflows.nextScheduledDate} <= ${today}`
+      )
+    );
+  
+  return workflows;
+}
+
+export async function recordRecurringWorkflowGeneration(data: {
+  recurringWorkflowId: string;
+  generatedWorkflowId: string;
+  scheduledDate: Date;
+  status: "success" | "failed";
+  errorMessage?: string;
+}): Promise<void> {
+  const id = randomUUID();
+  
+  await db.insert(schema.recurringWorkflowHistory).values({
+    id,
+    recurringWorkflowId: data.recurringWorkflowId,
+    generatedWorkflowId: data.generatedWorkflowId,
+    scheduledDate: data.scheduledDate,
+    generationStatus: data.status,
+    errorMessage: data.errorMessage,
+  });
+}
+
+export async function getRecurringWorkflowHistory(
+  recurringWorkflowId: string
+): Promise<schema.RecurringWorkflowHistory[]> {
+  const history = await db
+    .select()
+    .from(schema.recurringWorkflowHistory)
+    .where(eq(schema.recurringWorkflowHistory.recurringWorkflowId, recurringWorkflowId))
+    .orderBy(desc(schema.recurringWorkflowHistory.scheduledDate))
+    .limit(50);
+  
+  return history;
+}
+
+export async function calculateNextScheduledDate(
+  workflow: schema.RecurringWorkflow
+): Promise<Date> {
+  const current = new Date(workflow.nextScheduledDate);
+  let next = new Date(current);
+  
+  if (workflow.frequency === "daily") {
+    next.setDate(next.getDate() + 1);
+  } else if (workflow.frequency === "weekly" && workflow.dayOfWeek !== undefined) {
+    next.setDate(next.getDate() + 7);
+  } else if (workflow.frequency === "monthly" && workflow.dayOfMonth !== undefined) {
+    next.setMonth(next.getMonth() + 1);
+    next.setDate(workflow.dayOfMonth);
+  }
+  
+  return next;
 }

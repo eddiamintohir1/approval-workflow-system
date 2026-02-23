@@ -20,6 +20,7 @@ import TemplateBuilder from "./pages/templates/TemplateBuilder";
 import TemplateList from "./pages/templates/TemplateList";
 import ExcelTemplates from "./pages/ExcelTemplates";
 import Capacity from "./pages/Capacity";
+import MyPersonalizedWorkflows from "./pages/MyPersonalizedWorkflows";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import { Loader2 } from "lucide-react";
@@ -81,8 +82,12 @@ function Router() {
       </Route>
       <Route path="/admin/sequences" component={() => <ProtectedRoute component={SequenceGenerator} path="/admin/sequences" />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} path="/analytics" />} />
-      <Route path="/capacity" component={() => <ProtectedRoute component={Capacity} path="/capacity" />} />
-      <Route path="/templates">
+      <Route path="/capacity">
+        <ProtectedRoute component={Capacity} path="/capacity" />
+      </Route>
+      <Route path="/my-personalized-workflows">
+        <ProtectedRoute component={MyPersonalizedWorkflows} path="/my-personalized-workflows" />
+      </Route>      <Route path="/templates">
         <ProtectedRoute component={TemplateList} path="/templates" />
       </Route>
       <Route path="/templates/builder">

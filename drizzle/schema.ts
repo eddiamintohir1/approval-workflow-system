@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint, index } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint, index, date } from "drizzle-orm/mysql-core";
 
 /**
  * =====================================================
@@ -61,7 +61,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const workflows = mysqlTable("workflows", {
   id: varchar("id", { length: 36 }).primaryKey(), // UUID as string
   workflowNumber: varchar("workflow_number", { length: 50 }).notNull().unique(), // WFMT-MAF-260209-001
-  workflowType: mysqlEnum("workflow_type", ["MAF", "PR"]).notNull(),
+  workflowType: varchar("workflow_type", { length: 50 }).notNull(), // Changed from enum to varchar to support custom workflow types
   templateId: varchar("template_id", { length: 36 }), // Reference to workflow template used
   title: varchar("title", { length: 500 }).notNull(),
   description: text("description"),
@@ -651,3 +651,93 @@ export const emailLogs = mysqlTable("email_logs", {
 
 export type EmailLog = typeof emailLogs.$inferSelect;
 export type InsertEmailLog = typeof emailLogs.$inferInsert;
+
+/**
+ * =====================================================
+ * RECURRING_WORKFLOWS TABLE
+ * Recurring workflow templates with scheduling
+ * =====================================================
+ */
+export const recurringWorkflows = mysqlTable("recurring_workflows", {
+  id: varchar("id", { length: 36 }).primaryKey(), // UUID
+  
+  // Template reference
+  templateId: varchar("template_id", { length: 36 }).notNull(),
+  
+  // Workflow details (pre-filled values)
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  department: varchar("department", { length: 100 }).notNull(),
+  
+  // Recurrence configuration
+  frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly"]).notNull(),
+  dayOfMonth: int("day_of_month"), // 1-31 for monthly recurrence
+  dayOfWeek: int("day_of_week"), // 0-6 (0=Sunday) for weekly recurrence
+  
+  // Schedule dates
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"), // Optional end date
+  
+  // Next scheduled generation
+  nextScheduledDate: date("next_scheduled_date").notNull(),
+  
+  // Status
+  isActive: boolean("is_active").default(true).notNull(),
+  isPaused: boolean("is_paused").default(false).notNull(),
+  
+  // Owner information
+  createdBy: int("created_by").notNull(),
+  assignedTo: json("assigned_to").$type<number[]>(), // User IDs who should be assigned
+  
+  // Pre-filled form data (optional)
+  formTemplateId: varchar("form_template_id", { length: 36 }),
+  formData: json("form_data").$type<Record<string, any>>(),
+  
+  // Contingency workflows (optional)
+  contingencyWorkflowIds: json("contingency_workflow_ids").$type<string[]>(),
+  
+  // Timestamps
+  lastGeneratedAt: timestamp("last_generated_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
+}, (table) => ({
+  createdByIdx: index("idx_created_by").on(table.createdBy),
+  nextScheduledIdx: index("idx_next_scheduled_date").on(table.nextScheduledDate),
+  isActiveIdx: index("idx_is_active").on(table.isActive),
+}));
+
+export type RecurringWorkflow = typeof recurringWorkflows.$inferSelect;
+export type InsertRecurringWorkflow = typeof recurringWorkflows.$inferInsert;
+
+/**
+ * =====================================================
+ * RECURRING_WORKFLOW_HISTORY TABLE
+ * Track generated workflows from recurring templates
+ * =====================================================
+ */
+export const recurringWorkflowHistory = mysqlTable("recurring_workflow_history", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // References
+  recurringWorkflowId: varchar("recurring_workflow_id", { length: 36 }).notNull(),
+  generatedWorkflowId: varchar("generated_workflow_id", { length: 36 }).notNull(),
+  
+  // Generation details
+  scheduledDate: date("scheduled_date").notNull(),
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  generationStatus: mysqlEnum("generation_status", ["success", "failed"]).notNull(),
+  errorMessage: text("error_message"),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, any>>(),
+}, (table) => ({
+  recurringWorkflowIdx: index("idx_recurring_workflow_id").on(table.recurringWorkflowId),
+  generatedWorkflowIdx: index("idx_generated_workflow_id").on(table.generatedWorkflowId),
+  scheduledDateIdx: index("idx_scheduled_date").on(table.scheduledDate),
+}));
+
+export type RecurringWorkflowHistory = typeof recurringWorkflowHistory.$inferSelect;
+export type InsertRecurringWorkflowHistory = typeof recurringWorkflowHistory.$inferInsert;

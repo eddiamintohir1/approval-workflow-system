@@ -1061,4 +1061,29 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Update ForgotPassword.tsx to use translation hooks (email, code, password fields, buttons)
 - [x] Update all other pages to use translation hooks (comprehensive translations added to en.json and id.json)
 - [x] Test translation on all pages (Dashboard EN/ID working perfectly)
+- [x] Save checkpoint (version: 76040b8f)
+
+## Phase 69: Fix Workflow Template Edit Button and Sequence Counter Error
+
+- [x] Find Workflow Templates management page (TemplateList.tsx)
+- [x] Fix edit button to edit existing template instead of creating new (added template loading and update logic)
+- [x] Fix sequence_counters database insertion error (handle custom workflow types by mapping to valid enum values)
+- [x] Test edit functionality (template loads correctly with name "Testa2", type "Testa", and existing stage)
+- [ ] Test workflow creation with custom sequence types
 - [ ] Save checkpoint
+
+## Phase 62: Recurring Workflow System
+
+- [x] Create database schema for recurring workflows table
+- [x] Add recurrence pattern fields (frequency, day_of_month, day_of_week, start_date, end_date)
+- [x] Create backend API endpoints for recurring workflow CRUD operations
+- [x] Build "My Personalized WF" page to display user's recurring workflows
+- [x] Add "My Personalized WF" navigation item to sidebar (above Administration)
+- [ ] Add recurring workflow option to workflow creation form
+- [ ] Implement recurrence configuration UI (daily/weekly/monthly selector)
+- [ ] Create automated scheduler to generate workflows based on recurrence rules
+- [ ] Add edit functionality for recurring workflow templates
+- [ ] Implement next scheduled date calculation and display
+- [ ] Add ability to pause/resume recurring workflows
+- [ ] Test recurring workflow creation with monthly schedule (25th of each month)
+- [ ] Test automated workflow generation on scheduled dates

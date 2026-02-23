@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `recurring_workflow_history` (\n  `id` VARCHAR(36) PRIMARY KEY,\n  `recurring_workflow_id` VARCHAR(36) NOT NULL,\n  `generated_workflow_id` VARCHAR(36) NOT NULL,\n  `scheduled_date` DATE NOT NULL,\n  `generated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `generation_status` ENUM('success', 'failed') NOT NULL,\n  `error_message` TEXT,\n  `metadata` JSON,\n  INDEX `idx_recurring_workflow_id` (`recurring_workflow_id`),\n  INDEX `idx_generated_workflow_id` (`generated_workflow_id`),\n  INDEX `idx_scheduled_date` (`scheduled_date`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE `recurring_workflow_history` (\n  `id` VARCHAR(36) PRIMARY KEY,\n  `recurring_workflow_id` VARCHAR(36) NOT NULL,\n  `generated_workflow_id` VARCHAR(36) NOT NULL,\n  `scheduled_date` DATE NOT NULL,\n  `generated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `generation_status` ENUM('success', 'failed') NOT NULL,\n  `error_message` TEXT,\n  `metadata` JSON,\n  INDEX `idx_recurring_workflow_id` (`recurring_workflow_id`),\n  INDEX `idx_generated_workflow_id` (`generated_workflow_id`),\n  INDEX `idx_scheduled_date` (`scheduled_date`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1678
+}

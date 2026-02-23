@@ -1976,6 +1976,193 @@ export const appRouter = router({
   // Capacity Management
   // ============================================
   capacity: capacityRouter,
+  
+  // ============================================
+  // Recurring Workflows
+  // ============================================
+  recurringWorkflows: router({
+    // Create new recurring workflow
+    create: protectedProcedure
+      .input(z.object({
+        templateId: z.string(),
+        title: z.string(),
+        description: z.string().optional(),
+        department: z.string(),
+        frequency: z.enum(["daily", "weekly", "monthly"]),
+        dayOfMonth: z.number().min(1).max(31).optional(),
+        dayOfWeek: z.number().min(0).max(6).optional(),
+        startDate: z.date(),
+        endDate: z.date().optional(),
+        assignedTo: z.array(z.number()).optional(),
+        formTemplateId: z.string().optional(),
+        formData: z.record(z.any()).optional(),
+        contingencyWorkflowIds: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const recurring = await db.createRecurringWorkflow({
+          ...input,
+          createdBy: ctx.user.id,
+        });
+        
+        await db.createAuditLog({
+          entityType: "recurring_workflow",
+          entityId: recurring.id,
+          action: "created",
+          actionDescription: `Created recurring workflow: ${input.title}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return recurring;
+      }),
+    
+    // Get user's recurring workflows
+    getMyRecurringWorkflows: protectedProcedure
+      .query(async ({ ctx }) => {
+        return await db.getRecurringWorkflowsByUser(ctx.user.id);
+      }),
+    
+    // Get specific recurring workflow
+    getById: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getRecurringWorkflowById(input.id);
+      }),
+    
+    // Update recurring workflow
+    update: protectedProcedure
+      .input(z.object({
+        id: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        department: z.string().optional(),
+        frequency: z.enum(["daily", "weekly", "monthly"]).optional(),
+        dayOfMonth: z.number().min(1).max(31).optional(),
+        dayOfWeek: z.number().min(0).max(6).optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        assignedTo: z.array(z.number()).optional(),
+        formData: z.record(z.any()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...updateData } = input;
+        
+        // Verify ownership
+        const existing = await db.getRecurringWorkflowById(id);
+        if (!existing) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        }
+        if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to update this recurring workflow" });
+        }
+        
+        const updated = await db.updateRecurringWorkflow(id, updateData);
+        
+        await db.createAuditLog({
+          entityType: "recurring_workflow",
+          entityId: id,
+          action: "updated",
+          actionDescription: `Updated recurring workflow: ${updated.title}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return updated;
+      }),
+    
+    // Pause recurring workflow
+    pause: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        // Verify ownership
+        const existing = await db.getRecurringWorkflowById(input.id);
+        if (!existing) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        }
+        if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
+        }
+        
+        await db.pauseRecurringWorkflow(input.id);
+        
+        await db.createAuditLog({
+          entityType: "recurring_workflow",
+          entityId: input.id,
+          action: "paused",
+          actionDescription: `Paused recurring workflow`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+    
+    // Resume recurring workflow
+    resume: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        // Verify ownership
+        const existing = await db.getRecurringWorkflowById(input.id);
+        if (!existing) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        }
+        if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
+        }
+        
+        await db.resumeRecurringWorkflow(input.id);
+        
+        await db.createAuditLog({
+          entityType: "recurring_workflow",
+          entityId: input.id,
+          action: "resumed",
+          actionDescription: `Resumed recurring workflow`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+    
+    // Delete recurring workflow
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        // Verify ownership
+        const existing = await db.getRecurringWorkflowById(input.id);
+        if (!existing) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        }
+        if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
+        }
+        
+        await db.deleteRecurringWorkflow(input.id);
+        
+        await db.createAuditLog({
+          entityType: "recurring_workflow",
+          entityId: input.id,
+          action: "deleted",
+          actionDescription: `Deleted recurring workflow`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+        
+        return { success: true };
+      }),
+    
+    // Get history of generated workflows
+    getHistory: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getRecurringWorkflowHistory(input.id);
+      }),
+  }),
 });
 
 // ============================================
