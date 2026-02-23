@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+/* IP Owner: Eddie Amintohir */
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +9,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cognitoAuth } from "@/lib/cognito";
 import { Lock, Loader2 } from "lucide-react";
 
+// Array of dog images for login page background
+const DOG_IMAGES = [
+  "https://files.manuscdn.com/user_upload_by_module/session_file/94657144/IcJBoVhhvCyiorNO.png",
+  "https://files.manuscdn.com/user_upload_by_module/session_file/94657144/dFzicHDXrCqYgrnf.png",
+];
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pick a random dog image on component mount
+  const randomDogImage = useMemo(() => {
+    return DOG_IMAGES[Math.floor(Math.random() * DOG_IMAGES.length)];
+  }, []);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -44,7 +56,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-600 via-cyan-500 to-teal-400 relative overflow-hidden">
+      {/* Random dog image */}
+      <img
+        src={randomDogImage}
+        alt="Companion dog"
+        className="absolute bottom-0 left-0 h-2/3 w-auto object-contain pointer-events-none opacity-90"
+        style={{ maxHeight: '70vh' }}
+      />
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">CJB Workflow Hub</CardTitle>

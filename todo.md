@@ -847,3 +847,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add footer links: Privacy Policy, Terms of Service, Contact Us (https://www.compawnion.co/)
 - [x] Test all footer changes - verified in browser
 - [ ] Create checkpoint
+
+## Phase 52: Add Random Dog Images to Login Page
+- [x] Upload dog images to S3 for CDN delivery
+- [x] Implement random image selection on login page (picks one image per page load)
+- [x] Make image array easily extensible for adding more images in future (DOG_IMAGES array)
+- [x] Test random image display on page refresh - verified in browser
+- [ ] Create checkpoint
