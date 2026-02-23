@@ -314,7 +314,7 @@ export const appRouter = router({
       .input(
         z.object({
           userId: z.number(),
-          role: z.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "Staff", "admin"]),
+          role: z.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "R&D", "Sales", "Marketing", "Operations", "Staff", "admin"]),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -382,7 +382,7 @@ export const appRouter = router({
     switchRole: protectedProcedure
       .input(
         z.object({
-          role: z.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "Staff", "admin"]),
+          role: z.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "R&D", "Sales", "Marketing", "Operations", "Staff", "admin"]),
         })
       )
       .mutation(async ({ input, ctx }) => {

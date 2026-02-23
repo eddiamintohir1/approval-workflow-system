@@ -1119,3 +1119,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Test new roles in user management
 - [ ] Test assignee pre-selection in recurring workflow creation
 - [ ] Test auto-assignment when recurring workflow generates new workflow instance
+
+
+## Phase 65: Fix tRPC Role Validation Error
+
+- [x] Update tRPC input validation schema in server/routers.ts to include new roles (R- [ ] Update tRPC input validation schema in server/routers.ts to include new roles (R&D, Sales, Marketing, Operations)D, Sales, Marketing, Operations)
+- [x] Test user role update functionality on /users page
+- [x] Verify all new roles can be assigned without validation errors
