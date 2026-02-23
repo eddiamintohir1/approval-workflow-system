@@ -1155,3 +1155,15 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Fix missing React import in Capacity component
 - [x] Add useEffect to React imports
 - [x] Test capacity page loads without errors
+
+## Phase 70: Create Basic Operational Form Templates & Example Flows
+
+- [ ] Create Purchase Request (PR) form template
+- [ ] Create Material Authorization Form (MAF) template
+- [ ] Create Budget Request form template
+- [ ] Create Leave Request form template
+- [ ] Create Expense Reimbursement form template
+- [ ] Create Example 1: Office Supplies Purchase workflow
+- [ ] Create Example 2: Marketing Campaign Budget workflow
+- [ ] Create Example 3: Production Material Request workflow
+- [ ] Test all form templates and example workflows
