@@ -1126,3 +1126,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Update tRPC input validation schema in server/routers.ts to include new roles (R- [ ] Update tRPC input validation schema in server/routers.ts to include new roles (R&D, Sales, Marketing, Operations)D, Sales, Marketing, Operations)
 - [x] Test user role update functionality on /users page
 - [x] Verify all new roles can be assigned without validation errors
+
+
+## Phase 66: Fix Footer Logo
+
+- [x] Copy correct Compawnion logo (orange paw print) to project public directory
+- [x] Update footer component to use correct logo
+- [x] Test footer logo display across all pages
