@@ -125,6 +125,16 @@ export async function getUserByCognitoSub(cognitoSub: string): Promise<schema.Us
   return user;
 }
 
+export async function getUserByEmail(email: string): Promise<schema.User | undefined> {
+  const [user] = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.email, email))
+    .limit(1);
+  
+  return user;
+}
+
 export async function getAllUsers(): Promise<schema.User[]> {
   return await db
     .select()

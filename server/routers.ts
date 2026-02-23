@@ -278,6 +278,17 @@ export const appRouter = router({
       // Cognito logout is handled on the frontend
       return { success: true };
     }),
+    
+    getUsernameByEmail: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .query(async ({ input }) => {
+        // Look up username from email in database
+        const user = await db.getUserByEmail(input.email);
+        if (!user) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
+        }
+        return { username: user.cognitoUsername };
+      }),
   }),
 
   // ============================================

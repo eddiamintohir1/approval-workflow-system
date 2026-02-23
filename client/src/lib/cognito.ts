@@ -42,31 +42,58 @@ export const cognitoAuth = {
   // Sign in user
   signIn: (email: string, password: string): Promise<CognitoAuthUser> => {
     return new Promise((resolve, reject) => {
-      const authenticationDetails = new AuthenticationDetails({
-        Username: email,
-        Password: password,
-      });
-
-      const cognitoUser = new CognitoUser({
-        Username: email,
-        Pool: userPool,
-      });
-
-      cognitoUser.authenticateUser(authenticationDetails, {
-        onSuccess: (result: any) => {
-          const idToken = result.getIdToken().getJwtToken();
-          const payload = result.getIdToken().payload;
-
-          resolve({
-            email: payload.email,
-            sub: payload.sub,
-            idToken,
+      // Helper function to attempt authentication with a given username
+      const attemptAuth = (username: string): Promise<CognitoAuthUser> => {
+        return new Promise((resolveAttempt, rejectAttempt) => {
+          const authenticationDetails = new AuthenticationDetails({
+            Username: username,
+            Password: password,
           });
-        },
-        onFailure: (err: any) => {
-          reject(err);
-        },
-      });
+
+          const cognitoUser = new CognitoUser({
+            Username: username,
+            Pool: userPool,
+          });
+
+          cognitoUser.authenticateUser(authenticationDetails, {
+            onSuccess: (result: any) => {
+              const idToken = result.getIdToken().getJwtToken();
+              const payload = result.getIdToken().payload;
+
+              resolveAttempt({
+                email: payload.email,
+                sub: payload.sub,
+                idToken,
+              });
+            },
+            onFailure: (err: any) => {
+              rejectAttempt(err);
+            },
+          });
+        });
+      };
+
+      // First, try with the email as-is
+      attemptAuth(email)
+        .then(resolve)
+        .catch((err) => {
+          // If that fails, try converting email to hyphenated username format
+          // e.g., eddie.amintohir@compawnion.co -> eddie-amintohir
+          const hyphenatedUsername = email.split('@')[0].replace(/\./g, '-');
+          
+          if (hyphenatedUsername !== email) {
+            console.log(`First attempt failed, trying with username: ${hyphenatedUsername}`);
+            attemptAuth(hyphenatedUsername)
+              .then(resolve)
+              .catch(() => {
+                // If both attempts fail, reject with the original error
+                reject(err);
+              });
+          } else {
+            // No alternative format to try
+            reject(err);
+          }
+        });
     });
   },
 
