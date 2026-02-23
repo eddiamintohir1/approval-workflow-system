@@ -1,0 +1,92 @@
+{
+  "common": {
+    "dashboard": "Dasbor",
+    "startGuide": "Panduan Mulai",
+    "capacity": "Kapasitas",
+    "analytics": "Analitik",
+    "administration": "ADMINISTRASI",
+    "userManagement": "Manajemen Pengguna",
+    "workflowTemplates": "Template Alur Kerja",
+    "formTemplates": "Template Formulir",
+    "excelTemplates": "Template Excel",
+    "sequenceGenerator": "Generator Urutan",
+    "helpSupport": "Bantuan & Dukungan",
+    "translate": "Terjemahkan",
+    "testMode": "🧪 Mode Uji - Peran Saat Ini:",
+    "newWorkflow": "Alur Kerja Baru",
+    "quickAssign": "Penugasan Cepat",
+    "search": "Cari berdasarkan ID atau judul alur kerja...",
+    "allStatus": "Semua Status",
+    "allTypes": "Semua Jenis",
+    "allDepartments": "Semua Departemen",
+    "fromDate": "Dari Tanggal",
+    "toDate": "Sampai Tanggal",
+    "clearFilters": "Hapus Filter",
+    "cancel": "Batal",
+    "save": "Simpan",
+    "delete": "Hapus",
+    "edit": "Ubah",
+    "close": "Tutup",
+    "loading": "Memuat...",
+    "noData": "Tidak ada data tersedia"
+  },
+  "dashboard": {
+    "title": "Alur Kerja",
+    "subtitle": "Lihat dan kelola alur kerja persetujuan Anda",
+    "totalWorkflows": "Total Alur Kerja",
+    "draft": "Draf",
+    "inProgress": "Sedang Berjalan",
+    "completed": "Selesai",
+    "rejected": "Ditolak",
+    "department": "Departemen",
+    "created": "Dibuat",
+    "pinWorkflow": "Sematkan alur kerja",
+    "unpinWorkflow": "Lepas sematan alur kerja",
+    "deleteWorkflow": "Hapus alur kerja"
+  },
+  "status": {
+    "draft": "Draf",
+    "inProgress": "Sedang Berjalan",
+    "completed": "Selesai",
+    "rejected": "Ditolak"
+  },
+  "types": {
+    "maf": "MAF",
+    "pr": "PR",
+    "reimbursement": "Penggantian Biaya",
+    "budget": "Anggaran"
+  },
+  "departments": {
+    "ppic": "PPIC",
+    "purchasing": "Pembelian",
+    "ga": "GA",
+    "finance": "Keuangan",
+    "marketing": "Pemasaran",
+    "hr": "SDM",
+    "it": "TI",
+    "production": "Produksi"
+  },
+  "quickAssign": {
+    "title": "Penugasan Cepat Alur Kerja",
+    "subtitle": "Pilih template dan tugaskan ke anggota staf",
+    "selectTemplate": "Pilih Template",
+    "selectUser": "Pilih Pengguna",
+    "noTemplates": "Tidak ada template yang diaktifkan untuk penugasan cepat",
+    "enableTemplates": "Aktifkan template di halaman Template",
+    "assignWorkflow": "Tugaskan Alur Kerja"
+  },
+  "auth": {
+    "signIn": "Masuk",
+    "signOut": "Keluar",
+    "email": "Alamat Email",
+    "password": "Kata Sandi",
+    "forgotPassword": "Lupa kata sandi?",
+    "resetPassword": "Atur Ulang Kata Sandi",
+    "backToLogin": "Kembali ke Halaman Masuk"
+  },
+  "footer": {
+    "privacyPolicy": "Kebijakan Privasi",
+    "termsOfService": "Ketentuan Layanan",
+    "contactUs": "Hubungi Kami"
+  }
+}

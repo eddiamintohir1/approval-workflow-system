@@ -1,0 +1,92 @@
+{
+  "common": {
+    "dashboard": "Dashboard",
+    "startGuide": "Start Guide",
+    "capacity": "Capacity",
+    "analytics": "Analytics",
+    "administration": "ADMINISTRATION",
+    "userManagement": "User Management",
+    "workflowTemplates": "Workflow Templates",
+    "formTemplates": "Form Templates",
+    "excelTemplates": "Excel Templates",
+    "sequenceGenerator": "Sequence Generator",
+    "helpSupport": "Help & Support",
+    "translate": "Translate",
+    "testMode": "🧪 Test Mode - Current Role:",
+    "newWorkflow": "New Workflow",
+    "quickAssign": "Quick Assign",
+    "search": "Search by workflow ID or title...",
+    "allStatus": "All Status",
+    "allTypes": "All Types",
+    "allDepartments": "All Departments",
+    "fromDate": "From Date",
+    "toDate": "To Date",
+    "clearFilters": "Clear Filters",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "loading": "Loading...",
+    "noData": "No data available"
+  },
+  "dashboard": {
+    "title": "Workflows",
+    "subtitle": "View and manage your approval workflows",
+    "totalWorkflows": "Total Workflows",
+    "draft": "Draft",
+    "inProgress": "In Progress",
+    "completed": "Completed",
+    "rejected": "Rejected",
+    "department": "Department",
+    "created": "Created",
+    "pinWorkflow": "Pin workflow",
+    "unpinWorkflow": "Unpin workflow",
+    "deleteWorkflow": "Delete workflow"
+  },
+  "status": {
+    "draft": "Draft",
+    "inProgress": "In Progress",
+    "completed": "Completed",
+    "rejected": "Rejected"
+  },
+  "types": {
+    "maf": "MAF",
+    "pr": "PR",
+    "reimbursement": "Reimbursement",
+    "budget": "Budget"
+  },
+  "departments": {
+    "ppic": "PPIC",
+    "purchasing": "Purchasing",
+    "ga": "GA",
+    "finance": "Finance",
+    "marketing": "Marketing",
+    "hr": "HR",
+    "it": "IT",
+    "production": "Production"
+  },
+  "quickAssign": {
+    "title": "Quick Assign Workflow",
+    "subtitle": "Select a template and assign it to a staff member",
+    "selectTemplate": "Select Template",
+    "selectUser": "Select User",
+    "noTemplates": "No templates enabled for quick assign",
+    "enableTemplates": "Enable templates in the Templates page",
+    "assignWorkflow": "Assign Workflow"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "email": "Email Address",
+    "password": "Password",
+    "forgotPassword": "Forgot password?",
+    "resetPassword": "Reset Password",
+    "backToLogin": "Back to Login"
+  },
+  "footer": {
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "contactUs": "Contact Us"
+  }
+}

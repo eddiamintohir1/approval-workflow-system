@@ -30,20 +30,21 @@ import { useCognitoAuth } from '@/hooks/useCognitoAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { StartGuide } from './StartGuide';
+import { useTranslation } from 'react-i18next';
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: HelpCircle, label: "Start Guide", path: "#guide", isAction: true },
-  { icon: UserCog, label: "Capacity", path: "/capacity" },
-  { icon: BarChart3, label: "Analytics", path: "/analytics" },
+const getMenuItems = (t: (key: string) => string) => [
+  { icon: LayoutDashboard, label: t('common.dashboard'), path: "/" },
+  { icon: HelpCircle, label: t('common.startGuide'), path: "#guide", isAction: true },
+  { icon: UserCog, label: t('common.capacity'), path: "/capacity" },
+  { icon: BarChart3, label: t('common.analytics'), path: "/analytics" },
 ];
 
-const adminMenuItems = [
-  { icon: Users, label: "User Management", path: "/users" },
-  { icon: FileText, label: "Workflow Templates", path: "/templates" },
-  { icon: FileSpreadsheet, label: "Form Templates", path: "/admin/form-templates" },
-  { icon: Upload, label: "Excel Templates", path: "/admin/excel-templates" },
-  { icon: FileEdit, label: "Sequence Generator", path: "/admin/sequences" },
+const getAdminMenuItems = (t: (key: string) => string) => [
+  { icon: Users, label: t('common.userManagement'), path: "/users" },
+  { icon: FileText, label: t('common.workflowTemplates'), path: "/templates" },
+  { icon: FileSpreadsheet, label: t('common.formTemplates'), path: "/admin/form-templates" },
+  { icon: Upload, label: t('common.excelTemplates'), path: "/admin/excel-templates" },
+  { icon: FileEdit, label: t('common.sequenceGenerator'), path: "/admin/sequences" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -120,6 +121,7 @@ function DashboardLayoutContent({
   children,
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
+  const { t } = useTranslation();
   const { user, signOut } = useCognitoAuth();
   const { user: userWithRole } = useUserRole();
   const [location, setLocation] = useLocation();
@@ -128,6 +130,8 @@ function DashboardLayoutContent({
   const [isResizing, setIsResizing] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const menuItems = getMenuItems(t);
+  const adminMenuItems = getAdminMenuItems(t);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
 
@@ -235,7 +239,7 @@ function DashboardLayoutContent({
                 {!isCollapsed && (
                   <div className="px-4 py-2 mt-4">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Administration
+                      {t('common.administration')}
                     </p>
                   </div>
                 )}
@@ -272,7 +276,7 @@ function DashboardLayoutContent({
               className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <HelpCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-sm group-data-[collapsible=icon]:hidden">Help & Support</span>
+              <span className="text-sm group-data-[collapsible=icon]:hidden">{t('common.helpSupport')}</span>
             </a>
             
             <DropdownMenu>
@@ -299,7 +303,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>{t('auth.signOut')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
