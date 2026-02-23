@@ -1140,3 +1140,18 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Replace compawnion-logo.png with correct logo (white text on blue background)
 - [x] Test footer logo display across all pages
 - [x] Verify logo renders correctly on all screen sizes
+
+## Phase 68: Annotated Screenshot Presentation
+
+- [ ] Capture screenshots of key system pages (dashboard, workflow creation, capacity management, analytics, recurring workflows)
+- [ ] Create 4-slide presentation with actual screenshots
+- [ ] Add square callout boxes with arrows pointing to specific features
+- [ ] Include brief text descriptions for each highlighted element
+- [ ] Use minimalist beige background with screenshots as focal point
+- [ ] Ensure screenshots show real interface with data
+
+## Phase 69: Fix Capacity Component useEffect Error
+
+- [x] Fix missing React import in Capacity component
+- [x] Add useEffect to React imports
+- [x] Test capacity page loads without errors
