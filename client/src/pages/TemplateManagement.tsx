@@ -228,8 +228,9 @@ export default function TemplateManagement() {
         </Card>
 
         {/* Copyright Footer */}
+        {/* IP Owner: Eddie Amintohir */}
         <footer className="mt-12 pt-6 border-t text-center text-sm text-muted-foreground">
-          © Eddie Amintohir. All rights reserved.
+          © Compawnion Jadi Berkat. All rights reserved.
         </footer>
       </main>
     </div>

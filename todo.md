@@ -832,3 +832,9 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Keep only the sidebar Start Guide button
 - [x] Test Dashboard layout - verified in browser
 - [ ] Create checkpoint
+
+## Phase 50: Update Footer Copyright
+- [x] Change footer copyright from Eddie Amintohir to Compawnion Jadi Berkat
+- [x] Maintain Eddie Amintohir IP attribution in code comments
+- [x] Test footer display - verified in browser
+- [ ] Create checkpoint

@@ -534,9 +534,10 @@ export default function Dashboard() {
         </Card>
 
       {/* Copyright Footer */}
+      {/* IP Owner: Eddie Amintohir */}
       <footer className="border-t bg-card mt-8">
         <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
-          © Eddie Amintohir. All rights reserved.
+          © Compawnion Jadi Berkat. All rights reserved.
         </div>
       </footer>
 
