@@ -1087,3 +1087,20 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Add ability to pause/resume recurring workflows
 - [ ] Test recurring workflow creation with monthly schedule (25th of each month)
 - [ ] Test automated workflow generation on scheduled dates
+
+## Phase 63: Recurring Workflow Creation Flow
+
+- [x] Create RecurringWorkflowCreate page with multi-step form
+- [x] Add workflow template selection dropdown
+- [x] Implement frequency selector (Daily/Weekly/Monthly)
+- [x] Add day-of-week selector for weekly recurrence
+- [x] Add day-of-month selector for monthly recurrence
+- [x] Add start date and optional end date pickers
+- [ ] Implement assignee pre-selection for each approval stage
+- [ ] Add form data pre-fill fields for common values
+- [x] Create RecurringWorkflowEdit page to modify existing recurring workflows
+- [x] Add route for /recurring-workflows/create
+- [x] Add route for /recurring-workflows/:id/edit
+- [x] Test complete creation flow from start to finish
+- [ ] Save checkpoint
+- [x] Add home/dashboard button to recurring workflow pages (Create, Edit, My Personalized WF)

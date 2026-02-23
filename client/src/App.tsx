@@ -21,6 +21,8 @@ import TemplateList from "./pages/templates/TemplateList";
 import ExcelTemplates from "./pages/ExcelTemplates";
 import Capacity from "./pages/Capacity";
 import MyPersonalizedWorkflows from "./pages/MyPersonalizedWorkflows";
+import RecurringWorkflowCreate from "./pages/RecurringWorkflowCreate";
+import RecurringWorkflowEdit from "./pages/RecurringWorkflowEdit";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import { Loader2 } from "lucide-react";
@@ -87,6 +89,12 @@ function Router() {
       </Route>
       <Route path="/my-personalized-workflows">
         <ProtectedRoute component={MyPersonalizedWorkflows} path="/my-personalized-workflows" />
+      </Route>
+      <Route path="/recurring-workflows/create">
+        <ProtectedRoute component={RecurringWorkflowCreate} path="/recurring-workflows/create" />
+      </Route>
+      <Route path="/recurring-workflows/:id/edit">
+        <ProtectedRoute component={RecurringWorkflowEdit} path="/recurring-workflows/:id/edit" />
       </Route>      <Route path="/templates">
         <ProtectedRoute component={TemplateList} path="/templates" />
       </Route>

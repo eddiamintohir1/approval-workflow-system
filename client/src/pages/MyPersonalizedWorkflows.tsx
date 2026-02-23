@@ -15,7 +15,8 @@ import {
   Plus,
   Clock,
   History,
-  Building2
+  Building2,
+  Home
 } from "lucide-react";
 import {
   AlertDialog,
@@ -120,6 +121,16 @@ export default function MyPersonalizedWorkflows() {
 
   return (
     <div className="container py-8">
+      <div className="mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setLocation("/dashboard")}
+        >
+          <Home className="h-4 w-4 mr-2" />
+          Dashboard
+        </Button>
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
