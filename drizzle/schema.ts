@@ -611,3 +611,43 @@ export const salaryCache = mysqlTable("salary_cache", {
 
 export type SalaryCache = typeof salaryCache.$inferSelect;
 export type InsertSalaryCache = typeof salaryCache.$inferInsert;
+
+/**
+ * =====================================================
+ * EMAIL LOGS TABLE
+ * Track all sent email notifications
+ * =====================================================
+ */
+export const emailLogs = mysqlTable("email_logs", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  
+  // Recipient
+  recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
+  
+  // Email details
+  subject: text("subject").notNull(),
+  template: mysqlEnum("template", [
+    "milestone_completion",
+    "workflow_rejection",
+    "workflow_completion",
+    "deadline_reminder"
+  ]).notNull(),
+  
+  // Related workflow
+  workflowId: varchar("workflow_id", { length: 36 }),
+  
+  // Delivery status
+  status: mysqlEnum("status", ["sent", "failed"]).notNull(),
+  messageId: varchar("message_id", { length: 255 }), // AWS SES Message ID
+  errorMessage: text("error_message"),
+  
+  // Timestamps
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+}, (table) => ({
+  workflowIdx: index("idx_workflow_id").on(table.workflowId),
+  recipientIdx: index("idx_recipient_email").on(table.recipientEmail),
+  sentAtIdx: index("idx_sent_at").on(table.sentAt),
+}));
+
+export type EmailLog = typeof emailLogs.$inferSelect;
+export type InsertEmailLog = typeof emailLogs.$inferInsert;

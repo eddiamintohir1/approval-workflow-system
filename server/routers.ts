@@ -7,6 +7,7 @@ import { storagePut, storageGet } from "./storage";
 import { randomUUID } from "crypto";
 import { withCache, CACHE_TTL, invalidateAnalyticsCache } from "./analyticsCache";
 import { triggerRemindersNow } from "./reminderScheduler";
+import { sendMilestoneCompletionEmail, sendCompletionEmail, sendRejectionEmail } from "./email";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -935,13 +936,41 @@ export const appRouter = router({
         // Update stage status
         await db.updateStageStatus(input.stageId, "completed");
         
+        // Get workflow details for email notifications
+        const workflow = await db.getWorkflowById(input.workflowId);
+        if (!workflow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+        }
+        
         // Check if this was the last stage
         const stages = await db.getStagesByWorkflow(input.workflowId);
         const currentStageIndex = stages.findIndex(s => s.id === input.stageId);
         
         if (currentStageIndex < stages.length - 1) {
           // Move to next stage
-          await db.updateStageStatus(stages[currentStageIndex + 1].id, "in_progress");
+          const nextStage = stages[currentStageIndex + 1];
+          await db.updateStageStatus(nextStage.id, "in_progress");
+          
+          // Send email notification to next approver
+          if (nextStage.requiredRole) {
+            const nextApprovers = await db.getUsersByRole(nextStage.requiredRole);
+            for (const approver of nextApprovers) {
+              try {
+                await sendMilestoneCompletionEmail({
+                  workflowNumber: workflow.workflowNumber,
+                  workflowTitle: workflow.title,
+                  milestoneName: nextStage.stageName,
+                  approverName: approver.fullName,
+                  approverEmail: approver.email,
+                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                  completedBy: ctx.user.fullName,
+                }, workflow.id);
+              } catch (emailError) {
+                console.error(`Failed to send email to ${approver.email}:`, emailError);
+                // Don't fail the approval if email fails
+              }
+            }
+          }
         } else {
           // This is the last stage - check contingency workflows before completing
           const workflow = await db.getWorkflowById(input.workflowId);
@@ -967,6 +996,28 @@ export const appRouter = router({
           
           // All contingencies satisfied - complete workflow
           await db.updateWorkflowStatus(input.workflowId, "completed");
+          
+          // Send completion email to workflow creator
+          const creator = await db.getUserById(workflow.requesterId);
+          if (creator) {
+            try {
+              await sendCompletionEmail({
+                workflowNumber: workflow.workflowNumber,
+                workflowTitle: workflow.title,
+                completedAt: new Date().toLocaleString('en-US', { 
+                  dateStyle: 'medium', 
+                  timeStyle: 'short',
+                  timeZone: 'Asia/Jakarta'
+                }),
+                recipientName: creator.fullName,
+                recipientEmail: creator.email,
+                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+              }, workflow.id);
+            } catch (emailError) {
+              console.error(`Failed to send completion email to ${creator.email}:`, emailError);
+              // Don't fail the approval if email fails
+            }
+          }
         }
         
         await db.createAuditLog({
@@ -1014,6 +1065,29 @@ export const appRouter = router({
         // Update stage and workflow status
         await db.updateStageStatus(input.stageId, "rejected");
         await db.updateWorkflowStatus(input.workflowId, "rejected");
+        
+        // Send rejection email to workflow creator
+        const workflow = await db.getWorkflowById(input.workflowId);
+        if (workflow) {
+          const creator = await db.getUserById(workflow.requesterId);
+          if (creator) {
+            try {
+              await sendRejectionEmail({
+                workflowNumber: workflow.workflowNumber,
+                workflowTitle: workflow.title,
+                milestoneName: stage.stageName,
+                rejectedBy: ctx.user.fullName,
+                rejectionReason: input.comments,
+                creatorName: creator.fullName,
+                creatorEmail: creator.email,
+                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+              }, workflow.id);
+            } catch (emailError) {
+              console.error(`Failed to send rejection email to ${creator.email}:`, emailError);
+              // Don't fail the rejection if email fails
+            }
+          }
+        }
         
         await db.createAuditLog({
           entityType: "stage",

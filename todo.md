@@ -918,3 +918,25 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Test backup script manually
 - [ ] Install cron job on production server
 - [ ] Create checkpoint
+
+## Phase 60: Email Notification System with AWS SES
+- [x] Confirmed AWS SES is already configured with @compawnion.co domain
+- [x] Install AWS SES SDK package (@aws-sdk/client-ses)
+- [x] Create email service module (server/email.ts) with AWS SES client
+- [x] Design email templates for:
+  - [x] Milestone completion notification (notify next approver)
+  - [x] Workflow rejection notification (notify workflow creator)
+  - [x] Workflow completion notification (notify all stakeholders)
+  - [x] Reminder notification (48-hour deadline approaching)
+- [x] Create email_logs table to track sent emails
+- [x] Implement sendMilestoneCompletionEmail function
+- [x] Implement sendRejectionEmail function
+- [x] Implement sendCompletionEmail function
+- [x] Implement sendDeadlineReminderEmail function
+- [x] Add email triggers to stage approval mutation (notify next approver)
+- [x] Add email triggers to stage rejection mutation (notify creator)
+- [x] Add email triggers to workflow completion (notify creator)
+- [x] Add getUsersByRole function to db.ts for fetching approvers
+- [ ] Test email sending with real AWS SES
+- [ ] Verify email logs are saved to database
+- [ ] Create checkpoint
