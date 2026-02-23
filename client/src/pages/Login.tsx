@@ -61,10 +61,10 @@ export default function Login() {
       <img
         src={randomDogImage}
         alt="Companion dog"
-        className="absolute bottom-0 left-0 h-2/3 w-auto object-contain pointer-events-none opacity-90"
-        style={{ maxHeight: '70vh' }}
+        className="absolute bottom-0 left-0 w-64 h-auto object-contain pointer-events-none opacity-90 hidden md:block"
+        style={{ maxWidth: '300px', maxHeight: '40vh' }}
       />
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md relative z-10">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">CJB Workflow Hub</CardTitle>
           <CardDescription>

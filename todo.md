@@ -854,3 +854,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Make image array easily extensible for adding more images in future (DOG_IMAGES array)
 - [x] Test random image display on page refresh - verified in browser
 - [ ] Create checkpoint
+
+## Phase 53: Fix Dog Image Positioning on Login Page
+- [x] Adjust dog image size and positioning to prevent overlap with login card
+- [x] Confine image to bottom left corner (max 300px width, 40vh height)
+- [x] Ensure image doesn't get cut off
+- [x] Test login page layout - verified in browser, dog now stays in corner
+- [ ] Create checkpoint
