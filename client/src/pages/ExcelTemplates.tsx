@@ -168,8 +168,31 @@ export default function ExcelTemplates() {
     }
   };
 
-  const handleDownload = (template: any) => {
-    window.open(template.fileUrl, "_blank");
+  const handleDownload = async (template: any) => {
+    try {
+      // Fetch fresh presigned URL
+      const { url, fileName } = await utils.client.excelTemplates.getDownloadUrl.query({ id: template.id });
+      
+      // Fetch file as blob from S3 (CORS now configured)
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download failed');
+      
+      const blob = await response.blob();
+      
+      // Create object URL and trigger download
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      
+      toast.success(`Downloaded ${fileName}`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to download template");
+    }
   };
 
   const formatFileSize = (bytes: number) => {

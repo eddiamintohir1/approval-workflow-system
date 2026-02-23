@@ -1,0 +1,14 @@
+{
+  "query": "SELECT file_key, file_name FROM excel_templates WHERE id=10 LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute SELECT file_key, file_name FROM excel_templates WHERE id=10 LIMIT 1;",
+  "rows": [
+    {
+      "file_key": "excel-templates/CATTO/1771616807534-Catto PAF 02.2026.xlsx",
+      "file_name": "Catto PAF 02.2026.xlsx"
+    }
+  ],
+  "messages": [],
+  "stdout": "file_key\tfile_name\nexcel-templates/CATTO/1771616807534-Catto PAF 02.2026.xlsx\tCatto PAF 02.2026.xlsx\n",
+  "stderr": "",
+  "execution_time_ms": 1578
+}

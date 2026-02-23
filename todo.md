@@ -881,3 +881,22 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Changed tRPC query to use debouncedSearch instead of searchQuery
 - [x] Search now only triggers after user stops typing for 300ms
 - [ ] Create checkpoint
+
+## Phase 57: Fix Excel Template Download Error
+- [x] Check browser console for download error details
+- [x] Locate Excel template download implementation
+- [x] Root cause: Presigned S3 URLs expired (generated Feb 20, expired after 1 hour)
+- [x] Fix: Created tRPC endpoint getDownloadUrl to generate fresh presigned URLs on-demand
+- [x] Updated ExcelTemplates.tsx handleDownload to fetch fresh URLs and trigger downloads
+- [ ] Test download for CATTO and MAF templates
+- [ ] Create checkpoint
+
+
+## Phase 57 COMPLETE: Excel Template Download Fixed ✅
+- [x] Root cause 1: Presigned S3 URLs expired after 1 hour
+- [x] Solution 1: Created tRPC endpoint to generate fresh presigned URLs on-demand
+- [x] Root cause 2: CORS policy blocked fetch() requests
+- [x] Solution 2: Configured CORS on S3 bucket to allow GET/HEAD
+- [x] Implementation: Fetch file as blob, create download link programmatically
+- [x] Test: CATTO template downloaded successfully (4.1 MB)
+- [ ] Create checkpoint

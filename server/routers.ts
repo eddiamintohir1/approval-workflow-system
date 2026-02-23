@@ -1771,6 +1771,20 @@ export const appRouter = router({
         return await db.getExcelTemplateByWorkflowType(input.workflowType);
       }),
 
+    getDownloadUrl: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const template = await db.getExcelTemplateById(input.id);
+        if (!template) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+        }
+        
+        // Generate fresh presigned URL (valid for 1 hour)
+        const { url } = await storageGet(template.fileKey, 3600);
+        
+        return { url, fileName: template.fileName };
+      }),
+
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
