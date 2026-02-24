@@ -23,12 +23,29 @@ export default function ESignature() {
   const [helloDocId, setHelloDocId] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
   const createDocument = trpc.eSignature.createDocument.useMutation();
   const updateHelloDocId = trpc.eSignature.updateHelloDocId.useMutation();
   const checkStatus = trpc.eSignature.checkStatus.useMutation();
   
   const { data: documents, refetch } = trpc.eSignature.getBySender.useQuery();
+  const { data: templates } = trpc.documentTemplates.getAll.useQuery();
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates?.find((t: any) => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(templateId);
+      setDocumentName(template.name);
+      fetch(template.s3Url)
+        .then(res => res.blob())
+        .then(blob => {
+          const file = new File([blob], template.name + '.' + template.fileType, { type: blob.type });
+          setFile(file);
+        })
+        .catch(err => console.error('Failed to load template:', err));
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -164,6 +181,24 @@ export default function ESignature() {
           <CardDescription>Upload the document you want to send for signature</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {templates && templates.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="template">Use Template (Optional)</Label>
+              <Select value={selectedTemplate || ""} onValueChange={handleTemplateSelect} disabled={uploading || !!uploadedDocId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a template or upload new document" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template: any) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name} {template.category && `(${template.category})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="file">Document File (PDF, Word, Excel)</Label>
             <Input

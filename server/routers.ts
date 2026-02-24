@@ -2312,6 +2312,73 @@ export const appRouter = router({
         };
       }),
   }),
+
+  // ============================================
+  // Document Templates Router
+  // ============================================
+  documentTemplates: router({
+    // Create new template
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        fileUrl: z.string(),
+        fileType: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const templateId = randomUUID();
+        await db.createDocumentTemplate({
+          id: templateId,
+          name: input.name,
+          description: input.description,
+          category: input.category,
+          s3Key: input.fileUrl.split('?')[0].split('/').pop() || '',
+          s3Url: input.fileUrl,
+          fileType: input.fileType,
+          createdBy: ctx.user.id,
+        });
+        return { templateId };
+      }),
+    
+    // Get all templates
+    getAll: protectedProcedure
+      .query(async ({ ctx }) => {
+        return await db.getAllDocumentTemplates();
+      }),
+    
+    // Get template by ID
+    getById: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getDocumentTemplateById(input.id);
+      }),
+    
+    // Update template
+    update: protectedProcedure
+      .input(z.object({
+        id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        category: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateDocumentTemplate(input.id, {
+          name: input.name,
+          description: input.description,
+          category: input.category,
+        });
+        return { success: true };
+      }),
+    
+    // Delete template (soft delete)
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input }) => {
+        await db.deleteDocumentTemplate(input.id);
+        return { success: true };
+      }),
+  }),
 });
 
 // ============================================

@@ -21,6 +21,7 @@ import TemplateList from "./pages/templates/TemplateList";
 import ExcelTemplates from "./pages/ExcelTemplates";
 import Capacity from "./pages/Capacity";
 import ESignature from "./pages/ESignature";
+import DocumentTemplates from "./pages/DocumentTemplates";
 import MyPersonalizedWorkflows from "./pages/MyPersonalizedWorkflows";
 import RecurringWorkflowCreate from "./pages/RecurringWorkflowCreate";
 import RecurringWorkflowEdit from "./pages/RecurringWorkflowEdit";
@@ -90,6 +91,9 @@ function Router() {
       </Route>
       <Route path="/esignature">
         <ProtectedRoute component={ESignature} path="/esignature" />
+      </Route>
+      <Route path="/document-templates">
+        <ProtectedRoute component={DocumentTemplates} path="/document-templates" />
       </Route>
       <Route path="/my-personalized-workflows">
         <ProtectedRoute component={MyPersonalizedWorkflows} path="/my-personalized-workflows" />

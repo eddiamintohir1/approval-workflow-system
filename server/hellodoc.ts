@@ -1,11 +1,13 @@
 /**
- * HelloDoc E-Signature API Integration
+ * Dropbox Sign (HelloSign) E-Signature API Integration
  * 
- * This module provides functions to interact with the HelloDoc API for e-signature workflows.
+ * This module provides functions to interact with the Dropbox Sign API for e-signature workflows.
  * Documents are sent for signature, status is tracked, and signed documents are retrieved.
+ * 
+ * API Documentation: https://developers.hellosign.com/api/reference/
  */
 
-const HELLODOC_API_URL = "https://api.hellodoc.id/v1"; // Replace with actual HelloDoc API URL
+const DROPBOX_SIGN_API_URL = "https://api.hellosign.com/v3";
 const HELLODOC_API_KEY = process.env.HELLODOC_API_KEY;
 
 if (!HELLODOC_API_KEY) {
@@ -13,90 +15,56 @@ if (!HELLODOC_API_KEY) {
 }
 
 /**
- * Send a document to HelloDoc for e-signature
- * 
- * @param params Document details and signer information
- * @returns HelloDoc document ID and tracking information
- */
-export async function sendDocumentForSignature(params: {
-  documentUrl: string; // URL to the document (PDF) to be signed
-  documentName: string;
-  signerEmail: string;
-  signerName: string;
-  workflowId: string;
-  callbackUrl?: string; // Optional webhook URL for status updates
-}) {
-  const response = await fetch(`${HELLODOC_API_URL}/documents`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${HELLODOC_API_KEY}`,
-    },
-    body: JSON.stringify({
-      document_url: params.documentUrl,
-      document_name: params.documentName,
-      signer: {
-        email: params.signerEmail,
-        name: params.signerName,
-      },
-      metadata: {
-        workflow_id: params.workflowId,
-      },
-      callback_url: params.callbackUrl,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`HelloDoc API error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  return {
-    documentId: data.document_id,
-    signatureUrl: data.signature_url, // URL where signer can sign the document
-    status: data.status,
-  };
-}
-
-/**
  * Check the signature status of a document
  * 
- * @param documentId HelloDoc document ID
+ * @param signatureRequestId Dropbox Sign signature request ID
  * @returns Current status and signed document URL if available
  */
-export async function checkSignatureStatus(documentId: string) {
-  const response = await fetch(`${HELLODOC_API_URL}/documents/${documentId}`, {
+export async function checkSignatureStatus(signatureRequestId: string) {
+  const response = await fetch(`${DROPBOX_SIGN_API_URL}/signature_request/${signatureRequestId}`, {
     method: "GET",
     headers: {
-      "Authorization": `Bearer ${HELLODOC_API_KEY}`,
+      "Authorization": `Basic ${Buffer.from(HELLODOC_API_KEY + ":").toString("base64")}`,
     },
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`HelloDoc API error: ${response.status} - ${error}`);
+    throw new Error(`Dropbox Sign API error: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
+  const signatureRequest = data.signature_request;
+  
+  // Map Dropbox Sign status to our status
+  let status = "pending";
+  if (signatureRequest.is_complete) {
+    status = "signed";
+  } else if (signatureRequest.is_declined) {
+    status = "rejected";
+  } else if (signatureRequest.has_error) {
+    status = "expired";
+  }
+
   return {
-    status: data.status, // "pending", "signed", "rejected", "expired"
-    signedAt: data.signed_at ? new Date(data.signed_at) : null,
-    signedDocumentUrl: data.signed_document_url, // URL to download signed PDF
-    signerInfo: data.signer,
+    status,
+    signedAt: signatureRequest.is_complete ? new Date() : null,
+    signedDocumentUrl: signatureRequest.is_complete ? signatureRequest.files_url : null,
+    signerInfo: signatureRequest.signatures?.[0] || null,
   };
 }
 
 /**
- * Download signed document from HelloDoc
+ * Download signed document from Dropbox Sign
  * 
- * @param signedDocumentUrl URL to the signed document
+ * @param signatureRequestId Dropbox Sign signature request ID
  * @returns Buffer containing the signed PDF
  */
-export async function downloadSignedDocument(signedDocumentUrl: string): Promise<Buffer> {
-  const response = await fetch(signedDocumentUrl, {
+export async function downloadSignedDocument(signatureRequestId: string): Promise<Buffer> {
+  const response = await fetch(`${DROPBOX_SIGN_API_URL}/signature_request/files/${signatureRequestId}`, {
+    method: "GET",
     headers: {
-      "Authorization": `Bearer ${HELLODOC_API_KEY}`,
+      "Authorization": `Basic ${Buffer.from(HELLODOC_API_KEY + ":").toString("base64")}`,
     },
   });
 
@@ -109,21 +77,43 @@ export async function downloadSignedDocument(signedDocumentUrl: string): Promise
 }
 
 /**
- * Cancel a pending signature request
+ * Get account information (for testing API key)
  * 
- * @param documentId HelloDoc document ID
+ * @returns Account information
  */
-export async function cancelSignatureRequest(documentId: string) {
-  const response = await fetch(`${HELLODOC_API_URL}/documents/${documentId}/cancel`, {
-    method: "POST",
+export async function getAccountInfo() {
+  const response = await fetch(`${DROPBOX_SIGN_API_URL}/account`, {
+    method: "GET",
     headers: {
-      "Authorization": `Bearer ${HELLODOC_API_KEY}`,
+      "Authorization": `Basic ${Buffer.from(HELLODOC_API_KEY + ":").toString("base64")}`,
     },
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`HelloDoc API error: ${response.status} - ${error}`);
+    throw new Error(`Dropbox Sign API error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  return data.account;
+}
+
+/**
+ * Cancel a pending signature request
+ * 
+ * @param signatureRequestId Dropbox Sign signature request ID
+ */
+export async function cancelSignatureRequest(signatureRequestId: string) {
+  const response = await fetch(`${DROPBOX_SIGN_API_URL}/signature_request/cancel/${signatureRequestId}`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${Buffer.from(HELLODOC_API_KEY + ":").toString("base64")}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Dropbox Sign API error: ${response.status} - ${error}`);
   }
 
   return { success: true };

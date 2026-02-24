@@ -2360,3 +2360,70 @@ export async function updateSignedDocumentHelloDocId(id: string, helloDocDocumen
     })
     .where(eq(schema.signedDocuments.id, id));
 }
+
+
+// ============================================
+// Document Templates
+// ============================================
+
+export async function createDocumentTemplate(template: {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  s3Key: string;
+  s3Url: string;
+  fileType: string;
+  createdBy: number;
+}) {
+  await db.insert(schema.documentTemplates).values(template);
+  return template.id;
+}
+
+export async function getAllDocumentTemplates(userId?: number) {
+  let query = db
+    .select()
+    .from(schema.documentTemplates)
+    .where(eq(schema.documentTemplates.isActive, true));
+
+  if (userId) {
+    query = query.where(
+      and(
+        eq(schema.documentTemplates.isActive, true),
+        eq(schema.documentTemplates.createdBy, userId)
+      )
+    );
+  }
+
+  return query.orderBy(desc(schema.documentTemplates.createdAt));
+}
+
+export async function getDocumentTemplateById(id: string) {
+  const [template] = await db
+    .select()
+    .from(schema.documentTemplates)
+    .where(eq(schema.documentTemplates.id, id))
+    .limit(1);
+  return template;
+}
+
+export async function updateDocumentTemplate(
+  id: string,
+  updates: {
+    name?: string;
+    description?: string;
+    category?: string;
+  }
+) {
+  await db
+    .update(schema.documentTemplates)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(schema.documentTemplates.id, id));
+}
+
+export async function deleteDocumentTemplate(id: string) {
+  await db
+    .update(schema.documentTemplates)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(eq(schema.documentTemplates.id, id));
+}

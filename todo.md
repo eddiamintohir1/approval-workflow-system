@@ -1207,3 +1207,17 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Implement signed document download via API
 - [x] Update UI to show workflow steps clearly
 - [ ] Test complete hybrid workflow
+
+## Phase 72: Dropbox Sign API Integration & Document Template Library
+
+- [x] Configure HELLODOC_API_KEY environment variable with Dropbox Sign API key
+- [x] Update hellodoc.ts to use Dropbox Sign API endpoints
+- [x] Test API connectivity and status checking
+- [x] Create document_templates table in database
+- [x] Add template fields: name, description, category, file_url, created_by
+- [x] Implement template CRUD backend API (create, read, update, delete)
+- [x] Build template library UI page
+- [x] Add template upload and management interface
+- [x] Integrate template selection in e-signature workflow
+- [x] Add "Use Template" button to pre-fill document upload
+- [ ] Test complete workflow with templates

@@ -778,3 +778,26 @@ export const signedDocuments = mysqlTable("signed_documents", {
 
 export type SignedDocument = typeof signedDocuments.$inferSelect;
 export type InsertSignedDocument = typeof signedDocuments.$inferInsert;
+
+/**
+ * =====================================================
+ * DOCUMENT TEMPLATES TABLE
+ * Reusable document templates for e-signature workflow
+ * =====================================================
+ */
+export const documentTemplates = mysqlTable("document_templates", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }), // e.g., "Contract", "NDA", "Invoice", "Agreement"
+  s3Key: varchar("s3_key", { length: 1000 }).notNull(), // S3 storage key for template file
+  s3Url: text("s3_url").notNull(), // S3 URL for accessing the template
+  fileType: varchar("file_type", { length: 50 }).notNull(), // e.g., "pdf", "docx"
+  createdBy: int("created_by").notNull(), // User ID who created the template
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+});
+
+export type DocumentTemplate = typeof documentTemplates.$inferSelect;
+export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
