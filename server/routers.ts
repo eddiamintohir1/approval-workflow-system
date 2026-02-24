@@ -2314,6 +2314,21 @@ export const appRouter = router({
   }),
 
   // ============================================
+  // CFO Document Queue Router
+  // ============================================
+  cfoDocumentQueue: router({
+    // Get all uploaded documents for CFO review
+    getAll: protectedProcedure
+      .query(async ({ ctx }) => {
+        // Only CFO can access
+        if (ctx.user.role !== 'cfo') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Only CFO can access document queue' });
+        }
+        return db.getAllSignedDocumentsForCFO();
+      }),
+  }),
+
+  // ============================================
   // Document Templates Router
   // ============================================
   documentTemplates: router({

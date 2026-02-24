@@ -1247,3 +1247,11 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Run test and fix any issues
 - [x] Fixed status enum to include awaiting_hellodoc_id
 - [x] Removed foreign key constraint for standalone workflow
+
+## Phase 76: CFO Document Dashboard (Simple)
+
+- [x] Create backend API to fetch all uploaded documents
+- [x] Show: document name, uploader, date, signer email, download link
+- [x] Build simple table view page
+- [x] Add to CFO navigation menu
+- [ ] Test with sample documents

@@ -2442,3 +2442,25 @@ export async function deleteDocumentTemplate(id: string) {
     .set({ isActive: false, updatedAt: new Date() })
     .where(eq(schema.documentTemplates.id, id));
 }
+
+// ============================================
+// CFO Document Dashboard
+// ============================================
+
+export async function getAllSignedDocumentsForCFO() {
+  return db
+    .select({
+      id: schema.signedDocuments.id,
+      documentName: schema.signedDocuments.documentName,
+      uploadedS3Url: schema.signedDocuments.uploadedS3Url,
+      signerEmail: schema.signedDocuments.signerEmail,
+      signerName: schema.signedDocuments.signerName,
+      status: schema.signedDocuments.status,
+      createdAt: schema.signedDocuments.createdAt,
+      uploaderName: schema.user.name,
+      uploaderEmail: schema.user.email,
+    })
+    .from(schema.signedDocuments)
+    .leftJoin(schema.user, eq(schema.signedDocuments.signerId, schema.user.id))
+    .orderBy(desc(schema.signedDocuments.createdAt));
+}

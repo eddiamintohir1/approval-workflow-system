@@ -22,6 +22,7 @@ import ExcelTemplates from "./pages/ExcelTemplates";
 import Capacity from "./pages/Capacity";
 import ESignature from "./pages/ESignature";
 import DocumentTemplates from "./pages/DocumentTemplates";
+import CFODocumentQueue from "./pages/CFODocumentQueue";
 import MyPersonalizedWorkflows from "./pages/MyPersonalizedWorkflows";
 import RecurringWorkflowCreate from "./pages/RecurringWorkflowCreate";
 import RecurringWorkflowEdit from "./pages/RecurringWorkflowEdit";
@@ -91,6 +92,9 @@ function Router() {
       </Route>
       <Route path="/esignature">
         <ProtectedRoute component={ESignature} path="/esignature" />
+      </Route>
+      <Route path="/cfo-document-queue">
+        <ProtectedRoute component={CFODocumentQueue} path="/cfo-document-queue" />
       </Route>
       <Route path="/document-templates">
         <ProtectedRoute component={DocumentTemplates} path="/document-templates" />

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload, Repeat, FileSignature, FolderOpen } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload, Repeat, FileSignature, FolderOpen, Inbox } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -38,6 +38,7 @@ const getMenuItems = (t: (key: string) => string) => [
   { icon: Repeat, label: t('common.myPersonalizedWF'), path: "/my-personalized-workflows" },
   { icon: UserCog, label: t('common.capacity'), path: "/capacity" },
   { icon: FileSignature, label: t('common.eSignature'), path: "/esignature" },
+  { icon: Inbox, label: t('common.documentQueue'), path: "/cfo-document-queue", cfoOnly: true },
   { icon: FolderOpen, label: t('common.documentTemplates'), path: "/document-templates" },
   { icon: BarChart3, label: t('common.analytics'), path: "/analytics" },
 ];
@@ -205,6 +206,10 @@ function DashboardLayoutContent({
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
               {menuItems.filter(item => {
+                // Hide Document Queue from non-CFO users
+                if ((item as any).cfoOnly) {
+                  return userWithRole && userWithRole.role === 'CFO';
+                }
                 // Hide Capacity and Analytics from Dept Heads and Staff
                 if (['Capacity', 'Analytics'].includes(item.label)) {
                   return userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'].includes(userWithRole.role);
