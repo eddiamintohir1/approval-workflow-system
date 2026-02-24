@@ -1220,4 +1220,12 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add template upload and management interface
 - [x] Integrate template selection in e-signature workflow
 - [x] Add "Use Template" button to pre-fill document upload
-- [ ] Test complete workflow with templates
+- [x] Test complete workflow with templates
+
+## Phase 73: Fix E-Signature File Upload Error
+
+- [x] Investigate signed_documents table schema mismatch
+- [x] Fix database default values for nullable columns
+- [x] Update createSignedDocument function to handle nullable fields
+- [ ] Test file upload workflow end-to-end
+- [ ] Verify document creation and HelloDoc ID submission

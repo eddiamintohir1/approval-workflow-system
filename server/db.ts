@@ -2260,9 +2260,24 @@ export async function createSignedDocument(doc: {
   signerName: string;
 }) {
   const id = randomUUID();
+  const now = new Date();
   await db.insert(schema.signedDocuments).values({
     id,
-    ...doc,
+    workflowId: doc.workflowId,
+    documentName: doc.documentName,
+    s3Key: doc.s3Key,
+    s3Url: doc.s3Url,
+    uploadedS3Key: doc.uploadedS3Key || null,
+    uploadedS3Url: doc.uploadedS3Url || null,
+    helloDocDocumentId: doc.helloDocDocumentId || null,
+    signerId: doc.signerId,
+    signerEmail: doc.signerEmail,
+    signerName: doc.signerName,
+    status: "awaiting_hellodoc_id",
+    signedAt: null,
+    sentAt: null,
+    createdAt: now,
+    updatedAt: now,
   });
   return id;
 }
