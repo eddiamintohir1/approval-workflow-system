@@ -1237,4 +1237,13 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Refactor handleUpload to use XMLHttpRequest instead of fetch
 - [x] Track upload progress with event.loaded / event.total
 - [x] Display progress bar with percentage during upload
-- [ ] Test with large files to verify progress tracking
+- [x] Test with large files to verify progress tracking
+
+## Phase 75: E-Signature Upload Testing
+
+- [x] Write vitest for createDocument procedure
+- [x] Test document creation with all required fields
+- [x] Verify database insertion works correctly
+- [x] Run test and fix any issues
+- [x] Fixed status enum to include awaiting_hellodoc_id
+- [x] Removed foreign key constraint for standalone workflow
