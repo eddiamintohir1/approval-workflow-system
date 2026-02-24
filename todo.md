@@ -1255,3 +1255,10 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Build simple table view page
 - [x] Add to CFO navigation menu
 - [ ] Test with sample documents
+
+## Phase 77: E-Materai Tab in E-Signature Page
+
+- [x] Add Tabs component to E-Signature page (E-Sign | E-Materai)
+- [x] Create E-Materai tab placeholder content
+- [ ] Add E-Materai API integration (waiting for API details from user)
+- [ ] Test tab switching functionality

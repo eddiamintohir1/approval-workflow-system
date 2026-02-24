@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, ExternalLink, RefreshCw, Eye, FileSignature, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useTranslation } from "react-i18next";
@@ -26,6 +27,7 @@ export default function ESignature() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("esign");
 
   const createDocument = trpc.eSignature.createDocument.useMutation();
   const updateHelloDocId = trpc.eSignature.updateHelloDocId.useMutation();
@@ -202,6 +204,13 @@ export default function ESignature() {
         </div>
       </div>
 
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="esign">E-Sign</TabsTrigger>
+          <TabsTrigger value="ematerai">E-Materai</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="esign" className="space-y-8">
       {/* Step 1: Upload Document */}
       <Card>
         <CardHeader>
@@ -462,6 +471,25 @@ export default function ESignature() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="ematerai" className="space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>E-Materai</CardTitle>
+              <CardDescription>Electronic stamp service integration (Coming Soon)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  E-Materai integration is currently under development. This feature will allow you to add electronic stamps to your documents.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
