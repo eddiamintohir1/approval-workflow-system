@@ -749,3 +749,30 @@ export const recurringWorkflowHistory = mysqlTable("recurring_workflow_history",
 
 export type RecurringWorkflowHistory = typeof recurringWorkflowHistory.$inferSelect;
 export type InsertRecurringWorkflowHistory = typeof recurringWorkflowHistory.$inferInsert;
+
+
+/**
+ * =====================================================
+ * SIGNED_DOCUMENTS TABLE
+ * HelloDoc e-signature integration
+ * =====================================================
+ */
+export const signedDocuments = mysqlTable("signed_documents", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+  documentName: varchar("document_name", { length: 500 }).notNull(),
+  s3Key: varchar("s3_key", { length: 1000 }).notNull(), // S3 storage key
+  s3Url: text("s3_url").notNull(), // S3 URL for accessing the document
+  helloDocDocumentId: varchar("hellodoc_document_id", { length: 255 }), // HelloDoc document ID for tracking
+  signerId: int("signer_id").notNull(),
+  signerEmail: varchar("signer_email", { length: 255 }).notNull(),
+  signerName: varchar("signer_name", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["pending", "signed", "rejected", "expired"]).notNull().default("pending"),
+  signedAt: timestamp("signed_at"),
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+});
+
+export type SignedDocument = typeof signedDocuments.$inferSelect;
+export type InsertSignedDocument = typeof signedDocuments.$inferInsert;

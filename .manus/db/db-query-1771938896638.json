@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE signed_documents (\n  id VARCHAR(36) PRIMARY KEY,\n  workflow_id VARCHAR(36) NOT NULL,\n  document_name VARCHAR(500) NOT NULL,\n  s3_key VARCHAR(1000) NOT NULL,\n  s3_url TEXT NOT NULL,\n  hellodoc_document_id VARCHAR(255),\n  signer_id INT NOT NULL,\n  signer_email VARCHAR(255) NOT NULL,\n  signer_name VARCHAR(255) NOT NULL,\n  status ENUM('pending', 'signed', 'rejected', 'expired') NOT NULL DEFAULT 'pending',\n  signed_at TIMESTAMP NULL,\n  sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE,\n  FOREIGN KEY (signer_id) REFERENCES users(id)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE signed_documents (\n  id VARCHAR(36) PRIMARY KEY,\n  workflow_id VARCHAR(36) NOT NULL,\n  document_name VARCHAR(500) NOT NULL,\n  s3_key VARCHAR(1000) NOT NULL,\n  s3_url TEXT NOT NULL,\n  hellodoc_document_id VARCHAR(255),\n  signer_id INT NOT NULL,\n  signer_email VARCHAR(255) NOT NULL,\n  signer_name VARCHAR(255) NOT NULL,\n  status ENUM('pending', 'signed', 'rejected', 'expired') NOT NULL DEFAULT 'pending',\n  signed_at TIMESTAMP NULL,\n  sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE,\n  FOREIGN KEY (signer_id) REFERENCES users(id)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1741
+}

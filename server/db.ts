@@ -2241,3 +2241,108 @@ export async function calculateNextScheduledDate(
   
   return next;
 }
+
+
+// ============================================
+// Signed Documents (HelloDoc E-Signature)
+// ============================================
+
+export async function createSignedDocument(doc: {
+  workflowId: string;
+  documentName: string;
+  s3Key: string;
+  s3Url: string;
+  helloDocDocumentId?: string;
+  signerId: number;
+  signerEmail: string;
+  signerName: string;
+}) {
+  const id = randomUUID();
+  await db.insert(schema.signedDocuments).values({
+    id,
+    ...doc,
+  });
+  return id;
+}
+
+export async function getSignedDocumentsByWorkflow(workflowId: string) {
+  return db
+    .select()
+    .from(schema.signedDocuments)
+    .where(eq(schema.signedDocuments.workflowId, workflowId))
+    .orderBy(desc(schema.signedDocuments.createdAt));
+}
+
+export async function getSignedDocumentById(id: string) {
+  const [doc] = await db
+    .select()
+    .from(schema.signedDocuments)
+    .where(eq(schema.signedDocuments.id, id))
+    .limit(1);
+  return doc;
+}
+
+export async function updateSignedDocumentStatus(
+  id: string,
+  status: "pending" | "signed" | "rejected" | "expired",
+  signedAt?: Date
+) {
+  await db
+    .update(schema.signedDocuments)
+    .set({
+      status,
+      signedAt: signedAt || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.signedDocuments.id, id));
+}
+
+export async function getSignedDocumentByHelloDocId(helloDocDocumentId: string) {
+  const [doc] = await db
+    .select()
+    .from(schema.signedDocuments)
+    .where(eq(schema.signedDocuments.helloDocDocumentId, helloDocDocumentId))
+    .limit(1);
+  return doc;
+}
+
+export async function getAllSignedDocuments(
+  userId: number,
+  status?: "all" | "pending" | "signed" | "rejected" | "expired",
+  search?: string
+) {
+  let query = db
+    .select()
+    .from(schema.signedDocuments)
+    .where(eq(schema.signedDocuments.signerId, userId));
+
+  // Apply status filter
+  if (status && status !== "all") {
+    query = query.where(
+      and(
+        eq(schema.signedDocuments.signerId, userId),
+        eq(schema.signedDocuments.status, status)
+      )
+    );
+  }
+
+  // Apply search filter (document name or signer email)
+  if (search) {
+    query = query.where(
+      and(
+        eq(schema.signedDocuments.signerId, userId),
+        sql`(${schema.signedDocuments.documentName} LIKE ${`%${search}%`} OR ${schema.signedDocuments.signerEmail} LIKE ${`%${search}%`})`
+      )
+    );
+  }
+
+  return query.orderBy(desc(schema.signedDocuments.createdAt));
+}
+
+export async function getSignedDocumentsBySender(userId: number) {
+  return db
+    .select()
+    .from(schema.signedDocuments)
+    .where(eq(schema.signedDocuments.signerId, userId))
+    .orderBy(desc(schema.signedDocuments.createdAt));
+}

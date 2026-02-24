@@ -498,3 +498,95 @@ export async function sendDeadlineReminderEmail(
   
   await sendEmail(senderEmail, senderPassword, data.approverEmail, subject, html, 'deadline_reminder', workflowId);
 }
+
+
+/**
+ * Send email with signed document
+ * @param toEmail Recipient email (signer)
+ * @param toName Recipient name
+ * @param documentName Name of the signed document
+ * @param s3Url S3 URL to download the signed document
+ * @param workflowId Related workflow ID
+ */
+export async function sendSignedDocumentEmail(
+  toEmail: string,
+  toName: string,
+  documentName: string,
+  s3Url: string,
+  workflowId: string
+) {
+  // Get system/admin email for sending
+  const systemEmail = process.env.SYSTEM_EMAIL || 'noreply@compawnion.co';
+  const systemPassword = await getWorkmailPassword(systemEmail);
+  
+  const subject = `Document Signed: ${documentName}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1e3a8a; color: white; padding: 20px; text-align: center; }
+        .content { background-color: #f9fafb; padding: 30px; }
+        .button { 
+          display: inline-block; 
+          background-color: #1e3a8a; 
+          color: white; 
+          padding: 12px 30px; 
+          text-decoration: none; 
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Document Successfully Signed</h1>
+        </div>
+        <div class="content">
+          <p>Dear ${toName},</p>
+          
+          <p>Your document has been successfully signed via HelloDoc e-signature service.</p>
+          
+          <p><strong>Document Name:</strong> ${documentName}</p>
+          <p><strong>Workflow ID:</strong> ${workflowId}</p>
+          <p><strong>Signed Date:</strong> ${new Date().toLocaleString('en-US', { 
+            timeZone: 'Asia/Jakarta',
+            dateStyle: 'long',
+            timeStyle: 'short'
+          })}</p>
+          
+          <p>The signed document has been securely stored and is available for download:</p>
+          
+          <div style="text-align: center;">
+            <a href="${s3Url}" class="button">Download Signed Document</a>
+          </div>
+          
+          <p style="margin-top: 30px; font-size: 14px; color: #666;">
+            <strong>Note:</strong> This document is stored securely in our system. 
+            For privacy reasons, it is not accessible through the workflow interface. 
+            Please save this email or download the document now if you need future access.
+          </p>
+        </div>
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} Compawnion Jadi Berkat. All rights reserved.</p>
+          <p>This is an automated email. Please do not reply.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  await sendEmail(
+    systemEmail,
+    systemPassword,
+    toEmail,
+    subject,
+    html,
+    'signed_document',
+    workflowId
+  );
+}

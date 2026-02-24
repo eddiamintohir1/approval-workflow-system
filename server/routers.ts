@@ -2165,6 +2165,115 @@ export const appRouter = router({
         return await db.getRecurringWorkflowHistory(input.id);
       }),
   }),
+  
+  // ============================================
+  // E-Signature (HelloDoc Integration)
+  // ============================================
+  eSignature: router({
+    // Send document for e-signature
+    sendForSignature: protectedProcedure
+      .input(z.object({
+        workflowId: z.string().optional(), // Optional for standalone usage
+        documentName: z.string(),
+        documentUrl: z.string(),
+        signerEmail: z.string().email(),
+        signerName: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { sendDocumentForSignature } = await import("./hellodoc");
+        const result = await sendDocumentForSignature({
+          documentUrl: input.documentUrl,
+          documentName: input.documentName,
+          signerEmail: input.signerEmail,
+          signerName: input.signerName,
+          workflowId: input.workflowId || "standalone",
+        });
+        const docId = await db.createSignedDocument({
+          workflowId: input.workflowId || "standalone",
+          documentName: input.documentName,
+          s3Key: "",
+          s3Url: "",
+          helloDocDocumentId: result.documentId,
+          signerId: ctx.user.id,
+          signerEmail: input.signerEmail,
+          signerName: input.signerName,
+        });
+        return {
+          documentId: docId,
+          signatureUrl: result.signatureUrl,
+          helloDocDocumentId: result.documentId,
+        };
+      }),
+    
+    checkStatus: protectedProcedure
+      .input(z.object({ helloDocDocumentId: z.string() }))
+      .query(async ({ input }) => {
+        const { checkSignatureStatus } = await import("./hellodoc");
+        return await checkSignatureStatus(input.helloDocDocumentId);
+      }),
+    
+    getByWorkflow: protectedProcedure
+      .input(z.object({ workflowId: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getSignedDocumentsByWorkflow(input.workflowId);
+      }),
+    
+    // Get all signed documents (for standalone e-signature page)
+    getAll: protectedProcedure
+      .input(z.object({
+        status: z.enum(["all", "pending", "signed", "rejected", "expired"]).optional(),
+        search: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        return await db.getAllSignedDocuments(ctx.user.id, input.status, input.search);
+      }),
+    
+    // Get documents sent by current user
+    getBySender: protectedProcedure
+      .query(async ({ ctx }) => {
+        return await db.getSignedDocumentsBySender(ctx.user.id);
+      }),
+    
+    handleSignedDocument: protectedProcedure
+      .input(z.object({ helloDocDocumentId: z.string() }))
+      .mutation(async ({ input }) => {
+        const { checkSignatureStatus, downloadSignedDocument } = await import("./hellodoc");
+        const status = await checkSignatureStatus(input.helloDocDocumentId);
+        if (status.status !== "signed" || !status.signedDocumentUrl) {
+          throw new TRPCError({ 
+            code: "BAD_REQUEST", 
+            message: `Document not signed yet. Status: ${status.status}` 
+          });
+        }
+        const signedPdfBuffer = await downloadSignedDocument(status.signedDocumentUrl);
+        const doc = await db.getSignedDocumentByHelloDocId(input.helloDocDocumentId);
+        if (!doc) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+        }
+        const s3Key = `signed-docs/${doc.workflowId}/${Date.now()}-${doc.documentName}`;
+        const { url: s3Url } = await storagePut(s3Key, signedPdfBuffer, "application/pdf");
+        await db.updateSignedDocumentStatus(doc.id, "signed", status.signedAt || undefined);
+        await db.db.update(schema.signedDocuments)
+          .set({ s3Key, s3Url })
+          .where(eq(schema.signedDocuments.id, doc.id));
+        
+        // Send email with signed document
+        const { sendSignedDocumentEmail } = await import("./email");
+        await sendSignedDocumentEmail(
+          doc.signerEmail,
+          doc.signerName,
+          doc.documentName,
+          s3Url,
+          doc.workflowId
+        );
+        
+        return {
+          success: true,
+          s3Url,
+          signedAt: status.signedAt,
+        };
+      }),
+  }),
 });
 
 // ============================================
@@ -2235,5 +2344,8 @@ async function createInitialStages(workflowId: string,
     }
   }
 }
+
+
+
 
 export type AppRouter = typeof appRouter;

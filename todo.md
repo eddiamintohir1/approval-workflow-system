@@ -1167,3 +1167,30 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Create Example 2: Marketing Campaign Budget workflow
 - [ ] Create Example 3: Production Material Request workflow
 - [ ] Test all form templates and example workflows
+
+## Phase 70: HelloDoc E-Signature Integration
+
+- [ ] Store HelloDoc API key securely using webdev_request_secrets
+- [ ] Create signed_documents table in database
+- [ ] Create tRPC procedure: sendDocumentForSignature
+- [ ] Create tRPC procedure: checkSignatureStatus
+- [ ] Create tRPC procedure: handleSignedDocument
+- [ ] Implement S3 upload for signed documents
+- [ ] Implement email delivery with signed document attachment
+- [ ] Add "Send for E-Signature" button to workflow detail page
+- [ ] Add signature status badge (Pending/Signed/Rejected)
+- [ ] Add "View Signed Document" button with role-based access
+- [ ] Test end-to-end e-signature workflow
+
+## Phase 70: HelloDoc E-Signature Standalone Feature
+
+- [x] Update backend to support standalone e-signature (not workflow-specific)
+- [x] Create E-Signature page with document upload and send functionality
+- [x] Add sent documents list with status tracking (Pending/Signed/Rejected)
+- [x] Implement filters (status, date range, search)
+- [x] Add "E-Signature" menu item in sidebar under Capacity
+- [ ] Restrict access to non-staff roles only
+- [x] Add "Check Status" functionality to refresh signature status
+- [x] Add "View Signed Document" button with role-based access
+- [ ] Test end-to-end: Upload → Send → Sign → Email delivery
+- [x] Add translations for English and Indonesian
