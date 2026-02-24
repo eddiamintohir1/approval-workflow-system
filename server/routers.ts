@@ -2170,7 +2170,43 @@ export const appRouter = router({
   // E-Signature (HelloDoc Integration)
   // ============================================
   eSignature: router({
-    // Send document for e-signature
+    // Create document record (upload only, no API send)
+    createDocument: protectedProcedure
+      .input(z.object({
+        workflowId: z.string().optional(),
+        documentName: z.string(),
+        documentUrl: z.string(),
+        signerEmail: z.string().email(),
+        signerName: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const docId = await db.createSignedDocument({
+          workflowId: input.workflowId || "standalone",
+          documentName: input.documentName,
+          s3Key: null,
+          s3Url: null,
+          uploadedS3Key: input.documentUrl.split('?')[0].split('/').pop() || '',
+          uploadedS3Url: input.documentUrl,
+          helloDocDocumentId: null,
+          signerId: ctx.user.id,
+          signerEmail: input.signerEmail,
+          signerName: input.signerName,
+        });
+        return { documentId: docId };
+      }),
+    
+    // Update document with HelloDoc ID (entered manually after sending from HelloDoc)
+    updateHelloDocId: protectedProcedure
+      .input(z.object({
+        documentId: z.string(),
+        helloDocDocumentId: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateSignedDocumentHelloDocId(input.documentId, input.helloDocDocumentId);
+        return { success: true };
+      }),
+    
+    // Legacy sendForSignature (kept for backward compatibility but not used in hybrid workflow)
     sendForSignature: protectedProcedure
       .input(z.object({
         workflowId: z.string().optional(), // Optional for standalone usage
@@ -2191,8 +2227,10 @@ export const appRouter = router({
         const docId = await db.createSignedDocument({
           workflowId: input.workflowId || "standalone",
           documentName: input.documentName,
-          s3Key: "",
-          s3Url: "",
+          s3Key: null,
+          s3Url: null,
+          uploadedS3Key: input.documentUrl.split('?')[0].split('/').pop() || '',
+          uploadedS3Url: input.documentUrl,
           helloDocDocumentId: result.documentId,
           signerId: ctx.user.id,
           signerEmail: input.signerEmail,

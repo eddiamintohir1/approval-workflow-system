@@ -1194,3 +1194,16 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add "View Signed Document" button with role-based access
 - [ ] Test end-to-end: Upload → Send → Sign → Email delivery
 - [x] Add translations for English and Indonesian
+
+## Phase 71: Hybrid E-Signature Workflow (Manual Send + API Tracking)
+
+- [x] Update signed_documents table to support manual HelloDoc workflow
+- [x] Add hellodoc_document_id field for manual entry
+- [x] Remove automatic send via API (cost-saving)
+- [x] Add "Prepare in HelloDoc" button to open HelloDoc website
+- [x] Add manual HelloDoc Document ID input field
+- [x] Implement status polling via HelloDoc API (read-only)
+- [x] Add "Check Status" button to refresh from HelloDoc
+- [x] Implement signed document download via API
+- [x] Update UI to show workflow steps clearly
+- [ ] Test complete hybrid workflow

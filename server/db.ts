@@ -2250,9 +2250,11 @@ export async function calculateNextScheduledDate(
 export async function createSignedDocument(doc: {
   workflowId: string;
   documentName: string;
-  s3Key: string;
-  s3Url: string;
-  helloDocDocumentId?: string;
+  s3Key: string | null;
+  s3Url: string | null;
+  uploadedS3Key?: string;
+  uploadedS3Url?: string;
+  helloDocDocumentId?: string | null;
   signerId: number;
   signerEmail: string;
   signerName: string;
@@ -2345,4 +2347,16 @@ export async function getSignedDocumentsBySender(userId: number) {
     .from(schema.signedDocuments)
     .where(eq(schema.signedDocuments.signerId, userId))
     .orderBy(desc(schema.signedDocuments.createdAt));
+}
+
+export async function updateSignedDocumentHelloDocId(id: string, helloDocDocumentId: string) {
+  await db
+    .update(schema.signedDocuments)
+    .set({ 
+      helloDocDocumentId,
+      status: "pending",
+      sentAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.signedDocuments.id, id));
 }

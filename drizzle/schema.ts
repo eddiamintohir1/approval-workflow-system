@@ -761,15 +761,17 @@ export const signedDocuments = mysqlTable("signed_documents", {
   id: varchar("id", { length: 36 }).primaryKey(),
   workflowId: varchar("workflow_id", { length: 36 }).notNull(),
   documentName: varchar("document_name", { length: 500 }).notNull(),
-  s3Key: varchar("s3_key", { length: 1000 }).notNull(), // S3 storage key
-  s3Url: text("s3_url").notNull(), // S3 URL for accessing the document
-  helloDocDocumentId: varchar("hellodoc_document_id", { length: 255 }), // HelloDoc document ID for tracking
+  s3Key: varchar("s3_key", { length: 1000 }), // S3 storage key (nullable for upload-only)
+  s3Url: text("s3_url"), // S3 URL for accessing the document (nullable for upload-only)
+  uploadedS3Key: varchar("uploaded_s3_key", { length: 1000 }), // Original uploaded document S3 key
+  uploadedS3Url: text("uploaded_s3_url"), // Original uploaded document S3 URL
+  helloDocDocumentId: varchar("hellodoc_document_id", { length: 255 }), // HelloDoc document ID (entered manually)
   signerId: int("signer_id").notNull(),
   signerEmail: varchar("signer_email", { length: 255 }).notNull(),
   signerName: varchar("signer_name", { length: 255 }).notNull(),
-  status: mysqlEnum("status", ["pending", "signed", "rejected", "expired"]).notNull().default("pending"),
+  status: mysqlEnum("status", ["pending", "awaiting_hellodoc_id", "signed", "rejected", "expired"]).notNull().default("awaiting_hellodoc_id"),
   signedAt: timestamp("signed_at"),
-  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  sentAt: timestamp("sent_at"), // When sent from HelloDoc (nullable)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 });

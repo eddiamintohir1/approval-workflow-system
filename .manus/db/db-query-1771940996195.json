@@ -1,0 +1,9 @@
+{
+  "query": "-- Add new columns for hybrid workflow (one at a time)\nALTER TABLE signed_documents ADD COLUMN uploaded_s3_key VARCHAR(1000);\nALTER TABLE signed_documents ADD COLUMN uploaded_s3_url TEXT;\n\n-- Make existing columns nullable\nALTER TABLE signed_documents MODIFY COLUMN s3_key VARCHAR(1000) NULL;\nALTER TABLE signed_documents MODIFY COLUMN s3_url TEXT NULL;\nALTER TABLE signed_documents MODIFY COLUMN sent_at TIMESTAMP NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute -- Add new columns for hybrid workflow (one at a time)\nALTER TABLE signed_documents ADD COLUMN uploaded_s3_key VARCHAR(1000);\nALTER TABLE signed_documents ADD COLUMN uploaded_s3_url TEXT;\n\n-- Make existing columns nullable\nALTER TABLE signed_documents MODIFY COLUMN s3_key VARCHAR(1000) NULL;\nALTER TABLE signed_documents MODIFY COLUMN s3_url TEXT NULL;\nALTER TABLE signed_documents MODIFY COLUMN sent_at TIMESTAMP NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 3065
+}
