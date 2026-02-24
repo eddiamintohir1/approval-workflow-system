@@ -203,7 +203,7 @@ export default function ESignature() {
           <FileSignature className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-3xl font-bold">{t("common.eSignature")}</h1>
-            <p className="text-muted-foreground">Send documents for electronic signature via HelloDoc/Dropbox Sign</p>
+            <p className="text-muted-foreground">Send documents for electronic signature via Compawnion's AWS Cloud</p>
           </div>
         </div>
         <Button variant="outline" onClick={() => setLocation("/")}>

@@ -1270,3 +1270,8 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Add Home button to E-Signature page header
 - [x] Add Home button to Document Queue page header
 - [ ] Test role-based access for both Admin and CFO
+
+## Phase 79: Update E-Signature Page Branding
+
+- [x] Change E-Signature page description text to mention "Compawnion's AWS Cloud"
+- [x] Remove references to "HelloDoc/Dropbox Sign" in user-facing text
