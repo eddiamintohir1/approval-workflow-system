@@ -1227,5 +1227,14 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Investigate signed_documents table schema mismatch
 - [x] Fix database default values for nullable columns
 - [x] Update createSignedDocument function to handle nullable fields
-- [ ] Test file upload workflow end-to-end
-- [ ] Verify document creation and HelloDoc ID submission
+- [x] Test file upload workflow end-to-end
+- [x] Verify document creation and HelloDoc ID submission
+
+## Phase 74: Upload Progress Indicator
+
+- [x] Add upload progress state (percentage, uploading status)
+- [x] Add Progress component from shadcn/ui
+- [x] Refactor handleUpload to use XMLHttpRequest instead of fetch
+- [x] Track upload progress with event.loaded / event.total
+- [x] Display progress bar with percentage during upload
+- [ ] Test with large files to verify progress tracking

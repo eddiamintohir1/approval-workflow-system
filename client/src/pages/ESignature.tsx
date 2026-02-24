@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, ExternalLink, RefreshCw, Eye, FileSignature, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { useTranslation } from "react-i18next";
 
 export default function ESignature() {
@@ -18,6 +19,7 @@ export default function ESignature() {
   const [signerEmail, setSignerEmail] = useState("");
   const [signerName, setSignerName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedDocId, setUploadedDocId] = useState<string | null>(null);
   const [uploadedDocUrl, setUploadedDocUrl] = useState<string | null>(null);
   const [helloDocId, setHelloDocId] = useState("");
@@ -65,15 +67,42 @@ export default function ESignature() {
 
     try {
       setUploading(true);
+      setUploadProgress(0);
 
-      // Upload file to S3
+      // Upload file to S3 with progress tracking
       const formData = new FormData();
       formData.append("file", file);
-      const uploadResponse = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      
+      const url = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percentComplete);
+          }
+        });
+        
+        xhr.addEventListener("load", () => {
+          if (xhr.status === 200) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response.url);
+            } catch (err) {
+              reject(new Error("Failed to parse upload response"));
+            }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+        
+        xhr.addEventListener("error", () => {
+          reject(new Error("Upload failed"));
+        });
+        
+        xhr.open("POST", "/api/upload");
+        xhr.send(formData);
       });
-      const { url } = await uploadResponse.json();
 
       // Create document record
       const result = await createDocument.mutateAsync({
@@ -91,11 +120,13 @@ export default function ESignature() {
       setDocumentName("");
       setSignerEmail("");
       setSignerName("");
+      setUploadProgress(0);
       
       refetch();
     } catch (error: any) {
       console.error("Upload error:", error);
       alert(`Failed to upload document: ${error.message}`);
+      setUploadProgress(0);
     } finally {
       setUploading(false);
     }
@@ -250,7 +281,7 @@ export default function ESignature() {
             {uploading ? (
               <>
                 <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Uploading...
+                Uploading... {uploadProgress}%
               </>
             ) : (
               <>
@@ -259,6 +290,15 @@ export default function ESignature() {
               </>
             )}
           </Button>
+
+          {uploading && uploadProgress > 0 && (
+            <div className="space-y-2">
+              <Progress value={uploadProgress} className="w-full" />
+              <p className="text-sm text-muted-foreground text-center">
+                Uploading: {uploadProgress}% complete
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
