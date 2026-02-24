@@ -1262,3 +1262,11 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [x] Create E-Materai tab placeholder content
 - [ ] Add E-Materai API integration (waiting for API details from user)
 - [ ] Test tab switching functionality
+
+## Phase 78: Document Queue Admin Access & Navigation Improvements
+
+- [x] Update Document Queue menu visibility to show for both Admin and CFO roles
+- [x] Add User Management access for CFO role in sidebar
+- [x] Add Home button to E-Signature page header
+- [x] Add Home button to Document Queue page header
+- [ ] Test role-based access for both Admin and CFO

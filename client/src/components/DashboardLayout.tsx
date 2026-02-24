@@ -38,7 +38,7 @@ const getMenuItems = (t: (key: string) => string) => [
   { icon: Repeat, label: t('common.myPersonalizedWF'), path: "/my-personalized-workflows" },
   { icon: UserCog, label: t('common.capacity'), path: "/capacity" },
   { icon: FileSignature, label: t('common.eSignature'), path: "/esignature" },
-  { icon: Inbox, label: t('common.documentQueue'), path: "/cfo-document-queue", cfoOnly: true },
+  { icon: Inbox, label: t('common.documentQueue'), path: "/cfo-document-queue", adminOrCfo: true },
   { icon: FolderOpen, label: t('common.documentTemplates'), path: "/document-templates" },
   { icon: BarChart3, label: t('common.analytics'), path: "/analytics" },
 ];
@@ -206,9 +206,9 @@ function DashboardLayoutContent({
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
               {menuItems.filter(item => {
-                // Hide Document Queue from non-CFO users
-                if ((item as any).cfoOnly) {
-                  return userWithRole && userWithRole.role === 'CFO';
+                // Hide Document Queue from non-Admin/CFO users
+                if ((item as any).adminOrCfo) {
+                  return userWithRole && (userWithRole.role === 'CFO' || userWithRole.role === 'admin');
                 }
                 // Hide Capacity and Analytics from Dept Heads and Staff
                 if (['Capacity', 'Analytics'].includes(item.label)) {
@@ -252,7 +252,13 @@ function DashboardLayoutContent({
                   </div>
                 )}
                 <SidebarMenu className="px-2 py-1">
-                  {adminMenuItems.map(item => {
+                  {adminMenuItems.filter(item => {
+                    // Only show User Management to Admin and CFO
+                    if (item.label === t('common.userManagement')) {
+                      return userWithRole && (userWithRole.role === 'admin' || userWithRole.role === 'CFO');
+                    }
+                    return true;
+                  }).map(item => {
                     const isActive = location === item.path;
                     return (
                       <SidebarMenuItem key={item.path}>

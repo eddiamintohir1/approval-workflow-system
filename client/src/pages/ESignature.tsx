@@ -9,12 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, ExternalLink, RefreshCw, Eye, FileSignature, CheckCircle2, Clock, XCircle, AlertCircle } from "lucide-react";
+import { Upload, ExternalLink, RefreshCw, Eye, FileSignature, CheckCircle2, Clock, XCircle, AlertCircle, Home } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "wouter";
 
 export default function ESignature() {
   const { t } = useTranslation();
+  const [, setLocation] = useLocation();
   const [file, setFile] = useState<File | null>(null);
   const [documentName, setDocumentName] = useState("");
   const [signerEmail, setSignerEmail] = useState("");
@@ -196,12 +198,18 @@ export default function ESignature() {
 
   return (
     <div className="container mx-auto py-8 space-y-8">
-      <div className="flex items-center gap-3">
-        <FileSignature className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">{t("common.eSignature")}</h1>
-          <p className="text-muted-foreground">Send documents for electronic signature via HelloDoc/Dropbox Sign</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <FileSignature className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold">{t("common.eSignature")}</h1>
+            <p className="text-muted-foreground">Send documents for electronic signature via HelloDoc/Dropbox Sign</p>
+          </div>
         </div>
+        <Button variant="outline" onClick={() => setLocation("/")}>
+          <Home className="mr-2 h-4 w-4" />
+          Home
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

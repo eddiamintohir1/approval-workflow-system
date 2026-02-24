@@ -4,11 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink, Home, Inbox } from "lucide-react";
 import { format } from "date-fns";
+import { useLocation } from "wouter";
 
 export default function CFODocumentQueue() {
   const { t } = useTranslation();
+  const [, setLocation] = useLocation();
   const { data: documents, isLoading } = trpc.cfoDocumentQueue.getAll.useQuery();
 
   const getStatusBadge = (status: string) => {
@@ -31,12 +33,26 @@ export default function CFODocumentQueue() {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container py-8 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Inbox className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold">Document Queue</h1>
+            <p className="text-muted-foreground">All uploaded documents awaiting Dropbox Sign processing</p>
+          </div>
+        </div>
+        <Button variant="outline" onClick={() => setLocation("/")}>
+          <Home className="mr-2 h-4 w-4" />
+          Home
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Document Queue</CardTitle>
+          <CardTitle>Pending Documents</CardTitle>
           <CardDescription>
-            All uploaded documents awaiting Dropbox Sign processing
+            Download and process these documents in Dropbox Sign
           </CardDescription>
         </CardHeader>
         <CardContent>
