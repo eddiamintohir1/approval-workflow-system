@@ -1275,3 +1275,39 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 
 - [x] Change E-Signature page description text to mention "Compawnion's AWS Cloud"
 - [x] Remove references to "HelloDoc/Dropbox Sign" in user-facing text
+
+## Phase 80: Add Uploader Email to Document Queue
+
+- [ ] Update backend query to include uploader email address
+- [ ] Add uploader email column to Document Queue table
+- [ ] Test display of uploader and signer emails
+
+## Phase 81: E-Materai API Investigation
+
+- [ ] Research E-Materai API documentation
+- [ ] Test API authentication with provided key
+- [ ] Identify API endpoints for stamp purchase and attachment
+- [ ] Document workflow for attaching E-Materai to documents
+- [ ] Report findings and integration approach to user
+
+## Phase 82: OnlinePajak E-Materai Integration
+
+- [ ] Review existing E-Materai schema and tab UI
+- [ ] Store OnlinePajak API key as environment variable
+- [ ] Create webhook endpoint `/api/onlinepajak/webhook`
+- [ ] Handle E-Materai stamped/failed events
+- [ ] Integrate with E-Materai tab UI for document upload and stamping
+- [ ] Test webhook with OnlinePajak sandbox
+- [ ] Document E-Materai workflow for users
+
+## Phase 83: Visual Design System & Navigation Reorganization
+
+- [x] Generate design system recommendations using UI/UX Pro Max
+- [x] Update global CSS variables in index.css (colors, spacing)
+- [x] Update typography and font imports (Lexend + Source Sans 3)
+- [x] Apply flat design principles (remove shadows/gradients)
+- [x] Add micro-interaction animations (50-100ms)
+- [ ] Reorganize sidebar navigation with logical groupings
+- [ ] Add section headers to navigation
+- [ ] Test design across all pages
+- [ ] Save checkpoint

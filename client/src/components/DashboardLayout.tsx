@@ -32,23 +32,32 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 import { StartGuide } from './StartGuide';
 import { useTranslation } from 'react-i18next';
 
+// Navigation organized into logical sections
 const getMenuItems = (t: (key: string) => string) => [
-  { icon: LayoutDashboard, label: t('common.dashboard'), path: "/" },
-  { icon: HelpCircle, label: t('common.startGuide'), path: "#guide", isAction: true },
-  { icon: Repeat, label: t('common.myPersonalizedWF'), path: "/my-personalized-workflows" },
-  { icon: UserCog, label: t('common.capacity'), path: "/capacity" },
-  { icon: FileSignature, label: t('common.eSignature'), path: "/esignature" },
-  { icon: Inbox, label: t('common.documentQueue'), path: "/cfo-document-queue", adminOrCfo: true },
-  { icon: FolderOpen, label: t('common.documentTemplates'), path: "/document-templates" },
-  { icon: BarChart3, label: t('common.analytics'), path: "/analytics" },
+  // Overview Section
+  { icon: LayoutDashboard, label: t('common.dashboard'), path: "/", section: "overview" },
+  { icon: HelpCircle, label: t('common.startGuide'), path: "#guide", isAction: true, section: "overview" },
+  
+  // Workflows Section
+  { icon: Repeat, label: t('common.myPersonalizedWF'), path: "/my-personalized-workflows", section: "workflows" },
+  { icon: UserCog, label: t('common.capacity'), path: "/capacity", section: "workflows" },
+  
+  // Documents Section
+  { icon: FileSignature, label: t('common.eSignature'), path: "/esignature", section: "documents" },
+  { icon: Inbox, label: t('common.documentQueue'), path: "/cfo-document-queue", adminOrCfo: true, section: "documents" },
+  { icon: FolderOpen, label: t('common.documentTemplates'), path: "/document-templates", section: "documents" },
+  
+  // Analytics Section
+  { icon: BarChart3, label: t('common.analytics'), path: "/analytics", section: "analytics" },
 ];
 
+// Administration menu with section grouping
 const getAdminMenuItems = (t: (key: string) => string) => [
-  { icon: Users, label: t('common.userManagement'), path: "/users" },
-  { icon: FileText, label: t('common.workflowTemplates'), path: "/templates" },
-  { icon: FileSpreadsheet, label: t('common.formTemplates'), path: "/admin/form-templates" },
-  { icon: Upload, label: t('common.excelTemplates'), path: "/admin/excel-templates" },
-  { icon: FileEdit, label: t('common.sequenceGenerator'), path: "/admin/sequences" },
+  { icon: Users, label: t('common.userManagement'), path: "/users", section: "admin" },
+  { icon: FileText, label: t('common.workflowTemplates'), path: "/templates", section: "admin" },
+  { icon: FileSpreadsheet, label: t('common.formTemplates'), path: "/admin/form-templates", section: "admin" },
+  { icon: Upload, label: t('common.excelTemplates'), path: "/admin/excel-templates", section: "admin" },
+  { icon: FileEdit, label: t('common.sequenceGenerator'), path: "/admin/sequences", section: "admin" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -204,8 +213,12 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems.filter(item => {
+            {/* Render menu items grouped by section */}
+            {['overview', 'workflows', 'documents', 'analytics'].map(section => {
+              const sectionItems = menuItems.filter(item => {
+                // Filter by section
+                if (item.section !== section) return false;
+                
                 // Hide Document Queue from non-Admin/CFO users
                 if ((item as any).adminOrCfo) {
                   return userWithRole && (userWithRole.role === 'CFO' || userWithRole.role === 'admin');
@@ -215,7 +228,28 @@ function DashboardLayoutContent({
                   return userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'].includes(userWithRole.role);
                 }
                 return true;
-              }).map(item => {
+              });
+              
+              if (sectionItems.length === 0) return null;
+              
+              const sectionTitles: Record<string, string> = {
+                overview: t('common.overview'),
+                workflows: t('common.workflows'),
+                documents: t('common.documents'),
+                analytics: t('common.analytics'),
+              };
+              
+              return (
+                <div key={section}>
+                  {!isCollapsed && section !== 'overview' && (
+                    <div className="px-4 py-2 mt-4">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        {sectionTitles[section]}
+                      </p>
+                    </div>
+                  )}
+                  <SidebarMenu className="px-2 py-1">
+                    {sectionItems.map(item => {
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>
@@ -238,8 +272,11 @@ function DashboardLayoutContent({
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
-              })}
-            </SidebarMenu>
+                    })}
+                  </SidebarMenu>
+                </div>
+              );
+            })}
             
             {/* Admin Menu Section */}
             {userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst', 'PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(userWithRole.role) && (
