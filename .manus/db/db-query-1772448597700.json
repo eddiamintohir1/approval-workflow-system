@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE doc_sequences ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(255) NULL AFTER document_title;\nUPDATE doc_sequences SET recipient_name = TRIM(REPLACE(document_title, 'PKWT - ', '')) WHERE document_type = 'PKWT' AND document_title LIKE 'PKWT - %'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute ALTER TABLE doc_sequences ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(255) NULL AFTER document_title;\nUPDATE doc_sequences SET recipient_name = TRIM(REPLACE(document_title, 'PKWT - ', '')) WHERE document_type = 'PKWT' AND document_title LIKE 'PKWT - %'",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2003
+}

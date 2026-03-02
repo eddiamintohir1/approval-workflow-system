@@ -1311,3 +1311,13 @@ Note: ProjectDetails.tsx page uses old API (projects/milestones) - needs update 
 - [ ] Add section headers to navigation
 - [ ] Test design across all pages
 - [ ] Save checkpoint
+
+## v1.09: Document Sequence Generator Enhancements
+- [ ] Add recipient_name column to doc_sequences table (ALTER TABLE)
+- [ ] Add PKWT to DOCUMENT_TYPES list in router
+- [ ] Add updateDocumentStatus backend mutation
+- [ ] Add year filter to listDocumentSequences query
+- [ ] Add pagination controls to History tab UI
+- [ ] Add document status update dropdown in History table rows
+- [ ] Add Recipient Name field to Generate form
+- [ ] Add Year filter dropdown to Search/History tab

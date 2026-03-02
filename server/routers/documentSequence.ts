@@ -4,8 +4,10 @@
  * Uses MySQL/TiDB (DATABASE_URL) — same database as the rest of the app.
  * Tables: doc_sequences, doc_sequence_counters (created via webdev_execute_sql)
  *
- * Format: XXXX.TYPE/COMPANY/DIVISION/MONTH_ROMAN/YEAR
+ * Format: XXXX.TYPE/COMPANY/DIVISION/MONTH_ROMAN/YEAR  (for non-PKWT)
+ *         NNN/PKWT/COMPANY/DIVISION/MONTH_ROMAN/YEAR   (for PKWT — legacy format)
  * Example: 0001.SOP/CJB/MKT/III/2026
+ *          012/PKWT/CJB/HRD/V/2026
  *
  * NOTE: Do NOT use PostgreSQL (CUSTOM_DATABASE_URL) here.
  * The AWS RDS PostgreSQL is in a private VPC and not reachable from the dev server.
@@ -23,8 +25,8 @@ const mysqlPool = mysql.createPool({
   waitForConnections: true,
 });
 
-// Constants
-const DOCUMENT_TYPES = ["SOP", "IK", "FORM", "SC", "SPK", "NDA", "JPB", "BA", "SK", "RET", "SPG"] as const;
+// Constants — PKWT added for HR employment contracts
+const DOCUMENT_TYPES = ["SOP", "IK", "FORM", "SC", "SPK", "NDA", "JPB", "BA", "SK", "RET", "SPG", "PKWT"] as const;
 const COMPANIES = ["CJB", "CBB", "PJB"] as const;
 const DIVISIONS = ["MKT", "SAL", "OPS", "PRO", "RND", "HRD", "COR", "LOG", "PUR", "FIN", "ACC", "ITS", "PRC"] as const;
 const MONTHS_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"] as const;
@@ -32,6 +34,32 @@ const STATUSES = ["draft", "review", "approved", "effective", "superseded", "obs
 
 function getMonthRoman(month: number): string {
   return MONTHS_ROMAN[month - 1];
+}
+
+function mapRow(r: any) {
+  return {
+    id: r.id,
+    documentNumber: r.document_number,
+    sequenceCounter: r.sequence_counter,
+    documentType: r.document_type,
+    company: r.company,
+    division: r.division,
+    monthRoman: r.month_roman,
+    monthNumeric: r.month_numeric,
+    year: r.year,
+    documentTitle: r.document_title,
+    recipientName: r.recipient_name ?? null,
+    documentDescription: r.document_description,
+    status: r.status,
+    createdBy: r.created_by,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at ?? null,
+    changeHistory: r.change_history
+      ? typeof r.change_history === "string"
+        ? JSON.parse(r.change_history)
+        : r.change_history
+      : [],
+  };
 }
 
 export const documentSequenceRouter = router({
@@ -52,6 +80,7 @@ export const documentSequenceRouter = router({
         company: z.enum(COMPANIES),
         division: z.enum(DIVISIONS),
         documentTitle: z.string().min(1).max(255),
+        recipientName: z.string().max(255).optional(),
         documentDescription: z.string().optional(),
       })
     )
@@ -80,8 +109,16 @@ export const documentSequenceRouter = router({
           [counterId]
         );
         const seqNum: number = (counterRows as any[])[0].current_value;
-        const paddedSeq = String(seqNum).padStart(4, "0");
-        const documentNumber = `${paddedSeq}.${input.documentType}/${input.company}/${input.division}/${monthRoman}/${year}`;
+
+        // Build document number — PKWT uses legacy format NNN/PKWT/COMPANY/DIVISION/MONTH/YEAR
+        let documentNumber: string;
+        if (input.documentType === "PKWT") {
+          const paddedSeq = String(seqNum).padStart(3, "0");
+          documentNumber = `${paddedSeq}/${input.documentType}/${input.company}/${input.division}/${monthRoman}/${year}`;
+        } else {
+          const paddedSeq = String(seqNum).padStart(4, "0");
+          documentNumber = `${paddedSeq}.${input.documentType}/${input.company}/${input.division}/${monthRoman}/${year}`;
+        }
 
         // Insert the document record
         const id = randomUUID();
@@ -92,12 +129,13 @@ export const documentSequenceRouter = router({
         await conn.execute(
           `INSERT INTO doc_sequences
            (id, document_number, sequence_counter, document_type, company, division,
-            month_roman, month_numeric, year, document_title, document_description,
+            month_roman, month_numeric, year, document_title, recipient_name, document_description,
             status, created_by, created_at, change_history)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, NOW(), ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, NOW(), ?)`,
           [
             id, documentNumber, seqNum, input.documentType, input.company,
             input.division, monthRoman, month, year, input.documentTitle,
+            input.recipientName ?? null,
             input.documentDescription ?? null, ctx.user.id.toString(), changeHistory,
           ]
         );
@@ -112,7 +150,7 @@ export const documentSequenceRouter = router({
       }
     }),
 
-  // List document sequences with optional filters
+  // List document sequences with optional filters + pagination
   listDocumentSequences: protectedProcedure
     .input(
       z.object({
@@ -120,9 +158,9 @@ export const documentSequenceRouter = router({
         division: z.enum(DIVISIONS).optional(),
         documentType: z.enum(DOCUMENT_TYPES).optional(),
         status: z.enum(STATUSES).optional(),
-        year: z.number().optional(),
-        limit: z.number().default(50),
-        offset: z.number().default(0),
+        year: z.number().int().min(2000).max(2100).optional(),
+        limit: z.number().int().min(1).max(200).default(20),
+        offset: z.number().int().min(0).default(0),
       })
     )
     .query(async ({ input }) => {
@@ -141,8 +179,9 @@ export const documentSequenceRouter = router({
         `SELECT COUNT(*) as total FROM doc_sequences ${whereClause}`,
         params
       );
-      const total = (countRows as any[])[0].total;
+      const total = Number((countRows as any[])[0].total);
 
+      // Interpolate integers directly — mysql2 prepared statements don't accept LIMIT/OFFSET params
       const limitVal = Math.max(1, Math.min(200, Math.floor(Number(input.limit))));
       const offsetVal = Math.max(0, Math.floor(Number(input.offset)));
       const [rows] = await mysqlPool.execute<any[]>(
@@ -151,25 +190,12 @@ export const documentSequenceRouter = router({
       );
 
       return {
-        data: (rows as any[]).map((r: any) => ({
-          id: r.id,
-          documentNumber: r.document_number,
-          sequenceCounter: r.sequence_counter,
-          documentType: r.document_type,
-          company: r.company,
-          division: r.division,
-          monthRoman: r.month_roman,
-          year: r.year,
-          documentTitle: r.document_title,
-          documentDescription: r.document_description,
-          status: r.status,
-          createdBy: r.created_by,
-          createdAt: r.created_at,
-          changeHistory: r.change_history ? (typeof r.change_history === "string" ? JSON.parse(r.change_history) : r.change_history) : [],
-        })),
+        data: (rows as any[]).map(mapRow),
         total,
-        limit: input.limit,
-        offset: input.offset,
+        limit: limitVal,
+        offset: offsetVal,
+        totalPages: Math.ceil(total / limitVal),
+        currentPage: Math.floor(offsetVal / limitVal) + 1,
       };
     }),
 
@@ -177,22 +203,14 @@ export const documentSequenceRouter = router({
   searchDocumentSequences: protectedProcedure
     .input(z.object({ query: z.string().min(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
+      const limitVal = Math.max(1, Math.min(100, Math.floor(Number(input.limit))));
       const [rows] = await mysqlPool.execute<any[]>(
         `SELECT * FROM doc_sequences
-         WHERE document_number LIKE ? OR document_title LIKE ?
-         ORDER BY created_at DESC LIMIT ?`,
-        [`%${input.query}%`, `%${input.query}%`, input.limit]
+         WHERE document_number LIKE ? OR document_title LIKE ? OR recipient_name LIKE ?
+         ORDER BY created_at DESC LIMIT ${limitVal}`,
+        [`%${input.query}%`, `%${input.query}%`, `%${input.query}%`]
       );
-      return (rows as any[]).map((r: any) => ({
-        id: r.id,
-        documentNumber: r.document_number,
-        documentType: r.document_type,
-        company: r.company,
-        division: r.division,
-        documentTitle: r.document_title,
-        status: r.status,
-        createdAt: r.created_at,
-      }));
+      return (rows as any[]).map(mapRow);
     }),
 
   // Get document sequence by ID
@@ -204,18 +222,7 @@ export const documentSequenceRouter = router({
         [input.id]
       );
       if ((rows as any[]).length === 0) throw new Error("Document sequence not found");
-      const r = (rows as any[])[0];
-      return {
-        id: r.id,
-        documentNumber: r.document_number,
-        documentType: r.document_type,
-        company: r.company,
-        division: r.division,
-        documentTitle: r.document_title,
-        status: r.status,
-        createdAt: r.created_at,
-        changeHistory: r.change_history ? (typeof r.change_history === "string" ? JSON.parse(r.change_history) : r.change_history) : [],
-      };
+      return mapRow((rows as any[])[0]);
     }),
 
   // Update document status
@@ -246,7 +253,7 @@ export const documentSequenceRouter = router({
           userId: ctx.user.id.toString(),
           oldStatus: old.status,
           newStatus: input.status,
-          notes: input.notes,
+          notes: input.notes ?? null,
         },
       ]);
 
@@ -254,13 +261,13 @@ export const documentSequenceRouter = router({
         `UPDATE doc_sequences SET status = ?, updated_by = ?, updated_at = NOW(), change_history = ? WHERE id = ?`,
         [input.status, ctx.user.id.toString(), newHistory, input.id]
       );
-      return { success: true };
+      return { success: true, newStatus: input.status };
     }),
 
   // Get counter statistics
   getCounterStats: protectedProcedure.query(async () => {
     const [rows] = await mysqlPool.execute<any[]>(
-      "SELECT * FROM doc_sequence_counters ORDER BY created_at DESC"
+      "SELECT * FROM doc_sequence_counters ORDER BY year DESC, document_type ASC"
     );
     return (rows as any[]).map((c: any) => ({
       id: c.id,
@@ -270,5 +277,13 @@ export const documentSequenceRouter = router({
       year: c.year,
       currentValue: c.current_value,
     }));
+  }),
+
+  // Get available years for filter dropdown
+  getAvailableYears: protectedProcedure.query(async () => {
+    const [rows] = await mysqlPool.execute<any[]>(
+      "SELECT DISTINCT year FROM doc_sequences ORDER BY year DESC"
+    );
+    return (rows as any[]).map((r: any) => r.year as number);
   }),
 });
