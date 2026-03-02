@@ -1,23 +1,26 @@
 /**
  * Document Sequence Generator Router
  *
- * Uses raw pg Pool queries against CUSTOM_DATABASE_URL (PostgreSQL / AWS RDS).
- * Do NOT use Drizzle ORM here — the document_sequences and sequence_counters
- * tables live in PostgreSQL, while the main Drizzle schema targets MySQL/TiDB.
+ * Uses MySQL/TiDB (DATABASE_URL) — same database as the rest of the app.
+ * Tables: doc_sequences, doc_sequence_counters (created via webdev_execute_sql)
  *
- * Database migration was applied via webdev_execute_sql (see obsidian-vault/06-Database/Migrations.md).
+ * Format: XXXX.TYPE/COMPANY/DIVISION/MONTH_ROMAN/YEAR
+ * Example: 0001.SOP/CJB/MKT/III/2026
+ *
+ * NOTE: Do NOT use PostgreSQL (CUSTOM_DATABASE_URL) here.
+ * The AWS RDS PostgreSQL is in a private VPC and not reachable from the dev server.
  */
 
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
-import { Pool } from "pg";
-import { v4 as uuidv4 } from "uuid";
+import mysql from "mysql2/promise";
+import { randomUUID } from "crypto";
 
-// PostgreSQL pool for document sequences (AWS RDS)
-const pgPool = new Pool({
-  connectionString: process.env.CUSTOM_DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 5,
+// MySQL connection pool (same DATABASE_URL as the rest of the app)
+const mysqlPool = mysql.createPool({
+  uri: process.env.DATABASE_URL!,
+  connectionLimit: 5,
+  waitForConnections: true,
 });
 
 // Constants
@@ -25,68 +28,23 @@ const DOCUMENT_TYPES = ["SOP", "IK", "FORM", "SC", "SPK", "NDA", "JPB", "BA", "S
 const COMPANIES = ["CJB", "CBB", "PJB"] as const;
 const DIVISIONS = ["MKT", "SAL", "OPS", "PRO", "RND", "HRD", "COR", "LOG", "PUR", "FIN", "ACC", "ITS", "PRC"] as const;
 const MONTHS_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"] as const;
+const STATUSES = ["draft", "review", "approved", "effective", "superseded", "obsolete"] as const;
 
-function getMonthRoman(monthNum: number): string {
-  if (monthNum < 1 || monthNum > 12) throw new Error("Invalid month number");
-  return MONTHS_ROMAN[monthNum - 1];
-}
-
-async function getNextSequenceNumber(
-  documentType: string,
-  company: string,
-  division: string,
-  year: number,
-  monthNumeric: number
-): Promise<number> {
-  const counterId = `${documentType}-${company}-${division}-${year}-${monthNumeric}`;
-  const client = await pgPool.connect();
-  try {
-    // Check if counter exists
-    const existing = await client.query(
-      "SELECT current_value FROM sequence_counters WHERE id = $1",
-      [counterId]
-    );
-
-    if (existing.rows.length > 0) {
-      const nextValue = (existing.rows[0].current_value || 0) + 1;
-      await client.query(
-        "UPDATE sequence_counters SET current_value = $1, updated_at = NOW() WHERE id = $2",
-        [nextValue, counterId]
-      );
-      return nextValue;
-    } else {
-      await client.query(
-        `INSERT INTO sequence_counters (id, prefix, department, document_type, current_value, format_pattern, reset_period, last_reset_at, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 1, $5, 'monthly', NOW(), NOW(), NOW())`,
-        [
-          counterId,
-          `${company}-${division}`,
-          division,
-          documentType,
-          `XXXX.${documentType}/${company}/${division}/MM/YYYY`,
-        ]
-      );
-      return 1;
-    }
-  } finally {
-    client.release();
-  }
-}
-
-function formatDocumentNumber(
-  sequenceNum: number,
-  documentType: string,
-  company: string,
-  division: string,
-  monthRoman: string,
-  year: number
-): string {
-  const paddedSeq = String(sequenceNum).padStart(4, "0");
-  return `${paddedSeq}.${documentType}/${company}/${division}/${monthRoman}/${year}`;
+function getMonthRoman(month: number): string {
+  return MONTHS_ROMAN[month - 1];
 }
 
 export const documentSequenceRouter = router({
-  // Generate a new document sequence number
+  // Get constants for UI dropdowns
+  getConstants: protectedProcedure.query(() => ({
+    documentTypes: [...DOCUMENT_TYPES],
+    companies: [...COMPANIES],
+    divisions: [...DIVISIONS],
+    documentStatuses: [...STATUSES],
+    monthsRoman: [...MONTHS_ROMAN],
+  })),
+
+  // Generate a new document number
   generateDocumentNumber: protectedProcedure
     .input(
       z.object({
@@ -98,81 +56,70 @@ export const documentSequenceRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const monthNumeric = now.getMonth() + 1;
-      const monthRoman = getMonthRoman(monthNumeric);
-
-      const sequenceNum = await getNextSequenceNumber(
-        input.documentType,
-        input.company,
-        input.division,
-        year,
-        monthNumeric
-      );
-
-      const documentNumber = formatDocumentNumber(
-        sequenceNum,
-        input.documentType,
-        input.company,
-        input.division,
-        monthRoman,
-        year
-      );
-
-      const id = uuidv4();
-      const userId = ctx.user.id.toString();
-      const changeHistory = JSON.stringify([
-        {
-          action: "created",
-          timestamp: now.toISOString(),
-          userId,
-          changes: "Document sequence generated",
-        },
-      ]);
-
-      const client = await pgPool.connect();
+      const conn = await mysqlPool.getConnection();
       try {
-        await client.query(
-          `INSERT INTO document_sequences
-            (id, document_number, sequence_counter, document_type, company, division,
-             month_roman, month_numeric, year, revision_number, document_title,
-             document_description, status, created_by, created_at, change_history)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,'draft',$12,$13,$14::jsonb)`,
+        await conn.beginTransaction();
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        const monthRoman = getMonthRoman(month);
+        const counterId = `${input.documentType}-${input.company}-${input.division}-${year}`;
+
+        // Atomic upsert: increment counter or insert with value 1
+        await conn.execute(
+          `INSERT INTO doc_sequence_counters (id, document_type, company, division, year, current_value, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())
+           ON DUPLICATE KEY UPDATE current_value = current_value + 1, updated_at = NOW()`,
+          [counterId, input.documentType, input.company, input.division, year]
+        );
+
+        // Read the updated counter value
+        const [counterRows] = await conn.execute<any[]>(
+          "SELECT current_value FROM doc_sequence_counters WHERE id = ?",
+          [counterId]
+        );
+        const seqNum: number = (counterRows as any[])[0].current_value;
+        const paddedSeq = String(seqNum).padStart(4, "0");
+        const documentNumber = `${paddedSeq}.${input.documentType}/${input.company}/${input.division}/${monthRoman}/${year}`;
+
+        // Insert the document record
+        const id = randomUUID();
+        const changeHistory = JSON.stringify([
+          { action: "created", timestamp: now.toISOString(), userId: ctx.user.id.toString() },
+        ]);
+
+        await conn.execute(
+          `INSERT INTO doc_sequences
+           (id, document_number, sequence_counter, document_type, company, division,
+            month_roman, month_numeric, year, document_title, document_description,
+            status, created_by, created_at, change_history)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, NOW(), ?)`,
           [
-            id, documentNumber, sequenceNum, input.documentType, input.company,
-            input.division, monthRoman, monthNumeric, year, input.documentTitle,
-            input.documentDescription || null, userId, now, changeHistory,
+            id, documentNumber, seqNum, input.documentType, input.company,
+            input.division, monthRoman, month, year, input.documentTitle,
+            input.documentDescription ?? null, ctx.user.id.toString(), changeHistory,
           ]
         );
-      } finally {
-        client.release();
-      }
 
-      return {
-        id,
-        documentNumber,
-        sequenceCounter: sequenceNum,
-        documentType: input.documentType,
-        company: input.company,
-        division: input.division,
-        monthRoman,
-        monthNumeric,
-        year,
-        documentTitle: input.documentTitle,
-        status: "draft",
-        createdAt: now,
-      };
+        await conn.commit();
+        return { id, documentNumber, sequenceNumber: seqNum };
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
+      }
     }),
 
-  // List all document sequences with filters
+  // List document sequences with optional filters
   listDocumentSequences: protectedProcedure
     .input(
       z.object({
         company: z.enum(COMPANIES).optional(),
         division: z.enum(DIVISIONS).optional(),
         documentType: z.enum(DOCUMENT_TYPES).optional(),
-        status: z.enum(["draft", "review", "approved", "effective", "superseded", "obsolete"]).optional(),
+        status: z.enum(STATUSES).optional(),
         year: z.number().optional(),
         limit: z.number().default(50),
         offset: z.number().default(0),
@@ -180,156 +127,146 @@ export const documentSequenceRouter = router({
     )
     .query(async ({ input }) => {
       const conditions: string[] = [];
-      const params: unknown[] = [];
-      let paramIdx = 1;
+      const params: any[] = [];
 
-      if (input.company) { conditions.push(`company = $${paramIdx++}`); params.push(input.company); }
-      if (input.division) { conditions.push(`division = $${paramIdx++}`); params.push(input.division); }
-      if (input.documentType) { conditions.push(`document_type = $${paramIdx++}`); params.push(input.documentType); }
-      if (input.status) { conditions.push(`status = $${paramIdx++}`); params.push(input.status); }
-      if (input.year) { conditions.push(`year = $${paramIdx++}`); params.push(input.year); }
+      if (input.company) { conditions.push("company = ?"); params.push(input.company); }
+      if (input.division) { conditions.push("division = ?"); params.push(input.division); }
+      if (input.documentType) { conditions.push("document_type = ?"); params.push(input.documentType); }
+      if (input.status) { conditions.push("status = ?"); params.push(input.status); }
+      if (input.year) { conditions.push("year = ?"); params.push(input.year); }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-      const client = await pgPool.connect();
-      try {
-        const countResult = await client.query(
-          `SELECT COUNT(*) as total FROM document_sequences ${whereClause}`,
-          params
-        );
-        const total = parseInt(countResult.rows[0].total, 10);
+      const [countRows] = await mysqlPool.execute<any[]>(
+        `SELECT COUNT(*) as total FROM doc_sequences ${whereClause}`,
+        params
+      );
+      const total = (countRows as any[])[0].total;
 
-        const dataParams = [...params, input.limit, input.offset];
-        const results = await client.query(
-          `SELECT * FROM document_sequences ${whereClause}
-           ORDER BY created_at DESC
-           LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-          dataParams
-        );
+      const [rows] = await mysqlPool.execute<any[]>(
+        `SELECT * FROM doc_sequences ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [...params, input.limit, input.offset]
+      );
 
-        return { data: results.rows, total, limit: input.limit, offset: input.offset };
-      } finally {
-        client.release();
-      }
+      return {
+        data: (rows as any[]).map((r: any) => ({
+          id: r.id,
+          documentNumber: r.document_number,
+          sequenceCounter: r.sequence_counter,
+          documentType: r.document_type,
+          company: r.company,
+          division: r.division,
+          monthRoman: r.month_roman,
+          year: r.year,
+          documentTitle: r.document_title,
+          documentDescription: r.document_description,
+          status: r.status,
+          createdBy: r.created_by,
+          createdAt: r.created_at,
+          changeHistory: r.change_history ? (typeof r.change_history === "string" ? JSON.parse(r.change_history) : r.change_history) : [],
+        })),
+        total,
+        limit: input.limit,
+        offset: input.offset,
+      };
     }),
 
   // Search document sequences
   searchDocumentSequences: protectedProcedure
     .input(z.object({ query: z.string().min(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
-      const client = await pgPool.connect();
-      try {
-        const results = await client.query(
-          `SELECT * FROM document_sequences
-           WHERE document_number ILIKE $1 OR document_title ILIKE $1
-           ORDER BY created_at DESC
-           LIMIT $2`,
-          [`%${input.query}%`, input.limit]
-        );
-        return results.rows;
-      } finally {
-        client.release();
-      }
+      const [rows] = await mysqlPool.execute<any[]>(
+        `SELECT * FROM doc_sequences
+         WHERE document_number LIKE ? OR document_title LIKE ?
+         ORDER BY created_at DESC LIMIT ?`,
+        [`%${input.query}%`, `%${input.query}%`, input.limit]
+      );
+      return (rows as any[]).map((r: any) => ({
+        id: r.id,
+        documentNumber: r.document_number,
+        documentType: r.document_type,
+        company: r.company,
+        division: r.division,
+        documentTitle: r.document_title,
+        status: r.status,
+        createdAt: r.created_at,
+      }));
     }),
 
   // Get document sequence by ID
   getDocumentSequence: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
-      const client = await pgPool.connect();
-      try {
-        const result = await client.query(
-          "SELECT * FROM document_sequences WHERE id = $1",
-          [input.id]
-        );
-        if (result.rows.length === 0) throw new Error("Document sequence not found");
-        return result.rows[0];
-      } finally {
-        client.release();
-      }
+      const [rows] = await mysqlPool.execute<any[]>(
+        "SELECT * FROM doc_sequences WHERE id = ?",
+        [input.id]
+      );
+      if ((rows as any[]).length === 0) throw new Error("Document sequence not found");
+      const r = (rows as any[])[0];
+      return {
+        id: r.id,
+        documentNumber: r.document_number,
+        documentType: r.document_type,
+        company: r.company,
+        division: r.division,
+        documentTitle: r.document_title,
+        status: r.status,
+        createdAt: r.created_at,
+        changeHistory: r.change_history ? (typeof r.change_history === "string" ? JSON.parse(r.change_history) : r.change_history) : [],
+      };
     }),
 
-  // Update document sequence status
+  // Update document status
   updateDocumentStatus: protectedProcedure
     .input(
       z.object({
         id: z.string(),
-        status: z.enum(["draft", "review", "approved", "effective", "superseded", "obsolete"]),
+        status: z.enum(STATUSES),
         notes: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const now = new Date();
-      const userId = ctx.user.id.toString();
-      const client = await pgPool.connect();
-      try {
-        const existing = await client.query(
-          "SELECT * FROM document_sequences WHERE id = $1",
-          [input.id]
-        );
-        if (existing.rows.length === 0) throw new Error("Document sequence not found");
+      const [existing] = await mysqlPool.execute<any[]>(
+        "SELECT * FROM doc_sequences WHERE id = ?",
+        [input.id]
+      );
+      if ((existing as any[]).length === 0) throw new Error("Document sequence not found");
 
-        const oldHistory = existing.rows[0].change_history || [];
-        const newHistory = JSON.stringify([
-          ...oldHistory,
-          {
-            action: "status_updated",
-            timestamp: now.toISOString(),
-            userId,
-            oldStatus: existing.rows[0].status,
-            newStatus: input.status,
-            notes: input.notes,
-          },
-        ]);
+      const old = (existing as any[])[0];
+      const oldHistory = old.change_history
+        ? (typeof old.change_history === "string" ? JSON.parse(old.change_history) : old.change_history)
+        : [];
+      const newHistory = JSON.stringify([
+        ...oldHistory,
+        {
+          action: "status_updated",
+          timestamp: new Date().toISOString(),
+          userId: ctx.user.id.toString(),
+          oldStatus: old.status,
+          newStatus: input.status,
+          notes: input.notes,
+        },
+      ]);
 
-        await client.query(
-          `UPDATE document_sequences
-           SET status = $1, updated_by = $2, updated_at = $3, change_history = $4::jsonb
-           WHERE id = $5`,
-          [input.status, userId, now, newHistory, input.id]
-        );
-        return { success: true };
-      } finally {
-        client.release();
-      }
+      await mysqlPool.execute(
+        `UPDATE doc_sequences SET status = ?, updated_by = ?, updated_at = NOW(), change_history = ? WHERE id = ?`,
+        [input.status, ctx.user.id.toString(), newHistory, input.id]
+      );
+      return { success: true };
     }),
 
-  // Get sequence counter statistics
-  getCounterStats: protectedProcedure
-    .input(
-      z.object({
-        company: z.enum(COMPANIES).optional(),
-        division: z.enum(DIVISIONS).optional(),
-        year: z.number().optional(),
-      })
-    )
-    .query(async ({ input }) => {
-      const client = await pgPool.connect();
-      try {
-        const result = await client.query("SELECT * FROM sequence_counters ORDER BY created_at DESC");
-        const filtered = result.rows.filter((counter) => {
-          if (input.company && !counter.prefix?.includes(input.company)) return false;
-          if (input.division && !counter.prefix?.includes(input.division)) return false;
-          return true;
-        });
-        return filtered.map((c) => ({
-          id: c.id,
-          prefix: c.prefix,
-          documentType: c.document_type,
-          currentValue: c.current_value,
-          lastReset: c.last_reset_at,
-        }));
-      } finally {
-        client.release();
-      }
-    }),
-
-  // Get constants for UI
-  getConstants: protectedProcedure.query(() => ({
-    documentTypes: DOCUMENT_TYPES,
-    companies: COMPANIES,
-    divisions: DIVISIONS,
-    documentStatuses: ["draft", "review", "approved", "effective", "superseded", "obsolete"],
-    monthsRoman: MONTHS_ROMAN,
-  })),
+  // Get counter statistics
+  getCounterStats: protectedProcedure.query(async () => {
+    const [rows] = await mysqlPool.execute<any[]>(
+      "SELECT * FROM doc_sequence_counters ORDER BY created_at DESC"
+    );
+    return (rows as any[]).map((c: any) => ({
+      id: c.id,
+      documentType: c.document_type,
+      company: c.company,
+      division: c.division,
+      year: c.year,
+      currentValue: c.current_value,
+    }));
+  }),
 });

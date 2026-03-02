@@ -58,20 +58,20 @@ export default function DocumentSequenceGenerator() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
-    company: "",
-    division: "",
-    documentType: "",
-    status: "",
+    company: "all",
+    division: "all",
+    documentType: "all",
+    status: "all",
   });
 
   // tRPC queries and mutations
   const { data: constants } = trpc.documentSequence.getConstants.useQuery();
   const { mutate: generateNumber, isPending: isGenerating } = trpc.documentSequence.generateDocumentNumber.useMutation();
   const { data: documents, refetch: refetchDocuments } = trpc.documentSequence.listDocumentSequences.useQuery({
-    company: filters.company ? (filters.company as any) : undefined,
-    division: filters.division ? (filters.division as any) : undefined,
-    documentType: filters.documentType ? (filters.documentType as any) : undefined,
-    status: filters.status ? (filters.status as any) : undefined,
+    company: filters.company && filters.company !== "all" ? (filters.company as any) : undefined,
+    division: filters.division && filters.division !== "all" ? (filters.division as any) : undefined,
+    documentType: filters.documentType && filters.documentType !== "all" ? (filters.documentType as any) : undefined,
+    status: filters.status && filters.status !== "all" ? (filters.status as any) : undefined,
   });
   const { data: searchResults } = trpc.documentSequence.searchDocumentSequences.useQuery(
     { query: searchQuery },
@@ -298,7 +298,7 @@ export default function DocumentSequenceGenerator() {
                     <SelectValue placeholder="Filter by company" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Companies</SelectItem>
+                    <SelectItem value="all">All Companies</SelectItem>
                     {constants?.companies.map((company) => (
                       <SelectItem key={company} value={company}>
                         {company}
@@ -312,7 +312,7 @@ export default function DocumentSequenceGenerator() {
                     <SelectValue placeholder="Filter by division" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Divisions</SelectItem>
+                    <SelectItem value="all">All Divisions</SelectItem>
                     {constants?.divisions.map((division) => (
                       <SelectItem key={division} value={division}>
                         {division}
@@ -326,7 +326,7 @@ export default function DocumentSequenceGenerator() {
                     <SelectValue placeholder="Filter by type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Types</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
                     {constants?.documentTypes.map((type) => (
                       <SelectItem key={type} value={type}>
                         {type}
@@ -340,7 +340,7 @@ export default function DocumentSequenceGenerator() {
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Statuses</SelectItem>
+                    <SelectItem value="all">All Statuses</SelectItem>
                     {constants?.documentStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
                         {status}
