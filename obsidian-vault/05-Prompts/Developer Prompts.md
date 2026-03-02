@@ -5,141 +5,198 @@ tags: [prompts, ai, developer, handoff]
 
 # Developer Prompts for Next AI Agent
 
-> [!info] How to Use
-> These prompts are ready-to-use instructions for a developer AI (Claude, GPT-4, etc.) to implement specific features. Copy the prompt and paste it directly into the AI agent's context along with the project context from this vault.
+> [!danger] CRITICAL — Read Before Anything Else
+> **NEVER use `pnpm drizzle-kit generate` or `pnpm drizzle-kit push` interactively.**
+> The existing schema has many tables. Running drizzle-kit interactively causes conflicts requiring hundreds of manual confirmations.
+> **For ALL database changes: write raw SQL → apply via `webdev_execute_sql` tool in Manus.**
+> See [[../06-Database/Migrations]] for the full guide.
+
+---
+
+## 🔴 Critical Rules Block (paste this at the start of every new chat)
+
+```
+CRITICAL DATABASE RULES FOR THIS PROJECT:
+
+1. NEVER run `pnpm drizzle-kit generate` or `pnpm drizzle-kit push` interactively.
+   The existing schema has conflicts that require hundreds of manual confirmations.
+
+2. This project has TWO databases:
+   - MySQL/TiDB (DATABASE_URL): Main Drizzle ORM tables → use server/db.ts
+   - PostgreSQL/AWS RDS (CUSTOM_DATABASE_URL): Document sequences → raw pg Pool
+
+3. For ALL database changes (both MySQL and PostgreSQL):
+   a. Write the raw SQL manually (CREATE TABLE IF NOT EXISTS / ALTER TABLE ... ADD COLUMN IF NOT EXISTS)
+   b. Apply it using the webdev_execute_sql tool in Manus
+   c. For MySQL: also update drizzle/schema.ts with the TypeScript definition
+   d. For PostgreSQL: write a raw pg Pool router in server/routers/ (see documentSequence.ts)
+
+4. The PostgreSQL database is in a private VPC. pg queries from the sandbox terminal
+   will time out. Only webdev_execute_sql can reach it.
+
+5. The project uses tRPC. All backend procedures are in server/routers.ts
+   (or sub-routers in server/routers/*.ts). Never use REST endpoints.
+```
+
+---
+
+## Prompt: General Context Handoff
+
+```
+You are continuing development of the WFMT (Workflow Management Tool) for Compawnion.
+
+PROJECT: Multi-Layer Approval Workflow System
+GITHUB: https://github.com/eddiamintohir1/approval-workflow-system
+LIVE URL: https://wfmt.compawnion.id
+MANUS PROJECT PATH: /home/ubuntu/approval_workflow_system
+
+TECH STACK:
+- Frontend: React 19 + Tailwind 4 + shadcn/ui + wouter routing
+- Backend: Express 4 + tRPC 11 (procedures in server/routers.ts or server/routers/*.ts)
+- Primary DB: MySQL/TiDB via Drizzle ORM (DATABASE_URL)
+- Secondary DB: PostgreSQL/AWS RDS via raw pg Pool (CUSTOM_DATABASE_URL)
+- Auth: AWS Cognito (@compawnion.co emails only)
+- File Storage: AWS S3 (bucket: compawnion-approval-forms)
+- E-Signature: Dropbox Sign / HelloDoc API
+
+CRITICAL: Never use `pnpm drizzle-kit generate` interactively.
+For ALL DB changes: write raw SQL → apply via webdev_execute_sql tool.
+See obsidian-vault/06-Database/Migrations.md for the full migration guide.
+
+Current version: v1.07
+Last checkpoint: 282a2428
+
+Please read obsidian-vault/HOME.md for full context before starting.
+```
+
+---
+
+## Prompt: Add a New Feature
+
+```
+I need to add [FEATURE NAME] to the WFMT approval workflow system.
+
+Context:
+- tRPC + React + MySQL/TiDB project
+- Backend procedures go in server/routers.ts (or server/routers/featureName.ts)
+- Frontend pages go in client/src/pages/
+- Navigation is in client/src/components/DashboardLayout.tsx
+
+DATABASE RULE: NEVER use drizzle-kit interactively.
+Write raw SQL → apply via webdev_execute_sql → update drizzle/schema.ts manually.
+
+Standard workflow:
+1. Write raw SQL for new tables/columns
+2. Apply via webdev_execute_sql
+3. Update drizzle/schema.ts with TypeScript definition (for MySQL tables)
+4. Add tRPC procedures in server/routers/featureName.ts
+5. Import and wire into server/routers.ts appRouter
+6. Build UI in client/src/pages/FeatureName.tsx
+7. Add route in client/src/App.tsx
+8. Add nav item in DashboardLayout.tsx (with section property)
+9. Add translations to en.json and id.json
+
+Feature requirements:
+[DESCRIBE YOUR FEATURE HERE]
+```
+
+---
+
+## Prompt: Document Sequence Generator (v1.07)
+
+```
+The Document Sequence Generator feature was implemented in v1.07.
+
+Files:
+- server/routers/documentSequence.ts — tRPC router using raw pg Pool (PostgreSQL)
+- client/src/pages/DocumentSequenceGenerator.tsx — React UI
+- Route: /document-sequence
+- Nav: Documents section → "Doc Sequence Generator" (Hash icon)
+
+Database: PostgreSQL (CUSTOM_DATABASE_URL = AWS RDS)
+Tables: document_sequences, sequence_counters
+These tables are in PostgreSQL, NOT in the MySQL/TiDB Drizzle schema.
+
+Format: XXXX.TYPE/COMPANY/DIVISION/MONTH_ROMAN/YEAR
+Example: 0001.SOP/CJB/MKT/III/2026
+
+Document types: SOP, IK, FORM, SC, SPK, NDA, JPB, BA, SK, RET, SPG
+Companies: CJB (Compawnion Jadi Berkat), CBB (Compawnion Bersama Berkembang), PJB (PT Jadi Berkat)
+Divisions: MKT, SAL, OPS, PRO, RND, HRD, COR, LOG, PUR, FIN, ACC, ITS, PRC
+```
 
 ---
 
 ## Prompt: Implement E-Materai Integration
 
 ```
-You are implementing E-Materai (Indonesian electronic stamp) integration for the WFMT system (Compawnion Jadi Berkat Workflow Hub).
+You are implementing E-Materai (Indonesian electronic stamp) integration for the WFMT system.
 
 CONTEXT:
-- Stack: React + TypeScript + Vite, tRPC, Drizzle ORM (PostgreSQL), AWS S3
+- Stack: React + TypeScript + Vite, tRPC, Drizzle ORM (MySQL), AWS S3
 - The E-Materai tab already exists in client/src/pages/ESignature.tsx as a placeholder
-- OnlinePajak API key is stored in environment variable (check server/_core/env.ts)
+- OnlinePajak API key: stored as ONLINEPAJAK_API_KEY env variable
 - White-labeling rule: Do NOT mention "OnlinePajak" in the UI — use "Compawnion's E-Stamp Service"
+- STATUS: Account not yet activated — implement only when account is confirmed active
+
+DATABASE RULE: Write raw SQL → apply via webdev_execute_sql (NEVER drizzle-kit interactively)
 
 TASKS:
-1. Create a new database table `ematerai_documents` in drizzle/schema.ts with fields: id, documentName, recipientEmail, recipientName, senderEmail, workflowId (nullable), status (enum: pending|stamped|failed), uploadedS3Key, uploadedS3Url, stampedS3Key (nullable), stampedS3Url (nullable), onlinePajakId (nullable), createdAt
-2. Generate and apply the migration
-3. Create tRPC procedures in server/routers/emateraiDocuments.ts: createStampRequest, checkStatus, getAll, getBySender
-4. Implement the E-Materai tab UI in client/src/pages/ESignature.tsx replacing the placeholder
-5. Add webhook endpoint POST /api/ematerai/webhook in server/_core/index.ts
-6. Add translations to client/src/locales/en.json and id.json
-
-IMPORTANT: Follow the same pattern as the existing e-signature hybrid workflow in server/routers/signedDocuments.ts
+1. Write SQL for new table `ematerai_documents`, apply via webdev_execute_sql
+2. Update drizzle/schema.ts with the TypeScript definition
+3. Create tRPC procedures in server/routers/emateraiDocuments.ts
+4. Implement the E-Materai tab UI in client/src/pages/ESignature.tsx
+5. Add webhook endpoint in server/_core/index.ts
+6. Add translations to en.json and id.json
 ```
 
 ---
 
-## Prompt: Add Workflow Visualization
+## Prompt: Fix a Bug
 
 ```
-You are adding workflow visualization to the WFMT system (Compawnion Jadi Berkat Workflow Hub).
+There is a bug in the WFMT system:
 
-CONTEXT:
-- Stack: React + TypeScript + Vite, tRPC, Drizzle ORM (PostgreSQL)
-- Design system: Flat Design, Primary color #0D9488 (Teal), no shadows/gradients
-- Existing tables: workflows, workflow_stages, workflow_approvals
+[DESCRIBE THE BUG]
 
-TASKS:
-1. Create a WorkflowTimeline component in client/src/components/WorkflowTimeline.tsx
-   - Horizontal step indicator showing all stages
-   - Current stage highlighted with teal (#0D9488)
-   - Completed stages: green checkmark
-   - Rejected stages: red X
-   - Pending stages: gray circle
-2. Add approval history section below the timeline
-   - Show approver name, role, decision, timestamp, and comment for each stage
-3. Integrate into the workflow detail page/modal
-4. Use Chart.js or D3.js if any data visualization is needed
-5. Ensure bilingual support (add keys to en.json and id.json)
+Steps to reproduce:
+1. [STEP 1]
+2. [STEP 2]
 
-IMPORTANT: Follow the flat design system — no card shadows, no gradients, use the teal color palette from client/src/index.css
+Expected: [WHAT SHOULD HAPPEN]
+Actual: [WHAT IS HAPPENING]
+
+Project path: /home/ubuntu/approval_workflow_system
+GitHub: https://github.com/eddiamintohir1/approval-workflow-system
+
+DATABASE RULE: Do NOT use drizzle-kit interactively for any DB changes.
+Use webdev_execute_sql for all SQL operations.
 ```
 
 ---
 
-## Prompt: Add Dashboard Analytics Charts
+## Environment Variables Reference
 
 ```
-You are upgrading the Analytics page of the WFMT system (Compawnion Jadi Berkat Workflow Hub).
+# Auth (AWS Cognito)
+VITE_COGNITO_REGION=ap-southeast-1
+JWT_SECRET=6LYNmAg7rVQSkvsWGZUt3e
 
-CONTEXT:
-- Stack: React + TypeScript + Vite, tRPC, Drizzle ORM (PostgreSQL), Chart.js already available
-- Design system: Flat Design, Primary #0D9488 (Teal), Accent #F97316 (Orange)
-- Analytics page: client/src/pages/Analytics.tsx
-- Access: Admin, CEO, CFO, COO, Exec Asst only
+# Primary DB (MySQL/TiDB — Drizzle ORM)
+DATABASE_URL=mysql://...
 
-TASKS:
-1. Add tRPC procedures in server/routers.ts for analytics data:
-   - workflowsByStatus (count per status)
-   - workflowsByDepartment (count per department)
-   - workflowsOverTime (count per week for last 12 weeks)
-   - avgApprovalTime (average days from creation to completion)
-2. Implement Chart.js charts in Analytics.tsx:
-   - Donut chart: workflow status distribution
-   - Bar chart: workflows by department
-   - Line chart: workflows created over time
-   - KPI cards: total, in-progress, completed this month, avg approval time
-3. Use the teal color palette for charts: #0D9488, #14B8A6, #F97316, #134E4A
-4. Ensure bilingual support
+# Secondary DB (PostgreSQL — raw pg Pool only)
+CUSTOM_DATABASE_URL=postgresql://cattodomain:...@corporate-database-1.cluster-...rds.amazonaws.com:5432/workflow_db
 
-IMPORTANT: Only use real data from the database. Never fabricate or hardcode numbers.
-```
+# AWS S3
+AWS_REGION=us-west-2
+AWS_S3_BUCKET=compawnion-approval-forms
+AWS_ACCESS_KEY_ID=AKIAWLMXL64ZV5Q4XNLQ
+AWS_SECRET_ACCESS_KEY=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
 
----
+# E-Signature (Dropbox Sign / HelloDoc)
+HELLODOC_API_KEY=3b1bada35cbb5e8d505571e191fc70ccd011a35d5dc8e9d94c257a6870732449
 
-## Prompt: Fix or Extend Role-Based Access
-
-```
-You are modifying role-based access control in the WFMT system (Compawnion Jadi Berkat Workflow Hub).
-
-CONTEXT:
-- Roles are stored in the `users` table (role column), NOT in Cognito groups
-- Current roles: admin, CFO, CEO, COO, Exec Asst, Manager, PPIC, Purchasing, Finance, Sales, Brand Manager, PR Manager, GA, R&D, Marketing, Operations, Staff, Vendor
-- Role context: client/src/contexts/UserRoleContext.tsx
-- Nav visibility: client/src/components/DashboardLayout.tsx
-- Backend enforcement: use ctx.user in tRPC procedures
-
-TO ADD A NEW ROLE:
-1. Add to the role validation array in server/routers.ts
-2. Update nav visibility rules in DashboardLayout.tsx
-3. Update access control in relevant page components
-4. Update the role list in client/src/pages/Users.tsx (user management dropdown)
-5. Add to this documentation
-
-TO RESTRICT A FEATURE TO SPECIFIC ROLES:
-- Frontend: check userWithRole.role in the component
-- Backend: add role check in the tRPC procedure using ctx.user
-```
-
----
-
-## Prompt: General Feature Addition
-
-```
-You are adding a new feature to the WFMT system (Compawnion Jadi Berkat Workflow Hub).
-
-CONTEXT:
-- GitHub: https://github.com/eddiamintohir1/approval-workflow-system
-- Stack: React 19 + TypeScript, Vite, tRPC 11, Drizzle ORM, PostgreSQL (Supabase), AWS S3, Tailwind CSS 4, shadcn/ui
-- Design: Flat Design, Primary #0D9488 Teal, no shadows/gradients, Lexend + Source Sans 3 fonts
-- Auth: AWS Cognito, @compawnion.co emails only
-- Bilingual: en.json + id.json in client/src/locales/
-- White-labeling: Never mention AWS/S3/Dropbox Sign/OnlinePajak in UI
-
-STANDARD WORKFLOW FOR NEW FEATURES:
-1. Update drizzle/schema.ts if new tables needed
-2. Run pnpm drizzle-kit generate, apply migration via webdev_execute_sql
-3. Add query helpers to server/db.ts
-4. Add tRPC procedures to server/routers/ (new file if large feature)
-5. Import new router in server/routers.ts
-6. Build UI in client/src/pages/FeatureName.tsx
-7. Add route in client/src/App.tsx
-8. Add nav item in client/src/components/DashboardLayout.tsx (with section property)
-9. Add translations to en.json and id.json
-10. Write vitest tests in server/*.test.ts
+# E-Materai (OnlinePajak — NOT YET ACTIVE)
+ONLINEPAJAK_API_KEY=AYYYZh6Q4nJU3sRPqeAGGVLDA8KzNrRw
 ```
