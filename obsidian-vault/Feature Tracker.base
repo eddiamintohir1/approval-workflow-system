@@ -1,0 +1,18 @@
+views:
+  - type: table
+    name: All Features
+    order:
+      - file.name
+      - status
+      - tags
+    filters:
+      not:
+        - 'file.name == "HOME"'
+  - type: cards
+    name: By Status
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - tags

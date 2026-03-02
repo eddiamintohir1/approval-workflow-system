@@ -1,0 +1,14 @@
+{
+  "legacyEditor": false,
+  "livePreview": true,
+  "defaultViewMode": "source",
+  "foldHeading": true,
+  "foldIndent": true,
+  "showFrontmatter": false,
+  "promptDelete": true,
+  "trashOption": "local",
+  "useMarkdownLinks": false,
+  "newFileLocation": "current",
+  "attachmentFolderPath": "attachments",
+  "alwaysUpdateLinks": true
+}

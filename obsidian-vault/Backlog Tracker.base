@@ -1,0 +1,21 @@
+filters:
+  or:
+    - file.hasTag("backlog")
+    - file.hasTag("next-steps")
+    - file.hasTag("todo")
+
+views:
+  - type: table
+    name: All Tasks
+    order:
+      - file.name
+      - status
+      - tags
+  - type: cards
+    name: By Priority
+    groupBy:
+      property: status
+      direction: ASC
+    order:
+      - file.name
+      - tags
