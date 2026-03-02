@@ -7,6 +7,7 @@
     "eSignature": "Tanda Tangan Elektronik",
     "documentQueue": "Antrian Dokumen",
     "documentTemplates": "Template Dokumen",
+    "documentSequence": "Generator Nomor Dokumen",
     "analytics": "Analitik",
     "overview": "Ikhtisar",
     "workflows": "Alur Kerja",

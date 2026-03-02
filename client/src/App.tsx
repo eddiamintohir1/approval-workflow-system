@@ -28,6 +28,7 @@ import RecurringWorkflowCreate from "./pages/RecurringWorkflowCreate";
 import RecurringWorkflowEdit from "./pages/RecurringWorkflowEdit";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import DocumentSequenceGenerator from "./pages/DocumentSequenceGenerator";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
@@ -86,6 +87,7 @@ function Router() {
         <ProtectedRoute component={FormTemplateBuilder} path="/admin/form-templates/new" />
       </Route>
       <Route path="/admin/sequences" component={() => <ProtectedRoute component={SequenceGenerator} path="/admin/sequences" />} />
+      <Route path="/document-sequence" component={() => <ProtectedRoute component={DocumentSequenceGenerator} path="/document-sequence" />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} path="/analytics" />} />
       <Route path="/capacity">
         <ProtectedRoute component={Capacity} path="/capacity" />

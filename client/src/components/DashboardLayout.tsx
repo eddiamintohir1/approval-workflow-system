@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload, Repeat, FileSignature, FolderOpen, Inbox } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload, Repeat, FileSignature, FolderOpen, Inbox, Hash } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -46,6 +46,7 @@ const getMenuItems = (t: (key: string) => string) => [
   { icon: FileSignature, label: t('common.eSignature'), path: "/esignature", section: "documents" },
   { icon: Inbox, label: t('common.documentQueue'), path: "/cfo-document-queue", adminOrCfo: true, section: "documents" },
   { icon: FolderOpen, label: t('common.documentTemplates'), path: "/document-templates", section: "documents" },
+  { icon: Hash, label: t('common.documentSequence'), path: "/document-sequence", section: "documents" },
   
   // Analytics Section
   { icon: BarChart3, label: t('common.analytics'), path: "/analytics", section: "analytics" },

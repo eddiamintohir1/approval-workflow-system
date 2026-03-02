@@ -3,11 +3,14 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { systemRouter } from "./_core/systemRouter";
 import * as db from "./db";
+import * as schema from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 import { storagePut, storageGet } from "./storage";
 import { randomUUID } from "crypto";
 import { withCache, CACHE_TTL, invalidateAnalyticsCache } from "./analyticsCache";
 import { triggerRemindersNow } from "./reminderScheduler";
 import { sendMilestoneCompletionEmail, sendCompletionEmail, sendRejectionEmail } from "./email";
+import { documentSequenceRouter } from "./routers/documentSequence";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -2394,6 +2397,11 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ============================================
+  // Document Sequence Generator
+  // ============================================
+  documentSequence: documentSequenceRouter,
 });
 
 // ============================================
