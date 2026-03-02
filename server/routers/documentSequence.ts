@@ -143,9 +143,11 @@ export const documentSequenceRouter = router({
       );
       const total = (countRows as any[])[0].total;
 
+      const limitVal = Math.max(1, Math.min(200, Math.floor(Number(input.limit))));
+      const offsetVal = Math.max(0, Math.floor(Number(input.offset)));
       const [rows] = await mysqlPool.execute<any[]>(
-        `SELECT * FROM doc_sequences ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-        [...params, Number(input.limit), Number(input.offset)]
+        `SELECT * FROM doc_sequences ${whereClause} ORDER BY created_at DESC LIMIT ${limitVal} OFFSET ${offsetVal}`,
+        params
       );
 
       return {
