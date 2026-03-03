@@ -1,6 +1,22 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint, index, date } from "drizzle-orm/mysql-core";
 
 /**
+ * ⚠️ GUARDRAIL — DATABASE SCHEMA SOURCE OF TRUTH
+ *
+ * This file defines ALL MySQL/TiDB table structures for the WFMT application.
+ *
+ * RULES FOR EDITING THIS FILE:
+ * 1. NEVER drop or rename existing columns — it will break all queries referencing them.
+ * 2. To add a column: add it here AND apply the SQL via webdev_execute_sql:
+ *    ALTER TABLE <table> ADD COLUMN <col> <type>;
+ * 3. NEVER run `pnpm drizzle-kit push` or `pnpm drizzle-kit generate` interactively.
+ *    The database has pre-existing tables that will conflict with Drizzle's migration prompts.
+ * 4. The doc_sequences and doc_sequence_counters tables are NOT in this file —
+ *    they were created directly via webdev_execute_sql (see obsidian-vault/06-Database/Migrations.md).
+ * 5. Copyright © Compawnion Jadi Berkat | IP: Eddie Amintohir
+ */
+
+/**
  * =====================================================
  * USERS TABLE
  * Synced from AWS Cognito

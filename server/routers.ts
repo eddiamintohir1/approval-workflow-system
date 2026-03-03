@@ -268,9 +268,15 @@ const templatesRouter = router({
     }),
 });
 
+// ⚠️ GUARDRAIL: appRouter is the SINGLE root tRPC router for the entire application.
+// All procedures MUST be nested inside this router.
+// DO NOT create a second router() call at the top level.
+// To add a new feature router, import it and add it as a sub-router here:
+//   myFeature: myFeatureRouter,
+// The AppRouter type (exported below) is the source of truth for the frontend client.
 export const appRouter = router({
   system: systemRouter,
-  
+
   // ============================================
   // Authentication
   // ============================================
@@ -2476,4 +2482,7 @@ async function createInitialStages(workflowId: string,
 
 
 
+// ⚠️ GUARDRAIL: AppRouter is the source of truth for the tRPC client type.
+// The frontend imports this type via: import type { AppRouter } from '../../server/routers';
+// Renaming or removing this export will break ALL frontend tRPC calls.
 export type AppRouter = typeof appRouter;

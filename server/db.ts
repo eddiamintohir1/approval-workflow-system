@@ -15,8 +15,11 @@ export type AuditLog = schema.AuditLog;
 export type EmailRecipient = schema.EmailRecipient;
 export type SequenceCounter = schema.SequenceCounter;
 
-// Database connection
-const connection = mysql.createPool({
+// ⚠️ GUARDRAIL: This is the SINGLE MySQL connection pool for the entire application.
+// DO NOT create additional mysql.createPool() instances in other files.
+// Import `mysqlPool` from this file to run raw SQL queries in other modules.
+// Changing the pool config here affects ALL database operations app-wide.
+export const mysqlPool = mysql.createPool({
   uri: process.env.DATABASE_URL!,
   connectionLimit: 10,
   waitForConnections: true,
@@ -24,7 +27,7 @@ const connection = mysql.createPool({
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
 });
-export const db = drizzle(connection, { schema, mode: "default" });
+export const db = drizzle(mysqlPool, { schema, mode: "default" });
 
 // ============================================
 // User Management

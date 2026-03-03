@@ -15,15 +15,9 @@
 
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
-import mysql from "mysql2/promise";
 import { randomUUID } from "crypto";
-
-// MySQL connection pool (same DATABASE_URL as the rest of the app)
-const mysqlPool = mysql.createPool({
-  uri: process.env.DATABASE_URL!,
-  connectionLimit: 5,
-  waitForConnections: true,
-});
+// ✅ Reuse the shared MySQL pool from db.ts — do NOT create a new pool here.
+import { mysqlPool } from "../db";
 
 // Constants — PKWT added for HR employment contracts
 const DOCUMENT_TYPES = ["SOP", "IK", "FORM", "SC", "SPK", "NDA", "JPB", "BA", "SK", "RET", "SPG", "PKWT"] as const;
