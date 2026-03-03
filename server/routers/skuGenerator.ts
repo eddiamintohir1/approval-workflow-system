@@ -1,7 +1,7 @@
 import { router, publicProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
-import { mysqlPool } from "../db";
+import { db } from "../db";
 import { skuCategories, skuCounters, skus } from "../../drizzle/schema";
 import { eq, and, like, desc } from "drizzle-orm";
 
@@ -15,7 +15,7 @@ export const skuGeneratorRouter = router({
    */
   getCategories: publicProcedure.query(async () => {
     try {
-      const categories = await mysqlPool
+      const categories = await db
         .select()
         .from(skuCategories)
         .where(eq(skuCategories.isActive, true))
@@ -42,7 +42,7 @@ export const skuGeneratorRouter = router({
     .mutation(async ({ input }) => {
       try {
         // Get category details
-        const category = await mysqlPool
+        const category = await db
           .select()
           .from(skuCategories)
           .where(eq(skuCategories.id, input.categoryId))
@@ -55,7 +55,7 @@ export const skuGeneratorRouter = router({
         const categoryData = category[0];
 
         // Get current counter for this category
-        const counterResult = await mysqlPool
+        const counterResult = await db
           .select()
           .from(skuCounters)
           .where(eq(skuCounters.categoryId, input.categoryId))
@@ -77,7 +77,7 @@ export const skuGeneratorRouter = router({
         const skuId = uuidv4();
         const now = new Date();
 
-        await mysqlPool.insert(skus).values({
+        await db.insert(skus).values({
           id: skuId,
           skuCode,
           categoryId: input.categoryId,
@@ -92,7 +92,7 @@ export const skuGeneratorRouter = router({
         });
 
         // Update counter
-        await mysqlPool
+        await db
           .update(skuCounters)
           .set({
             currentCounter: nextSequence,
@@ -131,7 +131,7 @@ export const skuGeneratorRouter = router({
     )
     .query(async ({ input }) => {
       try {
-        let query = mysqlPool.select().from(skus);
+        let query = db.select().from(skus);
 
         // Build WHERE conditions
         const conditions = [];
@@ -156,7 +156,7 @@ export const skuGeneratorRouter = router({
         }
 
         // Get total count
-        const countResult = await mysqlPool
+        const countResult = await db
           .select({ count: skus.id })
           .from(skus)
           .where(conditions.length > 0 ? and(...conditions) : undefined);
@@ -188,7 +188,7 @@ export const skuGeneratorRouter = router({
     .input(z.object({ skuId: z.string() }))
     .query(async ({ input }) => {
       try {
-        const sku = await mysqlPool
+        const sku = await db
           .select()
           .from(skus)
           .where(eq(skus.id, input.skuId))
@@ -199,7 +199,7 @@ export const skuGeneratorRouter = router({
         }
 
         // Get category details
-        const category = await mysqlPool
+        const category = await db
           .select()
           .from(skuCategories)
           .where(eq(skuCategories.id, sku[0].categoryId))
@@ -228,7 +228,7 @@ export const skuGeneratorRouter = router({
     )
     .query(async ({ input }) => {
       try {
-        const results = await mysqlPool
+        const results = await db
           .select()
           .from(skus)
           .where(eq(skus.categoryId, input.categoryId))
@@ -255,7 +255,7 @@ export const skuGeneratorRouter = router({
     .input(z.object({ categoryId: z.string() }))
     .query(async ({ input }) => {
       try {
-        const counter = await mysqlPool
+        const counter = await db
           .select()
           .from(skuCounters)
           .where(eq(skuCounters.categoryId, input.categoryId))
@@ -284,7 +284,7 @@ export const skuGeneratorRouter = router({
     )
     .query(async ({ input }) => {
       try {
-        let query = mysqlPool.select().from(skus);
+        let query = db.select().from(skus);
 
         const conditions = [];
         if (input.categoryId) {
