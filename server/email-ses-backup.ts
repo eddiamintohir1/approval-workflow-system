@@ -1,16 +1,12 @@
 /**
- * ⚠️ DEPRECATED — DO NOT IMPORT OR USE THIS FILE.
- *
- * This is an archived backup of the old AWS SES direct-call email implementation.
- * It is NOT imported anywhere in the active codebase.
- *
- * Active email services:
- *   - server/email.ts         → Nodemailer + SES (primary, used in routers.ts)
- *   - server/emailService.ts  → SendGrid-based service
- *
- * This file is kept for historical reference only.
- * It is safe to delete if storage is a concern.
- *
+ * Email Notification Service using AWS SES
+ * 
+ * Sends workflow notifications for:
+ * - Milestone completion (notify next approver)
+ * - Workflow rejection (notify creator)
+ * - Workflow completion (notify all stakeholders)
+ * - Reminder notifications (deadline approaching)
+ * 
  * Copyright © Compawnion Jadi Berkat
  * IP: Eddie Amintohir
  */

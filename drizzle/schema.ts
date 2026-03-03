@@ -1,22 +1,6 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint, index, date } from "drizzle-orm/mysql-core";
 
 /**
- * ⚠️ GUARDRAIL — DATABASE SCHEMA SOURCE OF TRUTH
- *
- * This file defines ALL MySQL/TiDB table structures for the WFMT application.
- *
- * RULES FOR EDITING THIS FILE:
- * 1. NEVER drop or rename existing columns — it will break all queries referencing them.
- * 2. To add a column: add it here AND apply the SQL via webdev_execute_sql:
- *    ALTER TABLE <table> ADD COLUMN <col> <type>;
- * 3. NEVER run `pnpm drizzle-kit push` or `pnpm drizzle-kit generate` interactively.
- *    The database has pre-existing tables that will conflict with Drizzle's migration prompts.
- * 4. The doc_sequences and doc_sequence_counters tables are NOT in this file —
- *    they were created directly via webdev_execute_sql (see obsidian-vault/06-Database/Migrations.md).
- * 5. Copyright © Compawnion Jadi Berkat | IP: Eddie Amintohir
- */
-
-/**
  * =====================================================
  * USERS TABLE
  * Synced from AWS Cognito
@@ -817,3 +801,75 @@ export const documentTemplates = mysqlTable("document_templates", {
 
 export type DocumentTemplate = typeof documentTemplates.$inferSelect;
 export type InsertDocumentTemplate = typeof documentTemplates.$inferInsert;
+
+/**
+ * =====================================================
+ * SKU_CATEGORIES TABLE
+ * Product categories with prefixes for SKU generation
+ * =====================================================
+ */
+export const skuCategories = mysqlTable("sku_categories", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  prefix: varchar("prefix", { length: 10 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+}, (table) => ({
+  prefixIdx: index("idx_prefix").on(table.prefix),
+  isActiveIdx: index("idx_is_active").on(table.isActive),
+}));
+
+export type SkuCategory = typeof skuCategories.$inferSelect;
+export type InsertSkuCategory = typeof skuCategories.$inferInsert;
+
+/**
+ * =====================================================
+ * SKU_COUNTERS TABLE
+ * Tracks sequence counter per SKU category
+ * =====================================================
+ */
+export const skuCounters = mysqlTable("sku_counters", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  categoryId: varchar("category_id", { length: 36 }).notNull(),
+  currentCounter: int("current_counter").default(0).notNull(),
+  resetDate: date("reset_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+}, (table) => ({
+  categoryIdIdx: index("idx_category_id").on(table.categoryId),
+  uniqueCategoryCounter: index("unique_category_counter").on(table.categoryId),
+}));
+
+export type SkuCounter = typeof skuCounters.$inferSelect;
+export type InsertSkuCounter = typeof skuCounters.$inferInsert;
+
+/**
+ * =====================================================
+ * SKUS TABLE
+ * Generated SKU codes with metadata
+ * =====================================================
+ */
+export const skus = mysqlTable("skus", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  skuCode: varchar("sku_code", { length: 50 }).notNull().unique(),
+  categoryId: varchar("category_id", { length: 36 }).notNull(),
+  prefix: varchar("prefix", { length: 10 }).notNull(),
+  sequenceNumber: int("sequence_number").notNull(),
+  productName: varchar("product_name", { length: 500 }),
+  description: text("description"),
+  status: varchar("status", { length: 50 }).default("active").notNull(),
+  createdBy: int("created_by").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+}, (table) => ({
+  skuCodeIdx: index("idx_sku_code").on(table.skuCode),
+  categoryIdIdx: index("idx_category_id").on(table.categoryId),
+  prefixIdx: index("idx_prefix").on(table.prefix),
+  statusIdx: index("idx_status").on(table.status),
+  createdAtIdx: index("idx_created_at").on(table.createdAt),
+}));
+
+export type Sku = typeof skus.$inferSelect;
+export type InsertSku = typeof skus.$inferInsert;

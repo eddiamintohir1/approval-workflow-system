@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE doc_sequences ADD COLUMN month INT NULL AFTER year;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute ALTER TABLE doc_sequences ADD COLUMN month INT NULL AFTER year;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1773
-}

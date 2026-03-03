@@ -14,11 +14,13 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Download, RefreshCw, Plus } from "lucide-react";
+import SkuGeneratorTab from "./SkuGeneratorTab";
 
-type SequenceType = "MAF" | "PR" | "CATTO" | "SKU" | "PAF";
+type SequenceType = "MAF" | "PR" | "CATTO" | "SKU" | "PAF" | "PRODUCT_SKU";
 
 export default function SequenceGenerator() {
   const [activeTab, setActiveTab] = useState<SequenceType>("MAF");
+  const [showProductSku, setShowProductSku] = useState(false);
   
   const { data: allSequences, refetch } = trpc.sequences.getAll.useQuery();
   const generateSequence = trpc.sequences.generate.useMutation();
@@ -99,16 +101,20 @@ export default function SequenceGenerator() {
       </div>
       
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SequenceType)}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="MAF">MAF</TabsTrigger>
           <TabsTrigger value="PR">PR</TabsTrigger>
           <TabsTrigger value="CATTO">CATTO</TabsTrigger>
           <TabsTrigger value="SKU">SKU</TabsTrigger>
           <TabsTrigger value="PAF">PAF</TabsTrigger>
-        </TabsList>
-        
-        {(["MAF", "PR", "CATTO", "SKU", "PAF"] as SequenceType[]).map(type => (
-          <TabsContent key={type} value={type} className="mt-6">
+          <TabsTrigger value="PRODUCT_SKU">Product SKU</TabsTrigger>
+        </TabsList>        {/* Product SKU Tab */}
+        <TabsContent value="PRODUCT_SKU" className="mt-6">
+          <SkuGeneratorTab />
+        </TabsContent>
+
+        {([
+          "MAF", "PR", "CATTO", "SKU", "PAF"] as SequenceType[]).map(type => (          <TabsContent key={type} value={type} className="mt-6">
             <Card className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>

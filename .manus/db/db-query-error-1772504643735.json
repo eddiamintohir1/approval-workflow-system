@@ -1,8 +1,0 @@
-{
-  "query": "INSERT INTO doc_sequence_counters (id, document_type, company, year, current_value, updated_at)\nSELECT \n  CONCAT(document_type, '-CJB-', year) as id,\n  document_type,\n  'CJB' as company,\n  year,\n  MAX(sequence_number) as current_value,\n  NOW() as updated_at\nFROM doc_sequences\nWHERE created_by = 'historical_import'\nGROUP BY document_type, year\nON DUPLICATE KEY UPDATE \n  current_value = GREATEST(current_value, VALUES(current_value)),\n  updated_at = NOW();",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute INSERT INTO doc_sequence_counters (id, document_type, company, year, current_value, updated_at)\nSELECT \n  CONCAT(document_type, '-CJB-', year) as id,\n  document_type,\n  'CJB' as company,\n  year,\n  MAX(sequence_number) as current_value,\n  NOW() as updated_at\nFROM doc_sequences\nWHERE created_by = 'historical_import'\nGROUP BY document_type, year\nON DUPLICATE KEY UPDATE \n  current_value = GREATEST(current_value, VALUES(current_value)),\n  updated_at = NOW();",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1052 (23000) at line 1: Column 'current_value' in field list is ambiguous"
-  ]
-}

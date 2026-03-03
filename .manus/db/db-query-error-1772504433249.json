@@ -1,8 +1,0 @@
-{
-  "query": "ALTER TABLE doc_sequences \n  ADD COLUMN IF NOT EXISTS month INT NULL AFTER year,\n  ADD COLUMN IF NOT EXISTS sequence_number INT NOT NULL DEFAULT 0 AFTER month,\n  ADD COLUMN IF NOT EXISTS created_by VARCHAR(100) NULL AFTER created_at;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute ALTER TABLE doc_sequences \n  ADD COLUMN IF NOT EXISTS month INT NULL AFTER year,\n  ADD COLUMN IF NOT EXISTS sequence_number INT NOT NULL DEFAULT 0 AFTER month,\n  ADD COLUMN IF NOT EXISTS created_by VARCHAR(100) NULL AFTER created_at;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'month' in 'doc_sequences'"
-  ]
-}
