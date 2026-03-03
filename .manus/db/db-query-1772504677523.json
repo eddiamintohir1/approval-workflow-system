@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO doc_sequence_counters (id, document_type, company, division, year, current_value, created_at, updated_at)\nSELECT \n  CONCAT(ds.document_type, '-', ds.company, '-', ds.division, '-', ds.year) as id,\n  ds.document_type,\n  ds.company,\n  ds.division,\n  ds.year,\n  MAX(ds.sequence_number) as current_value,\n  NOW() as created_at,\n  NOW() as updated_at\nFROM doc_sequences ds\nWHERE ds.created_by = 'historical_import'\nGROUP BY ds.document_type, ds.company, ds.division, ds.year\nON DUPLICATE KEY UPDATE \n  current_value = GREATEST(doc_sequence_counters.current_value, VALUES(current_value)),\n  updated_at = NOW();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute INSERT INTO doc_sequence_counters (id, document_type, company, division, year, current_value, created_at, updated_at)\nSELECT \n  CONCAT(ds.document_type, '-', ds.company, '-', ds.division, '-', ds.year) as id,\n  ds.document_type,\n  ds.company,\n  ds.division,\n  ds.year,\n  MAX(ds.sequence_number) as current_value,\n  NOW() as created_at,\n  NOW() as updated_at\nFROM doc_sequences ds\nWHERE ds.created_by = 'historical_import'\nGROUP BY ds.document_type, ds.company, ds.division, ds.year\nON DUPLICATE KEY UPDATE \n  current_value = GREATEST(doc_sequence_counters.current_value, VALUES(current_value)),\n  updated_at = NOW();",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1560
+}
