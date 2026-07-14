@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE signed_documents MODIFY COLUMN status ENUM('pending', 'signed', 'rejected', 'expired', 'awaiting_hellodoc_id') NOT NULL DEFAULT 'pending';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute ALTER TABLE signed_documents MODIFY COLUMN status ENUM('pending', 'signed', 'rejected', 'expired', 'awaiting_hellodoc_id') NOT NULL DEFAULT 'pending';",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1658
-}

@@ -11,7 +11,7 @@ tags: [architecture, api, integrations]
 
 | Detail | Value |
 |--------|-------|
-| API Key | `3b1bada35cbb5e8d505571e191fc70ccd011a35d5dc8e9d94c257a6870732449` |
+| API Key | Stored in the deployment secret manager; never commit the value |
 | Account | eddie.amintohir@compawnion.co |
 | Env Variable | `HELLODOC_API_KEY` |
 | Integration File | `server/hellodoc.ts` |
@@ -40,7 +40,7 @@ The `POST /v3/signature_request/send` endpoint is intentionally not used. Users 
 
 | Detail | Value |
 |--------|-------|
-| API Key | `AYYYZh6Q4nJU3sRPqeAGGVLDA8KzNrRw` |
+| API Key | Stored in the deployment secret manager; never commit the value |
 | Status | **PAUSED** — account not yet activated |
 | Env Variable | Check `server/_core/env.ts` |
 | API Docs | https://www.onlinepajak.com/api |

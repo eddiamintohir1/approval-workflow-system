@@ -12,6 +12,8 @@ import { triggerRemindersNow } from "./reminderScheduler";
 import { sendMilestoneCompletionEmail, sendCompletionEmail, sendRejectionEmail } from "./email";
 import { documentSequenceRouter } from "./routers/documentSequence";
 import { skuGeneratorRouter } from "./routers/skuGenerator";
+import { COOKIE_NAME } from "@shared/const";
+import { getSessionCookieOptions } from "./_core/cookies";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -278,8 +280,11 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     
-    logout: publicProcedure.mutation(async () => {
-      // Cognito logout is handled on the frontend
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      ctx.res.clearCookie(COOKIE_NAME, {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: -1,
+      });
       return { success: true };
     }),
     
@@ -1562,89 +1567,6 @@ export const appRouter = router({
         
         return { success: true };
       }),
-  }),
-
-  // ============================================
-  // Capacity Dashboard
-  // ============================================
-  capacity: router({
-    getByUser: protectedProcedure.query(async () => {
-      // Get all workflows
-      const workflows = await db.getAllWorkflows();
-      
-      // Group workflows by current stage approver
-      const capacityMap = new Map<string, any[]>();
-      
-      for (const workflow of workflows) {
-        // Skip completed, rejected, or discontinued workflows
-        if (['completed', 'rejected', 'discontinued'].includes(workflow.overallStatus)) {
-          continue;
-        }
-        
-        const stages = await db.getStagesByWorkflow(workflow.id);
-        const currentStage = stages.find(s => s.status === 'in_progress');
-        
-        if (currentStage && currentStage.requiredRole) {
-          const role = currentStage.requiredRole;
-          
-          if (!capacityMap.has(role)) {
-            capacityMap.set(role, []);
-          }
-          
-          // Calculate time metrics
-          const now = new Date();
-          const plannedEndDate = workflow.plannedEndDate ? new Date(workflow.plannedEndDate) : null;
-          const plannedStartDate = workflow.plannedStartDate ? new Date(workflow.plannedStartDate) : null;
-          const createdAt = new Date(workflow.createdAt);
-          
-          let daysRemaining = null;
-          let totalDays = null;
-          let progressPercent = 0;
-          let isOverdue = false;
-          
-          if (plannedEndDate) {
-            daysRemaining = Math.ceil((plannedEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            isOverdue = daysRemaining < 0;
-          }
-          
-          if (plannedStartDate && plannedEndDate) {
-            totalDays = Math.ceil((plannedEndDate.getTime() - plannedStartDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
-          
-          // Calculate progress based on completed stages
-          const completedStages = stages.filter(s => s.status === 'completed').length;
-          progressPercent = Math.round((completedStages / stages.length) * 100);
-          
-          capacityMap.get(role)!.push({
-            ...workflow,
-            currentStage: currentStage.stageName,
-            daysRemaining,
-            totalDays,
-            progressPercent,
-            isOverdue,
-            completedStages,
-            totalStages: stages.length,
-          });
-        }
-      }
-      
-      // Convert map to array of user capacity objects
-      const capacityData = Array.from(capacityMap.entries()).map(([role, workflows]) => ({
-        role,
-        workflowCount: workflows.length,
-        workflows: workflows.sort((a, b) => {
-          // Sort by overdue first, then by days remaining
-          if (a.isOverdue && !b.isOverdue) return -1;
-          if (!a.isOverdue && b.isOverdue) return 1;
-          if (a.daysRemaining !== null && b.daysRemaining !== null) {
-            return a.daysRemaining - b.daysRemaining;
-          }
-          return 0;
-        }),
-      }));
-      
-      return capacityData;
-    }),
   }),
 
   // ============================================

@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE `document_templates` (\n  `id` varchar(36) PRIMARY KEY,\n  `name` varchar(255) NOT NULL,\n  `description` text,\n  `category` varchar(100),\n  `s3_key` varchar(1000) NOT NULL,\n  `s3_url` text NOT NULL,\n  `file_type` varchar(50) NOT NULL,\n  `created_by` int NOT NULL,\n  `is_active` boolean NOT NULL DEFAULT true,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE `document_templates` (\n  `id` varchar(36) PRIMARY KEY,\n  `name` varchar(255) NOT NULL,\n  `description` text,\n  `category` varchar(100),\n  `s3_key` varchar(1000) NOT NULL,\n  `s3_url` text NOT NULL,\n  `file_type` varchar(50) NOT NULL,\n  `created_by` int NOT NULL,\n  `is_active` boolean NOT NULL DEFAULT true,\n  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 2442
-}

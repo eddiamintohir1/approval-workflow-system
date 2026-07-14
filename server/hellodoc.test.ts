@@ -4,7 +4,7 @@ import { getAccountInfo } from "./hellodoc";
 describe("Dropbox Sign API Integration", () => {
   it("should have HELLODOC_API_KEY environment variable set", () => {
     expect(process.env.HELLODOC_API_KEY).toBeDefined();
-    expect(process.env.HELLODOC_API_KEY).toBe("3b1bada35cbb5e8d505571e191fc70ccd011a35d5dc8e9d94c257a6870732449");
+    expect(process.env.HELLODOC_API_KEY).toBeTruthy();
   });
 
   it("should validate API key format", () => {

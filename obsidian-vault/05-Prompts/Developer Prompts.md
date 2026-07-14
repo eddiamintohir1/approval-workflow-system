@@ -180,7 +180,7 @@ Use webdev_execute_sql for all SQL operations.
 ```
 # Auth (AWS Cognito)
 VITE_COGNITO_REGION=ap-southeast-1
-JWT_SECRET=6LYNmAg7rVQSkvsWGZUt3e
+JWT_SECRET=<set-in-secret-manager>
 
 # Primary DB (MySQL/TiDB — Drizzle ORM)
 DATABASE_URL=mysql://...
@@ -191,12 +191,12 @@ CUSTOM_DATABASE_URL=postgresql://cattodomain:...@corporate-database-1.cluster-..
 # AWS S3
 AWS_REGION=us-west-2
 AWS_S3_BUCKET=compawnion-approval-forms
-AWS_ACCESS_KEY_ID=AKIAWLMXL64ZV5Q4XNLQ
-AWS_SECRET_ACCESS_KEY=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
+AWS_ACCESS_KEY_ID=<set-in-secret-manager>
+AWS_SECRET_ACCESS_KEY=<set-in-secret-manager>
 
 # E-Signature (Dropbox Sign / HelloDoc)
-HELLODOC_API_KEY=3b1bada35cbb5e8d505571e191fc70ccd011a35d5dc8e9d94c257a6870732449
+HELLODOC_API_KEY=<set-in-secret-manager>
 
 # E-Materai (OnlinePajak — NOT YET ACTIVE)
-ONLINEPAJAK_API_KEY=AYYYZh6Q4nJU3sRPqeAGGVLDA8KzNrRw
+ONLINEPAJAK_API_KEY=<set-in-secret-manager>
 ```

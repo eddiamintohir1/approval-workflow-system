@@ -2460,10 +2460,10 @@ export async function getAllSignedDocumentsForCFO() {
       signerName: schema.signedDocuments.signerName,
       status: schema.signedDocuments.status,
       createdAt: schema.signedDocuments.createdAt,
-      uploaderName: schema.user.name,
-      uploaderEmail: schema.user.email,
+      uploaderName: schema.users.fullName,
+      uploaderEmail: schema.users.email,
     })
     .from(schema.signedDocuments)
-    .leftJoin(schema.user, eq(schema.signedDocuments.signerId, schema.user.id))
+    .leftJoin(schema.users, eq(schema.signedDocuments.signerId, schema.users.id))
     .orderBy(desc(schema.signedDocuments.createdAt));
 }

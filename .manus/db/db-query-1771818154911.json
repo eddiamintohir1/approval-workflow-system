@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `email_logs` (\n  `id` varchar(36) PRIMARY KEY,\n  `recipient_email` varchar(255) NOT NULL,\n  `subject` text NOT NULL,\n  `template` enum('milestone_completion', 'workflow_rejection', 'workflow_completion', 'deadline_reminder') NOT NULL,\n  `workflow_id` varchar(36),\n  `status` enum('sent', 'failed') NOT NULL,\n  `message_id` varchar(255),\n  `error_message` text,\n  `sent_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  INDEX `idx_workflow_id` (`workflow_id`),\n  INDEX `idx_recipient_email` (`recipient_email`),\n  INDEX `idx_sent_at` (`sent_at`)\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user Y8fKT2LsvR8QMXV.893c95ef4fb6 --database CpEi2h5S6ugwixFhxmPzAJ --execute CREATE TABLE IF NOT EXISTS `email_logs` (\n  `id` varchar(36) PRIMARY KEY,\n  `recipient_email` varchar(255) NOT NULL,\n  `subject` text NOT NULL,\n  `template` enum('milestone_completion', 'workflow_rejection', 'workflow_completion', 'deadline_reminder') NOT NULL,\n  `workflow_id` varchar(36),\n  `status` enum('sent', 'failed') NOT NULL,\n  `message_id` varchar(255),\n  `error_message` text,\n  `sent_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  INDEX `idx_workflow_id` (`workflow_id`),\n  INDEX `idx_recipient_email` (`recipient_email`),\n  INDEX `idx_sent_at` (`sent_at`)\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1581
-}
