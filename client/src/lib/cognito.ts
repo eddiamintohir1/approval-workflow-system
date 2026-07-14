@@ -5,9 +5,16 @@ import {
   CognitoUserAttribute,
 } from 'amazon-cognito-identity-js';
 
+// Cognito pool and app client IDs are public application identifiers. Keeping
+// the current production IDs as fallbacks prevents a missing Vercel build-time
+// variable from turning the entire application into a blank page.
 const poolData = {
-  UserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || '',
-  ClientId: import.meta.env.VITE_COGNITO_CLIENT_ID || '',
+  UserPoolId:
+    import.meta.env.VITE_COGNITO_USER_POOL_ID ||
+    "ap-southeast-1_spVxra543",
+  ClientId:
+    import.meta.env.VITE_COGNITO_CLIENT_ID ||
+    "1ipgf1ad3mdft7mdott6c60230",
 };
 
 export const userPool = new CognitoUserPool(poolData);
@@ -16,6 +23,7 @@ export interface CognitoAuthUser {
   email: string;
   sub: string;
   idToken: string;
+  fullName?: string;
 }
 
 export const cognitoAuth = {
@@ -64,6 +72,7 @@ export const cognitoAuth = {
                 email: payload.email,
                 sub: payload.sub,
                 idToken,
+                fullName: payload.name || payload.email,
               });
             },
             onFailure: (err: any) => {
@@ -128,6 +137,7 @@ export const cognitoAuth = {
           email: payload.email,
           sub: payload.sub,
           idToken,
+          fullName: payload.name || payload.email,
         });
       });
     });

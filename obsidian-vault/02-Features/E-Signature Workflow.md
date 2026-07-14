@@ -60,7 +60,7 @@ The e-signature feature uses a **hybrid approach** to minimize API costs. Docume
 
 ## API Credentials
 
-- **Dropbox Sign API Key**: `3b1bada35cbb5e8d505571e191fc70ccd011a35d5dc8e9d94c257a6870732449`
+- **Dropbox Sign API Key**: stored in the deployment secret manager; never commit the value
 - **Account**: eddie.amintohir@compawnion.co (verified)
 - **Env variable**: `HELLODOC_API_KEY`
 
