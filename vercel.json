@@ -1,0 +1,11 @@
+{
+  "installCommand": "corepack pnpm@10.4.1 install --frozen-lockfile",
+  "buildCommand": "corepack pnpm@10.4.1 build",
+  "outputDirectory": "dist/public",
+  "rewrites": [
+    {
+      "source": "/((?!api/.*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
