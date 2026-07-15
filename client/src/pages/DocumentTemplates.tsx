@@ -71,7 +71,7 @@ export default function DocumentTemplates() {
         method: "POST",
         body: formData,
       });
-      const { url } = await uploadResponse.json();
+      const { key, url } = await uploadResponse.json();
 
       // Create template
       await createTemplate.mutateAsync({
@@ -79,6 +79,7 @@ export default function DocumentTemplates() {
         description: templateDescription,
         category: templateCategory,
         fileUrl: url,
+        fileKey: key,
         fileType: file.name.split(".").pop() || "pdf",
       });
 

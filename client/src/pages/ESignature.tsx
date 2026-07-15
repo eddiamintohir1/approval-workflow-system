@@ -111,7 +111,7 @@ export default function ESignature() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const url = await new Promise<string>((resolve, reject) => {
+      const upload = await new Promise<{ key: string; url: string }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
 
         xhr.upload.addEventListener("progress", event => {
@@ -127,7 +127,7 @@ export default function ESignature() {
           if (xhr.status === 200) {
             try {
               const response = JSON.parse(xhr.responseText);
-              resolve(response.url);
+              resolve(response);
             } catch (err) {
               reject(new Error("Failed to parse upload response"));
             }
@@ -147,13 +147,14 @@ export default function ESignature() {
       // Create document record
       const result = await createDocument.mutateAsync({
         documentName,
-        documentUrl: url,
+        documentUrl: upload.url,
+        documentKey: upload.key,
         signerEmail,
         signerName,
       });
 
       setUploadedDocId(result.documentId);
-      setUploadedDocUrl(url);
+      setUploadedDocUrl(upload.url);
 
       // Reset form
       setFile(null);

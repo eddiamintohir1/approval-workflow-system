@@ -48,13 +48,13 @@ export function createApiApp() {
 
       const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "-");
       const fileKey = `esignature-uploads/${Date.now()}-${safeName}`;
-      const { url } = await storagePut(
+      const { key, url } = await storagePut(
         fileKey,
         req.file.buffer,
         req.file.mimetype
       );
 
-      return res.json({ url });
+      return res.json({ key, url });
     } catch (error) {
       console.error("File upload error:", error);
       return res.status(500).json({

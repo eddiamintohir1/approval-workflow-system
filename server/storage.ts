@@ -2,9 +2,25 @@ import { BlobSASPermissions, BlobServiceClient } from "@azure/storage-blob";
 
 const containerName =
   process.env.AZURE_STORAGE_CONTAINER || "finance-attachments";
+const SAS_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 function normalizeKey(relKey: string) {
   return relKey.replace(/^\/+/, "");
+}
+
+/**
+ * Extract an Azure Blob object key from a legacy stored SAS URL. New records
+ * persist the key directly, but this keeps previously uploaded files usable.
+ */
+export function storageKeyFromUrl(url: string): string | null {
+  try {
+    const path = new URL(url).pathname;
+    const prefix = `/${encodeURIComponent(containerName)}/`;
+    if (!path.startsWith(prefix)) return null;
+    return normalizeKey(decodeURIComponent(path.slice(prefix.length)));
+  } catch {
+    return null;
+  }
 }
 
 function getContainerClient() {
@@ -21,10 +37,18 @@ function getContainerClient() {
 }
 
 async function signedReadUrl(key: string, expiresIn: number) {
+  if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new Error("Azure Blob SAS expiry must be a positive number of seconds.");
+  }
+
   const blob = getContainerClient().getBlobClient(key);
+  const now = Date.now();
   return blob.generateSasUrl({
     permissions: BlobSASPermissions.parse("r"),
-    expiresOn: new Date(Date.now() + expiresIn * 1000),
+    // Allow a small clock-skew window between Vercel and Azure. Without it,
+    // Azure can reject a freshly issued SAS when their clocks differ slightly.
+    startsOn: new Date(now - SAS_CLOCK_SKEW_MS),
+    expiresOn: new Date(now + expiresIn * 1000),
   });
 }
 
