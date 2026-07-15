@@ -519,7 +519,7 @@ export const formTemplateDocuments = mysqlTable("form_template_documents", {
   // Document information
   documentName: varchar("document_name", { length: 255 }).notNull(),
   documentType: mysqlEnum("document_type", ["pdf", "excel"]).notNull(),
-  fileSize: bigint("file_size").notNull(),
+  fileSize: bigint("file_size", { mode: "number" }).notNull(),
   storageUrl: text("storage_url").notNull(), // Azure Blob Storage URL
   
   // Fillable fields definition
