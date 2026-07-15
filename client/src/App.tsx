@@ -4,9 +4,10 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { useCognitoAuth } from "@/hooks/useCognitoAuth";
+import { useEntraAuth } from "@/hooks/useEntraAuth";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
+import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
 import WorkflowCreate from "./pages/workflows/WorkflowCreate";
@@ -30,8 +31,14 @@ import TermsOfService from "./pages/TermsOfService";
 import DocumentSequenceGenerator from "./pages/DocumentSequenceGenerator";
 import { Loader2 } from "lucide-react";
 
-function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType<any>; path: string }) {
-  const { user, loading } = useCognitoAuth();
+function ProtectedRoute({
+  component: Component,
+  ...rest
+}: {
+  component: React.ComponentType<any>;
+  path: string;
+}) {
+  const { user, loading } = useEntraAuth();
 
   if (loading) {
     return (
@@ -49,7 +56,7 @@ function ProtectedRoute({ component: Component, ...rest }: { component: React.Co
 }
 
 function Router() {
-  const { user, loading } = useCognitoAuth();
+  const { user, loading } = useEntraAuth();
 
   if (loading) {
     return (
@@ -64,8 +71,13 @@ function Router() {
       <Route path="/">
         {user ? <Redirect to="/dashboard" /> : <Redirect to="/login" />}
       </Route>
-      <Route path="/login" component={Login} />
-      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/login">
+        {user ? <Redirect to="/dashboard" /> : <Login />}
+      </Route>
+      <Route path="/forgot-password">
+        {user ? <Redirect to="/dashboard" /> : <ForgotPassword />}
+      </Route>
+      <Route path="/auth/callback" component={AuthCallback} />
       <Route path="/dashboard">
         <ProtectedRoute component={Dashboard} path="/dashboard" />
       </Route>
@@ -79,14 +91,41 @@ function Router() {
         <ProtectedRoute component={UserManagement} path="/users" />
       </Route>
       <Route path="/admin/form-templates">
-        <ProtectedRoute component={FormTemplateList} path="/admin/form-templates" />
+        <ProtectedRoute
+          component={FormTemplateList}
+          path="/admin/form-templates"
+        />
       </Route>
       <Route path="/admin/form-templates/new">
-        <ProtectedRoute component={FormTemplateBuilder} path="/admin/form-templates/new" />
+        <ProtectedRoute
+          component={FormTemplateBuilder}
+          path="/admin/form-templates/new"
+        />
       </Route>
-      <Route path="/admin/sequences" component={() => <ProtectedRoute component={SequenceGenerator} path="/admin/sequences" />} />
-      <Route path="/document-sequence" component={() => <ProtectedRoute component={DocumentSequenceGenerator} path="/document-sequence" />} />
-      <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} path="/analytics" />} />
+      <Route
+        path="/admin/sequences"
+        component={() => (
+          <ProtectedRoute
+            component={SequenceGenerator}
+            path="/admin/sequences"
+          />
+        )}
+      />
+      <Route
+        path="/document-sequence"
+        component={() => (
+          <ProtectedRoute
+            component={DocumentSequenceGenerator}
+            path="/document-sequence"
+          />
+        )}
+      />
+      <Route
+        path="/analytics"
+        component={() => (
+          <ProtectedRoute component={Analytics} path="/analytics" />
+        )}
+      />
       <Route path="/capacity">
         <ProtectedRoute component={Capacity} path="/capacity" />
       </Route>
@@ -94,27 +133,46 @@ function Router() {
         <ProtectedRoute component={ESignature} path="/esignature" />
       </Route>
       <Route path="/cfo-document-queue">
-        <ProtectedRoute component={CFODocumentQueue} path="/cfo-document-queue" />
+        <ProtectedRoute
+          component={CFODocumentQueue}
+          path="/cfo-document-queue"
+        />
       </Route>
       <Route path="/document-templates">
-        <ProtectedRoute component={DocumentTemplates} path="/document-templates" />
+        <ProtectedRoute
+          component={DocumentTemplates}
+          path="/document-templates"
+        />
       </Route>
       <Route path="/my-personalized-workflows">
-        <ProtectedRoute component={MyPersonalizedWorkflows} path="/my-personalized-workflows" />
+        <ProtectedRoute
+          component={MyPersonalizedWorkflows}
+          path="/my-personalized-workflows"
+        />
       </Route>
       <Route path="/recurring-workflows/create">
-        <ProtectedRoute component={RecurringWorkflowCreate} path="/recurring-workflows/create" />
+        <ProtectedRoute
+          component={RecurringWorkflowCreate}
+          path="/recurring-workflows/create"
+        />
       </Route>
       <Route path="/recurring-workflows/:id/edit">
-        <ProtectedRoute component={RecurringWorkflowEdit} path="/recurring-workflows/:id/edit" />
-      </Route>      <Route path="/templates">
+        <ProtectedRoute
+          component={RecurringWorkflowEdit}
+          path="/recurring-workflows/:id/edit"
+        />
+      </Route>{" "}
+      <Route path="/templates">
         <ProtectedRoute component={TemplateList} path="/templates" />
       </Route>
       <Route path="/templates/builder">
         <ProtectedRoute component={TemplateBuilder} path="/templates/builder" />
       </Route>
       <Route path="/admin/excel-templates">
-        <ProtectedRoute component={ExcelTemplates} path="/admin/excel-templates" />
+        <ProtectedRoute
+          component={ExcelTemplates}
+          path="/admin/excel-templates"
+        />
       </Route>
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms-of-service" component={TermsOfService} />

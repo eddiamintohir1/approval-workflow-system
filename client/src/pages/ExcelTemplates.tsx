@@ -1,12 +1,25 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FileSpreadsheet, Upload, Trash2, Download, Home, Edit } from "lucide-react";
+import {
+  FileSpreadsheet,
+  Upload,
+  Trash2,
+  Download,
+  Home,
+  Edit,
+} from "lucide-react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -47,7 +60,9 @@ export default function ExcelTemplates() {
 
   // State for delete confirmation
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deletingTemplateId, setDeletingTemplateId] = useState<number | null>(null);
+  const [deletingTemplateId, setDeletingTemplateId] = useState<number | null>(
+    null
+  );
 
   // Fetch all templates
   const { data: templates, isLoading } = trpc.excelTemplates.getAll.useQuery();
@@ -60,7 +75,7 @@ export default function ExcelTemplates() {
       resetUploadForm();
       utils.excelTemplates.getAll.invalidate();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -73,7 +88,7 @@ export default function ExcelTemplates() {
       setEditingTemplate(null);
       utils.excelTemplates.getAll.invalidate();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -86,7 +101,7 @@ export default function ExcelTemplates() {
       setDeletingTemplateId(null);
       utils.excelTemplates.getAll.invalidate();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -122,7 +137,7 @@ export default function ExcelTemplates() {
 
     // Convert file to base64
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = async e => {
       const base64 = e.target?.result as string;
       const base64Data = base64.split(",")[1]; // Remove data:... prefix
 
@@ -171,24 +186,27 @@ export default function ExcelTemplates() {
   const handleDownload = async (template: any) => {
     try {
       // Fetch fresh presigned URL
-      const { url, fileName } = await utils.client.excelTemplates.getDownloadUrl.query({ id: template.id });
-      
-      // Fetch file as blob from S3 (CORS now configured)
+      const { url, fileName } =
+        await utils.client.excelTemplates.getDownloadUrl.query({
+          id: template.id,
+        });
+
+      // Fetch file as a blob from Azure Storage.
       const response = await fetch(url);
-      if (!response.ok) throw new Error('Download failed');
-      
+      if (!response.ok) throw new Error("Download failed");
+
       const blob = await response.blob();
-      
+
       // Create object URL and trigger download
       const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = blobUrl;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
-      
+
       toast.success(`Downloaded ${fileName}`);
     } catch (error: any) {
       toast.error(error.message || "Failed to download template");
@@ -228,13 +246,15 @@ export default function ExcelTemplates() {
         <div className="text-center py-12">Loading templates...</div>
       ) : templates && templates.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {templates.map((template) => (
+          {templates.map(template => (
             <Card key={template.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <FileSpreadsheet className="h-5 w-5 text-green-600" />
-                    <CardTitle className="text-lg">{template.templateName}</CardTitle>
+                    <CardTitle className="text-lg">
+                      {template.templateName}
+                    </CardTitle>
                   </div>
                   <div className="flex gap-1">
                     <Button
@@ -287,7 +307,9 @@ export default function ExcelTemplates() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Date:</span>
-                    <span>{format(new Date(template.uploadedAt), "MMM d, yyyy")}</span>
+                    <span>
+                      {format(new Date(template.uploadedAt), "MMM d, yyyy")}
+                    </span>
                   </div>
                 </div>
                 <Button
@@ -306,7 +328,9 @@ export default function ExcelTemplates() {
         <Card>
           <CardContent className="py-12 text-center">
             <FileSpreadsheet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No Excel templates uploaded yet</p>
+            <p className="text-muted-foreground">
+              No Excel templates uploaded yet
+            </p>
             <Button className="mt-4" onClick={() => setShowUploadDialog(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Upload First Template
@@ -331,7 +355,7 @@ export default function ExcelTemplates() {
                 id="workflowType"
                 placeholder="e.g., MAF, PR, Reimbursement"
                 value={workflowType}
-                onChange={(e) => setWorkflowType(e.target.value)}
+                onChange={e => setWorkflowType(e.target.value)}
               />
             </div>
             <div>
@@ -340,7 +364,7 @@ export default function ExcelTemplates() {
                 id="templateName"
                 placeholder="e.g., MAF Form Template 2026"
                 value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
+                onChange={e => setTemplateName(e.target.value)}
               />
             </div>
             <div>
@@ -349,7 +373,7 @@ export default function ExcelTemplates() {
                 id="description"
                 placeholder="Optional description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={e => setDescription(e.target.value)}
                 rows={3}
               />
             </div>
@@ -363,19 +387,20 @@ export default function ExcelTemplates() {
               />
               {selectedFile && (
                 <p className="text-sm text-muted-foreground mt-2">
-                  Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                  Selected: {selectedFile.name} (
+                  {formatFileSize(selectedFile.size)})
                 </p>
               )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowUploadDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowUploadDialog(false)}
+            >
               Cancel
             </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={uploadMutation.isPending}
-            >
+            <Button onClick={handleUpload} disabled={uploadMutation.isPending}>
               {uploadMutation.isPending ? "Uploading..." : "Upload"}
             </Button>
           </DialogFooter>
@@ -387,9 +412,7 @@ export default function ExcelTemplates() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Template</DialogTitle>
-            <DialogDescription>
-              Update template information
-            </DialogDescription>
+            <DialogDescription>Update template information</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -397,7 +420,7 @@ export default function ExcelTemplates() {
               <Input
                 id="editTemplateName"
                 value={editTemplateName}
-                onChange={(e) => setEditTemplateName(e.target.value)}
+                onChange={e => setEditTemplateName(e.target.value)}
               />
             </div>
             <div>
@@ -405,7 +428,7 @@ export default function ExcelTemplates() {
               <Textarea
                 id="editDescription"
                 value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
+                onChange={e => setEditDescription(e.target.value)}
                 rows={3}
               />
             </div>
@@ -414,7 +437,7 @@ export default function ExcelTemplates() {
                 type="checkbox"
                 id="editIsActive"
                 checked={editIsActive}
-                onChange={(e) => setEditIsActive(e.target.checked)}
+                onChange={e => setEditIsActive(e.target.checked)}
                 className="h-4 w-4"
               />
               <Label htmlFor="editIsActive">Active (visible to users)</Label>
@@ -440,7 +463,8 @@ export default function ExcelTemplates() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Template</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this Excel template? This action cannot be undone.
+              Are you sure you want to delete this Excel template? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

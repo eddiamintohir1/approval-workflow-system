@@ -1,7 +1,7 @@
 /**
  * Document Sequence Generator Router
  *
- * Uses raw pg Pool queries against CUSTOM_DATABASE_URL (PostgreSQL / AWS RDS).
+ * Uses raw pg Pool queries against CUSTOM_DATABASE_URL (Azure PostgreSQL).
  * Do NOT use Drizzle ORM here — the document_sequences and sequence_counters
  * tables live in PostgreSQL, while the main Drizzle schema targets MySQL/TiDB.
  *
@@ -13,7 +13,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { Pool } from "pg";
 import { v4 as uuidv4 } from "uuid";
 
-// PostgreSQL pool for document sequences (AWS RDS)
+// PostgreSQL pool for document sequences (Azure Database for PostgreSQL)
 const pgPool = new Pool({
   connectionString: process.env.CUSTOM_DATABASE_URL,
   ssl: { rejectUnauthorized: false },
@@ -21,10 +21,49 @@ const pgPool = new Pool({
 });
 
 // Constants
-const DOCUMENT_TYPES = ["SOP", "IK", "FORM", "SC", "SPK", "NDA", "JPB", "BA", "SK", "RET", "SPG"] as const;
+const DOCUMENT_TYPES = [
+  "SOP",
+  "IK",
+  "FORM",
+  "SC",
+  "SPK",
+  "NDA",
+  "JPB",
+  "BA",
+  "SK",
+  "RET",
+  "SPG",
+] as const;
 const COMPANIES = ["CJB", "CBB", "PJB"] as const;
-const DIVISIONS = ["MKT", "SAL", "OPS", "PRO", "RND", "HRD", "COR", "LOG", "PUR", "FIN", "ACC", "ITS", "PRC"] as const;
-const MONTHS_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"] as const;
+const DIVISIONS = [
+  "MKT",
+  "SAL",
+  "OPS",
+  "PRO",
+  "RND",
+  "HRD",
+  "COR",
+  "LOG",
+  "PUR",
+  "FIN",
+  "ACC",
+  "ITS",
+  "PRC",
+] as const;
+const MONTHS_ROMAN = [
+  "I",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X",
+  "XI",
+  "XII",
+] as const;
 
 function getMonthRoman(monthNum: number): string {
   if (monthNum < 1 || monthNum > 12) throw new Error("Invalid month number");
@@ -140,9 +179,20 @@ export const documentSequenceRouter = router({
              document_description, status, created_by, created_at, change_history)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,'draft',$12,$13,$14::jsonb)`,
           [
-            id, documentNumber, sequenceNum, input.documentType, input.company,
-            input.division, monthRoman, monthNumeric, year, input.documentTitle,
-            input.documentDescription || null, userId, now, changeHistory,
+            id,
+            documentNumber,
+            sequenceNum,
+            input.documentType,
+            input.company,
+            input.division,
+            monthRoman,
+            monthNumeric,
+            year,
+            input.documentTitle,
+            input.documentDescription || null,
+            userId,
+            now,
+            changeHistory,
           ]
         );
       } finally {
@@ -172,7 +222,16 @@ export const documentSequenceRouter = router({
         company: z.enum(COMPANIES).optional(),
         division: z.enum(DIVISIONS).optional(),
         documentType: z.enum(DOCUMENT_TYPES).optional(),
-        status: z.enum(["draft", "review", "approved", "effective", "superseded", "obsolete"]).optional(),
+        status: z
+          .enum([
+            "draft",
+            "review",
+            "approved",
+            "effective",
+            "superseded",
+            "obsolete",
+          ])
+          .optional(),
         year: z.number().optional(),
         limit: z.number().default(50),
         offset: z.number().default(0),
@@ -183,13 +242,29 @@ export const documentSequenceRouter = router({
       const params: unknown[] = [];
       let paramIdx = 1;
 
-      if (input.company) { conditions.push(`company = $${paramIdx++}`); params.push(input.company); }
-      if (input.division) { conditions.push(`division = $${paramIdx++}`); params.push(input.division); }
-      if (input.documentType) { conditions.push(`document_type = $${paramIdx++}`); params.push(input.documentType); }
-      if (input.status) { conditions.push(`status = $${paramIdx++}`); params.push(input.status); }
-      if (input.year) { conditions.push(`year = $${paramIdx++}`); params.push(input.year); }
+      if (input.company) {
+        conditions.push(`company = $${paramIdx++}`);
+        params.push(input.company);
+      }
+      if (input.division) {
+        conditions.push(`division = $${paramIdx++}`);
+        params.push(input.division);
+      }
+      if (input.documentType) {
+        conditions.push(`document_type = $${paramIdx++}`);
+        params.push(input.documentType);
+      }
+      if (input.status) {
+        conditions.push(`status = $${paramIdx++}`);
+        params.push(input.status);
+      }
+      if (input.year) {
+        conditions.push(`year = $${paramIdx++}`);
+        params.push(input.year);
+      }
 
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const whereClause =
+        conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
       const client = await pgPool.connect();
       try {
@@ -207,7 +282,12 @@ export const documentSequenceRouter = router({
           dataParams
         );
 
-        return { data: results.rows, total, limit: input.limit, offset: input.offset };
+        return {
+          data: results.rows,
+          total,
+          limit: input.limit,
+          offset: input.offset,
+        };
       } finally {
         client.release();
       }
@@ -215,7 +295,9 @@ export const documentSequenceRouter = router({
 
   // Search document sequences
   searchDocumentSequences: protectedProcedure
-    .input(z.object({ query: z.string().min(1), limit: z.number().default(20) }))
+    .input(
+      z.object({ query: z.string().min(1), limit: z.number().default(20) })
+    )
     .query(async ({ input }) => {
       const client = await pgPool.connect();
       try {
@@ -242,7 +324,8 @@ export const documentSequenceRouter = router({
           "SELECT * FROM document_sequences WHERE id = $1",
           [input.id]
         );
-        if (result.rows.length === 0) throw new Error("Document sequence not found");
+        if (result.rows.length === 0)
+          throw new Error("Document sequence not found");
         return result.rows[0];
       } finally {
         client.release();
@@ -254,7 +337,14 @@ export const documentSequenceRouter = router({
     .input(
       z.object({
         id: z.string(),
-        status: z.enum(["draft", "review", "approved", "effective", "superseded", "obsolete"]),
+        status: z.enum([
+          "draft",
+          "review",
+          "approved",
+          "effective",
+          "superseded",
+          "obsolete",
+        ]),
         notes: z.string().optional(),
       })
     )
@@ -267,7 +357,8 @@ export const documentSequenceRouter = router({
           "SELECT * FROM document_sequences WHERE id = $1",
           [input.id]
         );
-        if (existing.rows.length === 0) throw new Error("Document sequence not found");
+        if (existing.rows.length === 0)
+          throw new Error("Document sequence not found");
 
         const oldHistory = existing.rows[0].change_history || [];
         const newHistory = JSON.stringify([
@@ -306,13 +397,17 @@ export const documentSequenceRouter = router({
     .query(async ({ input }) => {
       const client = await pgPool.connect();
       try {
-        const result = await client.query("SELECT * FROM sequence_counters ORDER BY created_at DESC");
-        const filtered = result.rows.filter((counter) => {
-          if (input.company && !counter.prefix?.includes(input.company)) return false;
-          if (input.division && !counter.prefix?.includes(input.division)) return false;
+        const result = await client.query(
+          "SELECT * FROM sequence_counters ORDER BY created_at DESC"
+        );
+        const filtered = result.rows.filter(counter => {
+          if (input.company && !counter.prefix?.includes(input.company))
+            return false;
+          if (input.division && !counter.prefix?.includes(input.division))
+            return false;
           return true;
         });
-        return filtered.map((c) => ({
+        return filtered.map(c => ({
           id: c.id,
           prefix: c.prefix,
           documentType: c.document_type,
@@ -329,7 +424,14 @@ export const documentSequenceRouter = router({
     documentTypes: DOCUMENT_TYPES,
     companies: COMPANIES,
     divisions: DIVISIONS,
-    documentStatuses: ["draft", "review", "approved", "effective", "superseded", "obsolete"],
+    documentStatuses: [
+      "draft",
+      "review",
+      "approved",
+      "effective",
+      "superseded",
+      "obsolete",
+    ],
     monthsRoman: MONTHS_ROMAN,
   })),
 });

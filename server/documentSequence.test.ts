@@ -2,7 +2,7 @@
  * Document Sequence Generator Tests
  *
  * Tests the PostgreSQL-based document sequence router.
- * Uses CUSTOM_DATABASE_URL (AWS RDS PostgreSQL) — NOT the Drizzle MySQL/TiDB database.
+ * Uses CUSTOM_DATABASE_URL (Azure PostgreSQL) — NOT the Drizzle MySQL/TiDB database.
  *
  * IMPORTANT: All DB changes in this project go through webdev_execute_sql or raw pg queries.
  * Never use `pnpm drizzle-kit generate` interactively for this project.
@@ -46,7 +46,9 @@ describe("Document Sequence Generator - Database Tables", () => {
       WHERE table_schema = 'public' AND table_name = 'document_sequences'
       ORDER BY column_name
     `);
-    const columns = result.rows.map((r: { column_name: string }) => r.column_name);
+    const columns = result.rows.map(
+      (r: { column_name: string }) => r.column_name
+    );
     expect(columns).toContain("id");
     expect(columns).toContain("document_number");
     expect(columns).toContain("document_type");
@@ -63,7 +65,9 @@ describe("Document Sequence Generator - Database Tables", () => {
       WHERE table_schema = 'public' AND table_name = 'sequence_counters'
       ORDER BY column_name
     `);
-    const columns = result.rows.map((r: { column_name: string }) => r.column_name);
+    const columns = result.rows.map(
+      (r: { column_name: string }) => r.column_name
+    );
     expect(columns).toContain("id");
     expect(columns).toContain("document_type");
     expect(columns).toContain("current_value");
@@ -79,7 +83,20 @@ describe("Document Sequence Generator - Database Tables", () => {
   });
 
   it("should convert month number to Roman numeral correctly", () => {
-    const MONTHS_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+    const MONTHS_ROMAN = [
+      "I",
+      "II",
+      "III",
+      "IV",
+      "V",
+      "VI",
+      "VII",
+      "VIII",
+      "IX",
+      "X",
+      "XI",
+      "XII",
+    ];
     expect(MONTHS_ROMAN[0]).toBe("I");
     expect(MONTHS_ROMAN[2]).toBe("III");
     expect(MONTHS_ROMAN[11]).toBe("XII");

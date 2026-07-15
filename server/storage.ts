@@ -1,19 +1,31 @@
-// AWS S3 storage implementation using user's own AWS credentials
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { BlobSASPermissions, BlobServiceClient } from "@azure/storage-blob";
 
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-west-2",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const containerName =
+  process.env.AZURE_STORAGE_CONTAINER || "finance-attachments";
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET || "compawnion-approval-forms";
-
-function normalizeKey(relKey: string): string {
+function normalizeKey(relKey: string) {
   return relKey.replace(/^\/+/, "");
+}
+
+function getContainerClient() {
+  const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+  if (!connectionString) {
+    throw new Error(
+      "Azure Blob Storage is not configured. Set AZURE_STORAGE_CONNECTION_STRING."
+    );
+  }
+
+  return BlobServiceClient.fromConnectionString(
+    connectionString
+  ).getContainerClient(containerName);
+}
+
+async function signedReadUrl(key: string, expiresIn: number) {
+  const blob = getContainerClient().getBlobClient(key);
+  return blob.generateSasUrl({
+    permissions: BlobSASPermissions.parse("r"),
+    expiresOn: new Date(Date.now() + expiresIn * 1000),
+  });
 }
 
 export async function storagePut(
@@ -22,51 +34,35 @@ export async function storagePut(
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
-  
-  // Convert data to Buffer if it's a string
-  const buffer = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
-
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: buffer,
-    ContentType: contentType,
-  });
+  const buffer =
+    typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
 
   try {
-    await s3Client.send(command);
-    
-    // Generate a signed URL for accessing the file (valid for 1 hour)
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
+    const blob = getContainerClient().getBlockBlobClient(key);
+    await blob.uploadData(buffer, {
+      blobHTTPHeaders: { blobContentType: contentType },
     });
-    
-    const url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
-    
-    return { key, url };
+    return { key, url: await signedReadUrl(key, 3600) };
   } catch (error) {
-    console.error("S3 upload error:", error);
-    throw new Error(`Failed to upload file to S3: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error("Azure Blob upload failed", error);
+    throw new Error(
+      `Failed to upload file to Azure Blob Storage: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 }
 
 export async function storageGet(
   relKey: string,
-  expiresIn: number = 3600
+  expiresIn = 3600
 ): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
-  
-  const command = new GetObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-  });
 
   try {
-    const url = await getSignedUrl(s3Client, command, { expiresIn });
-    return { key, url };
+    return { key, url: await signedReadUrl(key, expiresIn) };
   } catch (error) {
-    console.error("S3 get URL error:", error);
-    throw new Error(`Failed to generate S3 URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error("Azure Blob signed URL failed", error);
+    throw new Error(
+      `Failed to access Azure Blob Storage: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 }

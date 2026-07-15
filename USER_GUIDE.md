@@ -32,7 +32,7 @@ The system provides several core capabilities that streamline approval processes
 
 **Role-based access control** ensures that users can only access and approve workflows relevant to their organizational role. The system supports roles including CEO, COO, CFO, Executive Assistant, PPIC, Purchasing, General Affairs, Finance, Production, Logistics, and Staff. Each role has specific permissions and approval authority levels.
 
-**Document storage and management** capabilities allow users to attach files to workflows at any stage. All documents are securely stored in AWS S3 cloud storage, with automatic organization by workflow ID. Users can upload multiple files per workflow, and all uploaded files are accessible to authorized approvers throughout the workflow lifecycle.
+**Document storage and management** capabilities allow users to attach files to workflows at any stage. All documents are securely stored in Azure Blob Storage, with automatic organization by workflow ID. Users can upload multiple files per workflow, and all uploaded files are accessible to authorized approvers throughout the workflow lifecycle.
 
 **Automated email notifications** keep all stakeholders informed of workflow progress. The system sends emails when workflows reach new approval stages, when workflows are approved or rejected, and when deadlines are approaching. All emails are sent from the noreply@compawnion.co address with professional formatting and direct links to the relevant workflows.
 
@@ -48,13 +48,13 @@ To access the Approval Workflow Management System, you need a modern web browser
 
 ### Accessing the System
 
-The system is accessible at the designated company URL provided by your system administrator. All users must have a valid @compawnion.co email address to access the system. Authentication is handled through AWS Cognito, which provides secure single sign-on capabilities.
+The system is accessible at the designated company URL provided by your system administrator. All users must have a valid @compawnion.co Microsoft 365 account to access the system. Authentication is handled through Microsoft Entra ID single sign-on.
 
 ### First-Time Login
 
-When you access the system for the first time, you will be directed to the login page. Enter your **@compawnion.co email address** in the username field. For first-time users, your initial password is **Ucomp2026!** (note the capital U, lowercase c, and exclamation mark at the end).
+When you access the system for the first time, you will be directed to the login page. Click **Continue with Microsoft** and sign in with your **@compawnion.co Microsoft 365 account**. The application never stores or resets your password.
 
-After entering your credentials, click the **Sign In** button. If your credentials are correct, you will be redirected to the main dashboard. If you encounter any login issues, use the **Forgot Password** link on the login page to reset your password. You will receive a password reset email at your registered email address within a few minutes.
+If you cannot remember your password, use Microsoft's **Can't access your account?** recovery flow from the login page. Recovery and verification are managed by Microsoft 365 according to the organization's security policies.
 
 ### Changing Your Password
 
@@ -152,7 +152,7 @@ From the **Department** dropdown, select your department. This field is required
 
 If your workflow requires structured data entry, you can select a **Form Template** from the dropdown. Form templates provide predefined fields for specific workflow types. For example, a MAF workflow might include fields for material name, quantity, unit price, and delivery date.
 
-After selecting a form template, dynamic form fields will appear below. Fill in all required fields marked with an asterisk (*). The system will validate your inputs and display error messages if any required fields are missing or contain invalid data.
+After selecting a form template, dynamic form fields will appear below. Fill in all required fields marked with an asterisk (\*). The system will validate your inputs and display error messages if any required fields are missing or contain invalid data.
 
 ### Step 5: Configure Pre-completion Contingency (Optional)
 
@@ -222,7 +222,7 @@ Review all information carefully before making an approval decision. Pay special
 
 If you need to attach additional documents before approving, click the **Upload File** button in the approval stage section. A file picker dialog will open. Select one or more files from your computer and click **Open**. The system supports common file formats including PDF, Word documents, Excel spreadsheets, images (JPG, PNG), and compressed files (ZIP).
 
-Files are uploaded to secure AWS S3 storage and automatically associated with the workflow. All uploaded files are visible to subsequent approvers and can be downloaded at any time.
+Files are uploaded to secure Azure Blob Storage and automatically associated with the workflow. All uploaded files are visible to subsequent approvers and can be downloaded at any time.
 
 ### Approving a Workflow
 
@@ -268,9 +268,9 @@ To download a document, click on the file name. The file will be downloaded to y
 
 ### Document Security
 
-All documents are stored in AWS S3 with encryption at rest and in transit. Access to documents is controlled by the same role-based permissions as workflow access. Only users with permission to view a workflow can download its attached documents.
+All documents are stored in Azure Blob Storage with encryption at rest and in transit. Access to documents is controlled by the same role-based permissions as workflow access. Only users with permission to view a workflow can download its attached documents.
 
-Documents are organized by workflow ID in the S3 bucket, making it easy to locate all files related to a specific workflow. The system maintains a complete audit log of all document uploads and downloads.
+Documents are organized by workflow ID in the Azure Blob container, making it easy to locate all files related to a specific workflow. The system maintains a complete audit log of all document uploads and downloads.
 
 ---
 
@@ -356,7 +356,7 @@ Emails are formatted with professional HTML templates featuring the company logo
 
 ### Email Delivery
 
-All emails are sent from **noreply@compawnion.co** using AWS SES (Simple Email Service). Email delivery is typically completed within seconds of the triggering event.
+All emails are sent from **noreply@compawnion.co** using Microsoft Graph and Exchange Online. Email delivery is typically completed within seconds of the triggering event.
 
 If you do not receive expected email notifications, check your spam or junk mail folder. Add noreply@compawnion.co to your email contacts or safe sender list to ensure future emails are delivered to your inbox.
 
@@ -410,7 +410,7 @@ This section provides solutions to common issues you may encounter while using t
 
 **Problem**: Cannot create workflow - validation errors appear.
 
-**Solution**: Ensure all required fields marked with an asterisk (*) are filled in. Check that the workflow title is not empty and does not exceed 500 characters. Verify that a department is selected. If using a form template, ensure all required form fields are completed. Review any specific error messages displayed and correct the indicated fields.
+**Solution**: Ensure all required fields marked with an asterisk (\*) are filled in. Check that the workflow title is not empty and does not exceed 500 characters. Verify that a department is selected. If using a form template, ensure all required form fields are completed. Review any specific error messages displayed and correct the indicated fields.
 
 **Problem**: Workflow template not appearing in dropdown.
 
@@ -440,7 +440,7 @@ This section provides solutions to common issues you may encounter while using t
 
 **Problem**: Not receiving email notifications.
 
-**Solution**: Check your spam or junk mail folder for emails from noreply@compawnion.co. Add noreply@compawnion.co to your email contacts or safe sender list. Verify that your email address is correct in your user profile. Check with your IT department that emails from AWS SES are not being blocked by your organization's email filters. If you still do not receive emails, contact your system administrator to check the email logs.
+**Solution**: Check your spam or junk mail folder for emails from noreply@compawnion.co. Add noreply@compawnion.co to your email contacts or safe sender list. Verify that your email address is correct in your user profile. Check with your Microsoft 365 administrator that Exchange Online delivery is not being blocked. If you still do not receive emails, contact your system administrator to check the email logs.
 
 ### Performance Issues
 
@@ -503,4 +503,4 @@ By using the Approval Workflow Management System, you agree to comply with the *
 
 **Copyright © 2026 Compawnion Jadi Berkat. All rights reserved.**
 
-*This system was developed by Eddie Amintohir. All intellectual property rights belong to the respective owners.*
+_This system was developed by Eddie Amintohir. All intellectual property rights belong to the respective owners._
