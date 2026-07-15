@@ -360,7 +360,7 @@ var init_schema = __esm({
       // Document information
       documentName: varchar("document_name", { length: 255 }).notNull(),
       documentType: mysqlEnum("document_type", ["pdf", "excel"]).notNull(),
-      fileSize: bigint("file_size").notNull(),
+      fileSize: bigint("file_size", { mode: "number" }).notNull(),
       storageUrl: text("storage_url").notNull(),
       // Azure Blob Storage URL
       // Fillable fields definition
@@ -3041,12 +3041,11 @@ __export(documentFields_exports, {
   getSubmissionDocumentValidationErrors: () => getSubmissionDocumentValidationErrors,
   updateFormSubmissionDocumentData: () => updateFormSubmissionDocumentData
 });
-import { formTemplateDocuments as formTemplateDocuments2, formSubmissionDocuments as formSubmissionDocuments2 } from "@/drizzle/schema";
 import { v4 as uuidv43 } from "uuid";
 async function createFormTemplateDocument(formTemplateId, documentName, documentType, fileSize, storageUrl, fields, uploadedBy) {
   const id = uuidv43();
   const now = /* @__PURE__ */ new Date();
-  await db.insert(formTemplateDocuments2).values({
+  await db.insert(formTemplateDocuments).values({
     id,
     formTemplateId,
     documentName,
@@ -3092,12 +3091,12 @@ async function getFormTemplateDocument(documentId) {
   };
 }
 async function deleteFormTemplateDocument(documentId) {
-  await db.delete(formTemplateDocuments2).where((table) => table.id === documentId);
+  await db.delete(formTemplateDocuments).where((table) => table.id === documentId);
 }
 async function createFormSubmissionDocument(submissionId, templateDocumentId) {
   const id = uuidv43();
   const now = /* @__PURE__ */ new Date();
-  await db.insert(formSubmissionDocuments2).values({
+  await db.insert(formSubmissionDocuments).values({
     id,
     submissionId,
     templateDocumentId,
@@ -3142,7 +3141,7 @@ async function getFormSubmissionDocument(documentId) {
 async function updateFormSubmissionDocumentData(documentId, filledData, templateFields) {
   const validation = validateFormSubmissionDocument(templateFields, filledData);
   const now = /* @__PURE__ */ new Date();
-  await db.update(formSubmissionDocuments2).set({
+  await db.update(formSubmissionDocuments).set({
     filledData,
     isComplete: validation.isValid,
     validationErrors: validation.errors,
@@ -3168,6 +3167,7 @@ var init_documentFields = __esm({
   "server/documentFields.ts"() {
     "use strict";
     init_db();
+    init_schema();
     init_documentFieldMapping();
   }
 });
