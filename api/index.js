@@ -19,7 +19,9 @@ __export(schema_exports, {
   emailLogs: () => emailLogs,
   emailRecipients: () => emailRecipients,
   excelTemplates: () => excelTemplates,
+  formSubmissionDocuments: () => formSubmissionDocuments,
   formSubmissions: () => formSubmissions2,
+  formTemplateDocuments: () => formTemplateDocuments,
   formTemplates: () => formTemplates,
   recurringWorkflowHistory: () => recurringWorkflowHistory,
   recurringWorkflows: () => recurringWorkflows,
@@ -54,7 +56,7 @@ import {
   index,
   date
 } from "drizzle-orm/mysql-core";
-var users, workflows, workflowStages, workflowApprovals, workflowFiles, workflowComments, auditLogs, emailRecipients, sequenceCounters, documentSequenceCounters, documentSequences, formTemplates, formSubmissions2, workflowTemplates, templateStages, departmentBudgets2, excelTemplates, taskAssignments, userPerformanceMetrics, salaryCache, emailLogs, recurringWorkflows, recurringWorkflowHistory, signedDocuments, documentTemplates, skuCategories, skuCounters, skus;
+var users, workflows, workflowStages, workflowApprovals, workflowFiles, workflowComments, auditLogs, emailRecipients, sequenceCounters, documentSequenceCounters, documentSequences, formTemplates, formTemplateDocuments, formSubmissionDocuments, formSubmissions2, workflowTemplates, templateStages, departmentBudgets2, excelTemplates, taskAssignments, userPerformanceMetrics, salaryCache, emailLogs, recurringWorkflows, recurringWorkflowHistory, signedDocuments, documentTemplates, skuCategories, skuCounters, skus;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -351,6 +353,41 @@ var init_schema = __esm({
       updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
       // Metadata
       metadata: json("metadata").$type()
+    });
+    formTemplateDocuments = mysqlTable("form_template_documents", {
+      id: varchar("id", { length: 36 }).primaryKey(),
+      formTemplateId: varchar("form_template_id", { length: 36 }).notNull(),
+      // Document information
+      documentName: varchar("document_name", { length: 255 }).notNull(),
+      documentType: mysqlEnum("document_type", ["pdf", "excel"]).notNull(),
+      fileSize: bigint("file_size").notNull(),
+      storageUrl: text("storage_url").notNull(),
+      // Azure Blob Storage URL
+      // Fillable fields definition
+      fields: json("fields").$type().notNull().default([]),
+      // Status
+      isActive: boolean("is_active").default(true).notNull(),
+      // Creator information
+      uploadedBy: int("uploaded_by").notNull(),
+      // Timestamps
+      uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+      updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
+    });
+    formSubmissionDocuments = mysqlTable("form_submission_documents", {
+      id: varchar("id", { length: 36 }).primaryKey(),
+      submissionId: varchar("submission_id", { length: 36 }).notNull(),
+      templateDocumentId: varchar("template_document_id", { length: 36 }).notNull(),
+      // Filled field values
+      filledData: json("filled_data").$type().notNull().default({}),
+      // Validation status
+      isComplete: boolean("is_complete").default(false).notNull(),
+      validationErrors: json("validation_errors").$type().default([]),
+      // Generated document
+      generatedDocumentUrl: text("generated_document_url"),
+      // URL to filled/signed document
+      // Timestamps
+      createdAt: timestamp("created_at").defaultNow().notNull(),
+      updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
     });
     formSubmissions2 = mysqlTable("form_submissions", {
       id: varchar("id", { length: 36 }).primaryKey(),
@@ -2856,6 +2893,285 @@ var init_excelMapping = __esm({
   }
 });
 
+// shared/documentFieldMapping.ts
+import { z as z5 } from "zod";
+function validateFieldValue(field, value) {
+  if (field.required && (value === null || value === void 0 || value === "")) {
+    return `${field.label} is required`;
+  }
+  if (!value) return null;
+  switch (field.type) {
+    case "email":
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) {
+        return `${field.label} must be a valid email`;
+      }
+      break;
+    case "number":
+      const num = Number(value);
+      if (isNaN(num)) {
+        return `${field.label} must be a number`;
+      }
+      if (field.validation?.min !== void 0 && num < field.validation.min) {
+        return `${field.label} must be at least ${field.validation.min}`;
+      }
+      if (field.validation?.max !== void 0 && num > field.validation.max) {
+        return `${field.label} must be at most ${field.validation.max}`;
+      }
+      break;
+    case "date":
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+        return `${field.label} must be a valid date (YYYY-MM-DD)`;
+      }
+      break;
+    case "text":
+      const str = String(value);
+      if (field.validation?.min !== void 0 && str.length < field.validation.min) {
+        return `${field.label} must be at least ${field.validation.min} characters`;
+      }
+      if (field.validation?.max !== void 0 && str.length > field.validation.max) {
+        return `${field.label} must be at most ${field.validation.max} characters`;
+      }
+      if (field.validation?.pattern) {
+        const regex = new RegExp(field.validation.pattern);
+        if (!regex.test(str)) {
+          return field.validation.message || `${field.label} format is invalid`;
+        }
+      }
+      break;
+  }
+  return null;
+}
+function validateFormSubmissionDocument(fields, filledData) {
+  const errors = [];
+  for (const field of fields) {
+    const error = validateFieldValue(field, filledData[field.id]);
+    if (error) {
+      errors.push({
+        fieldId: field.id,
+        fieldName: field.name,
+        message: error
+      });
+    }
+  }
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+var FieldPositionSchema, FieldValidationSchema, DocumentFieldSchema, FormTemplateDocumentSchema, FormSubmissionDocumentSchema, ValidationResultSchema;
+var init_documentFieldMapping = __esm({
+  "shared/documentFieldMapping.ts"() {
+    "use strict";
+    FieldPositionSchema = z5.object({
+      page: z5.number().optional(),
+      x: z5.number().optional(),
+      y: z5.number().optional(),
+      width: z5.number().optional(),
+      height: z5.number().optional()
+    });
+    FieldValidationSchema = z5.object({
+      min: z5.number().optional(),
+      max: z5.number().optional(),
+      pattern: z5.string().optional(),
+      message: z5.string().optional()
+    });
+    DocumentFieldSchema = z5.object({
+      id: z5.string(),
+      name: z5.string(),
+      label: z5.string(),
+      type: z5.enum(["text", "number", "date", "email", "signature", "checkbox"]),
+      required: z5.boolean(),
+      placeholder: z5.string().optional(),
+      validation: FieldValidationSchema.optional(),
+      position: FieldPositionSchema.optional()
+    });
+    FormTemplateDocumentSchema = z5.object({
+      id: z5.string(),
+      formTemplateId: z5.string(),
+      documentName: z5.string(),
+      documentType: z5.enum(["pdf", "excel"]),
+      fileSize: z5.number(),
+      storageUrl: z5.string(),
+      fields: z5.array(DocumentFieldSchema),
+      isActive: z5.boolean(),
+      uploadedBy: z5.number(),
+      uploadedAt: z5.date(),
+      updatedAt: z5.date()
+    });
+    FormSubmissionDocumentSchema = z5.object({
+      id: z5.string(),
+      submissionId: z5.string(),
+      templateDocumentId: z5.string(),
+      filledData: z5.record(z5.any()),
+      isComplete: z5.boolean(),
+      validationErrors: z5.array(
+        z5.object({
+          fieldId: z5.string(),
+          message: z5.string()
+        })
+      ),
+      generatedDocumentUrl: z5.string().optional(),
+      createdAt: z5.date(),
+      updatedAt: z5.date()
+    });
+    ValidationResultSchema = z5.object({
+      isValid: z5.boolean(),
+      errors: z5.array(
+        z5.object({
+          fieldId: z5.string(),
+          fieldName: z5.string(),
+          message: z5.string()
+        })
+      )
+    });
+  }
+});
+
+// server/documentFields.ts
+var documentFields_exports = {};
+__export(documentFields_exports, {
+  areAllSubmissionDocumentsComplete: () => areAllSubmissionDocumentsComplete,
+  createFormSubmissionDocument: () => createFormSubmissionDocument,
+  createFormTemplateDocument: () => createFormTemplateDocument,
+  deleteFormTemplateDocument: () => deleteFormTemplateDocument,
+  getFormSubmissionDocument: () => getFormSubmissionDocument,
+  getFormSubmissionDocuments: () => getFormSubmissionDocuments,
+  getFormTemplateDocument: () => getFormTemplateDocument,
+  getFormTemplateDocuments: () => getFormTemplateDocuments,
+  getSubmissionDocumentValidationErrors: () => getSubmissionDocumentValidationErrors,
+  updateFormSubmissionDocumentData: () => updateFormSubmissionDocumentData
+});
+import { formTemplateDocuments as formTemplateDocuments2, formSubmissionDocuments as formSubmissionDocuments2 } from "@/drizzle/schema";
+import { v4 as uuidv43 } from "uuid";
+async function createFormTemplateDocument(formTemplateId, documentName, documentType, fileSize, storageUrl, fields, uploadedBy) {
+  const id = uuidv43();
+  const now = /* @__PURE__ */ new Date();
+  await db.insert(formTemplateDocuments2).values({
+    id,
+    formTemplateId,
+    documentName,
+    documentType,
+    fileSize,
+    storageUrl,
+    fields,
+    uploadedBy,
+    uploadedAt: now,
+    updatedAt: now
+  });
+  return {
+    id,
+    formTemplateId,
+    documentName,
+    documentType,
+    fileSize,
+    storageUrl,
+    fields,
+    isActive: true,
+    uploadedBy,
+    uploadedAt: now,
+    updatedAt: now
+  };
+}
+async function getFormTemplateDocuments(formTemplateId) {
+  const docs = await db.query.formTemplateDocuments.findMany({
+    where: (table, { eq: eq5 }) => eq5(table.formTemplateId, formTemplateId)
+  });
+  return docs.map((doc) => ({
+    ...doc,
+    fields: doc.fields || []
+  }));
+}
+async function getFormTemplateDocument(documentId) {
+  const doc = await db.query.formTemplateDocuments.findFirst({
+    where: (table, { eq: eq5 }) => eq5(table.id, documentId)
+  });
+  if (!doc) return null;
+  return {
+    ...doc,
+    fields: doc.fields || []
+  };
+}
+async function deleteFormTemplateDocument(documentId) {
+  await db.delete(formTemplateDocuments2).where((table) => table.id === documentId);
+}
+async function createFormSubmissionDocument(submissionId, templateDocumentId) {
+  const id = uuidv43();
+  const now = /* @__PURE__ */ new Date();
+  await db.insert(formSubmissionDocuments2).values({
+    id,
+    submissionId,
+    templateDocumentId,
+    filledData: {},
+    isComplete: false,
+    validationErrors: [],
+    createdAt: now,
+    updatedAt: now
+  });
+  return {
+    id,
+    submissionId,
+    templateDocumentId,
+    filledData: {},
+    isComplete: false,
+    validationErrors: [],
+    createdAt: now,
+    updatedAt: now
+  };
+}
+async function getFormSubmissionDocuments(submissionId) {
+  const docs = await db.query.formSubmissionDocuments.findMany({
+    where: (table, { eq: eq5 }) => eq5(table.submissionId, submissionId)
+  });
+  return docs.map((doc) => ({
+    ...doc,
+    filledData: doc.filledData || {},
+    validationErrors: doc.validationErrors || []
+  }));
+}
+async function getFormSubmissionDocument(documentId) {
+  const doc = await db.query.formSubmissionDocuments.findFirst({
+    where: (table, { eq: eq5 }) => eq5(table.id, documentId)
+  });
+  if (!doc) return null;
+  return {
+    ...doc,
+    filledData: doc.filledData || {},
+    validationErrors: doc.validationErrors || []
+  };
+}
+async function updateFormSubmissionDocumentData(documentId, filledData, templateFields) {
+  const validation = validateFormSubmissionDocument(templateFields, filledData);
+  const now = /* @__PURE__ */ new Date();
+  await db.update(formSubmissionDocuments2).set({
+    filledData,
+    isComplete: validation.isValid,
+    validationErrors: validation.errors,
+    updatedAt: now
+  }).where((table) => table.id === documentId);
+  const updated = await getFormSubmissionDocument(documentId);
+  if (!updated) throw new Error("Document not found after update");
+  return updated;
+}
+async function areAllSubmissionDocumentsComplete(submissionId) {
+  const docs = await getFormSubmissionDocuments(submissionId);
+  if (docs.length === 0) return true;
+  return docs.every((doc) => doc.isComplete);
+}
+async function getSubmissionDocumentValidationErrors(submissionId) {
+  const docs = await getFormSubmissionDocuments(submissionId);
+  return docs.filter((doc) => doc.validationErrors && doc.validationErrors.length > 0).map((doc) => ({
+    documentId: doc.id,
+    errors: doc.validationErrors
+  }));
+}
+var init_documentFields = __esm({
+  "server/documentFields.ts"() {
+    "use strict";
+    init_db();
+    init_documentFieldMapping();
+  }
+});
+
 // server/excelWorkbook.ts
 var excelWorkbook_exports = {};
 __export(excelWorkbook_exports, {
@@ -3281,7 +3597,7 @@ import multer from "multer";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 
 // server/routers.ts
-import { z as z5 } from "zod";
+import { z as z6 } from "zod";
 import { TRPCError as TRPCError3 } from "@trpc/server";
 
 // shared/const.ts
@@ -4522,9 +4838,9 @@ var adminProcedure2 = protectedProcedure.use(({ ctx, next }) => {
 });
 var assignmentsRouter = router({
   create: protectedProcedure.input(
-    z5.object({
-      workflowId: z5.string(),
-      assignedTo: z5.number()
+    z6.object({
+      workflowId: z6.string(),
+      assignedTo: z6.number()
     })
   ).mutation(async ({ ctx, input }) => {
     const deptHeadRoles = [
@@ -4548,7 +4864,7 @@ var assignmentsRouter = router({
       assignedBy: ctx.user.id
     });
   }),
-  getByUser: protectedProcedure.input(z5.object({ userId: z5.number() })).query(async ({ input }) => {
+  getByUser: protectedProcedure.input(z6.object({ userId: z6.number() })).query(async ({ input }) => {
     return await getTaskAssignmentsByUser(input.userId);
   }),
   getTeamAssignments: protectedProcedure.query(async ({ ctx }) => {
@@ -4556,10 +4872,10 @@ var assignmentsRouter = router({
   })
 });
 var metricsRouter = router({
-  calculateUserMetrics: protectedProcedure.input(z5.object({ userId: z5.number() })).mutation(async ({ input }) => {
+  calculateUserMetrics: protectedProcedure.input(z6.object({ userId: z6.number() })).mutation(async ({ input }) => {
     return await calculateUserMetrics(input.userId);
   }),
-  getUserMetrics: protectedProcedure.input(z5.object({ userId: z5.number() })).query(async ({ input }) => {
+  getUserMetrics: protectedProcedure.input(z6.object({ userId: z6.number() })).query(async ({ input }) => {
     return await getUserMetrics(input.userId);
   }),
   recalculateAll: adminProcedure2.mutation(async () => {
@@ -4568,15 +4884,15 @@ var metricsRouter = router({
 });
 var salaryRouter = router({
   syncFromQapita: adminProcedure2.input(
-    z5.object({
-      userId: z5.number(),
-      salaryAmount: z5.number(),
-      currency: z5.string().optional()
+    z6.object({
+      userId: z6.number(),
+      salaryAmount: z6.number(),
+      currency: z6.string().optional()
     })
   ).mutation(async ({ input }) => {
     return await upsertSalaryCache(input);
   }),
-  getUserSalary: protectedProcedure.input(z5.object({ userId: z5.number() })).query(async ({ ctx, input }) => {
+  getUserSalary: protectedProcedure.input(z6.object({ userId: z6.number() })).query(async ({ ctx, input }) => {
     const allowedRoles = ["admin", "CEO", "CFO", "COO"];
     if (!allowedRoles.includes(ctx.user.role)) {
       throw new TRPCError3({
@@ -4592,10 +4908,10 @@ var salaryRouter = router({
 });
 var capacityRouter = router({
   getUserList: protectedProcedure.input(
-    z5.object({
-      page: z5.number().default(1),
-      pageSize: z5.number().default(20),
-      department: z5.string().optional()
+    z6.object({
+      page: z6.number().default(1),
+      pageSize: z6.number().default(20),
+      department: z6.string().optional()
     })
   ).query(async ({ ctx, input }) => {
     const allowedRoles = ["admin", "CEO", "CFO", "COO", "Exec Asst"];
@@ -4610,7 +4926,7 @@ var capacityRouter = router({
       managerId: input.department === "My Team" ? ctx.user.id : void 0
     });
   }),
-  getUserDetails: protectedProcedure.input(z5.object({ userId: z5.number() })).query(async ({ ctx, input }) => {
+  getUserDetails: protectedProcedure.input(z6.object({ userId: z6.number() })).query(async ({ ctx, input }) => {
     let metrics = await getUserMetrics(input.userId);
     if (!metrics) {
       metrics = await calculateUserMetrics(input.userId);
@@ -4623,24 +4939,24 @@ var capacityRouter = router({
 var templatesRouter = router({
   // Create new template
   create: protectedProcedure.input(
-    z5.object({
-      name: z5.string(),
-      description: z5.string().optional(),
-      workflowType: z5.string(),
-      isDefault: z5.boolean().optional(),
-      stages: z5.array(
-        z5.object({
-          stageOrder: z5.number(),
-          stageName: z5.string(),
-          stageDescription: z5.string().optional(),
-          department: z5.string().optional(),
-          requiredRole: z5.string().optional(),
-          requiresOneOf: z5.array(z5.string()).optional(),
-          approvalRequired: z5.boolean(),
-          fileUploadRequired: z5.boolean(),
-          notificationEmails: z5.array(z5.string()).optional(),
-          visibleToDepartments: z5.array(z5.string()).optional(),
-          approvalThreshold: z5.number().optional()
+    z6.object({
+      name: z6.string(),
+      description: z6.string().optional(),
+      workflowType: z6.string(),
+      isDefault: z6.boolean().optional(),
+      stages: z6.array(
+        z6.object({
+          stageOrder: z6.number(),
+          stageName: z6.string(),
+          stageDescription: z6.string().optional(),
+          department: z6.string().optional(),
+          requiredRole: z6.string().optional(),
+          requiresOneOf: z6.array(z6.string()).optional(),
+          approvalRequired: z6.boolean(),
+          fileUploadRequired: z6.boolean(),
+          notificationEmails: z6.array(z6.string()).optional(),
+          visibleToDepartments: z6.array(z6.string()).optional(),
+          approvalThreshold: z6.number().optional()
         })
       )
     })
@@ -4652,15 +4968,15 @@ var templatesRouter = router({
   }),
   // Get all templates
   getAll: protectedProcedure.input(
-    z5.object({
-      workflowType: z5.string().optional(),
-      isActive: z5.boolean().optional()
+    z6.object({
+      workflowType: z6.string().optional(),
+      isActive: z6.boolean().optional()
     }).optional()
   ).query(async ({ input }) => {
     return await getWorkflowTemplates(input || {});
   }),
   // Get template by ID with stages
-  getById: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
+  getById: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input }) => {
     const template = await getWorkflowTemplateById(input.id);
     if (!template) {
       throw new TRPCError3({
@@ -4671,31 +4987,31 @@ var templatesRouter = router({
     return template;
   }),
   // Get default template for workflow type
-  getDefault: protectedProcedure.input(z5.object({ workflowType: z5.string() })).query(async ({ input }) => {
+  getDefault: protectedProcedure.input(z6.object({ workflowType: z6.string() })).query(async ({ input }) => {
     return await getDefaultTemplate(input.workflowType);
   }),
   // Update template
   update: protectedProcedure.input(
-    z5.object({
-      id: z5.string(),
-      name: z5.string().optional(),
-      description: z5.string().optional(),
-      isDefault: z5.boolean().optional(),
-      isActive: z5.boolean().optional(),
-      stages: z5.array(
-        z5.object({
-          id: z5.string().optional(),
-          stageOrder: z5.number(),
-          stageName: z5.string(),
-          stageDescription: z5.string().optional(),
-          department: z5.string().optional(),
-          requiredRole: z5.string().optional(),
-          requiresOneOf: z5.array(z5.string()).optional(),
-          approvalRequired: z5.boolean(),
-          fileUploadRequired: z5.boolean(),
-          notificationEmails: z5.array(z5.string()).optional(),
-          visibleToDepartments: z5.array(z5.string()).optional(),
-          approvalThreshold: z5.number().optional()
+    z6.object({
+      id: z6.string(),
+      name: z6.string().optional(),
+      description: z6.string().optional(),
+      isDefault: z6.boolean().optional(),
+      isActive: z6.boolean().optional(),
+      stages: z6.array(
+        z6.object({
+          id: z6.string().optional(),
+          stageOrder: z6.number(),
+          stageName: z6.string(),
+          stageDescription: z6.string().optional(),
+          department: z6.string().optional(),
+          requiredRole: z6.string().optional(),
+          requiresOneOf: z6.array(z6.string()).optional(),
+          approvalRequired: z6.boolean(),
+          fileUploadRequired: z6.boolean(),
+          notificationEmails: z6.array(z6.string()).optional(),
+          visibleToDepartments: z6.array(z6.string()).optional(),
+          approvalThreshold: z6.number().optional()
         })
       ).optional()
     })
@@ -4704,14 +5020,14 @@ var templatesRouter = router({
     return await updateWorkflowTemplate(id, updates);
   }),
   // Delete template
-  delete: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ input }) => {
+  delete: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ input }) => {
     return await deleteWorkflowTemplate(input.id);
   }),
   // Toggle quick assign for template
   toggleQuickAssign: protectedProcedure.input(
-    z5.object({
-      id: z5.string(),
-      isQuickAssignEnabled: z5.boolean()
+    z6.object({
+      id: z6.string(),
+      isQuickAssignEnabled: z6.boolean()
     })
   ).mutation(async ({ input }) => {
     return await updateWorkflowTemplate(input.id, {
@@ -4752,13 +5068,13 @@ var appRouter = router({
     getAll: protectedProcedure.query(async () => {
       return await getAllUsers();
     }),
-    getById: protectedProcedure.input(z5.object({ id: z5.number() })).query(async ({ input }) => {
+    getById: protectedProcedure.input(z6.object({ id: z6.number() })).query(async ({ input }) => {
       return await getUserById(input.id);
     }),
     updateRole: adminProcedure2.input(
-      z5.object({
-        userId: z5.number(),
-        role: z5.enum([
+      z6.object({
+        userId: z6.number(),
+        role: z6.enum([
           "CEO",
           "COO",
           "CFO",
@@ -4791,9 +5107,9 @@ var appRouter = router({
       return { success: true };
     }),
     updateStatus: adminProcedure2.input(
-      z5.object({
-        userId: z5.number(),
-        isActive: z5.boolean()
+      z6.object({
+        userId: z6.number(),
+        isActive: z6.boolean()
       })
     ).mutation(async ({ input, ctx }) => {
       await updateUserStatus(input.userId, input.isActive);
@@ -4809,7 +5125,7 @@ var appRouter = router({
       return { success: true };
     }),
     // Pin workflow
-    pinWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).mutation(async ({ input, ctx }) => {
+    pinWorkflow: protectedProcedure.input(z6.object({ workflowId: z6.string() })).mutation(async ({ input, ctx }) => {
       const currentPinned = ctx.user.pinnedWorkflows || [];
       if (currentPinned.includes(input.workflowId)) {
         return { success: true, message: "Already pinned" };
@@ -4821,7 +5137,7 @@ var appRouter = router({
       return { success: true };
     }),
     // Unpin workflow
-    unpinWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).mutation(async ({ input, ctx }) => {
+    unpinWorkflow: protectedProcedure.input(z6.object({ workflowId: z6.string() })).mutation(async ({ input, ctx }) => {
       const currentPinned = ctx.user.pinnedWorkflows || [];
       const updated = currentPinned.filter((id) => id !== input.workflowId);
       await updateUserPinnedWorkflows(ctx.user.id, updated);
@@ -4829,8 +5145,8 @@ var appRouter = router({
     }),
     // Switch role for test user only
     switchRole: protectedProcedure.input(
-      z5.object({
-        role: z5.enum([
+      z6.object({
+        role: z6.enum([
           "CEO",
           "COO",
           "CFO",
@@ -4912,17 +5228,17 @@ var appRouter = router({
   // ============================================
   workflows: router({
     create: protectedProcedure.input(
-      z5.object({
-        workflowType: z5.string(),
-        title: z5.string(),
-        description: z5.string().optional(),
-        department: z5.string(),
-        estimatedAmount: z5.number().optional(),
-        currency: z5.string().optional(),
-        requiresGa: z5.boolean().optional(),
-        requiresPpic: z5.boolean().optional(),
-        contingencyWorkflowIds: z5.array(z5.string()).optional(),
-        templateId: z5.string().optional()
+      z6.object({
+        workflowType: z6.string(),
+        title: z6.string(),
+        description: z6.string().optional(),
+        department: z6.string(),
+        estimatedAmount: z6.number().optional(),
+        currency: z6.string().optional(),
+        requiresGa: z6.boolean().optional(),
+        requiresPpic: z6.boolean().optional(),
+        contingencyWorkflowIds: z6.array(z6.string()).optional(),
+        templateId: z6.string().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const workflow = await createWorkflow({
@@ -4967,9 +5283,9 @@ var appRouter = router({
       return workflow;
     }),
     createFromTemplate: protectedProcedure.input(
-      z5.object({
-        templateId: z5.string(),
-        assignToUserId: z5.number().optional()
+      z6.object({
+        templateId: z6.string(),
+        assignToUserId: z6.number().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const template = await getWorkflowTemplateById(input.templateId);
@@ -5004,9 +5320,9 @@ var appRouter = router({
       return workflow;
     }),
     search: protectedProcedure.input(
-      z5.object({
-        query: z5.string(),
-        limit: z5.number().optional()
+      z6.object({
+        query: z6.string(),
+        limit: z6.number().optional()
       })
     ).query(async ({ input, ctx }) => {
       const limit = input.limit || 20;
@@ -5016,7 +5332,7 @@ var appRouter = router({
       );
       return filtered.slice(0, limit);
     }),
-    getByIds: protectedProcedure.input(z5.object({ ids: z5.array(z5.string()) })).query(async ({ input }) => {
+    getByIds: protectedProcedure.input(z6.object({ ids: z6.array(z6.string()) })).query(async ({ input }) => {
       return await Promise.all(input.ids.map((id) => getWorkflowById(id)));
     }),
     getAll: protectedProcedure.query(async ({ ctx }) => {
@@ -5026,7 +5342,7 @@ var appRouter = router({
         return await getWorkflowsByRequester(ctx.user.id);
       }
     }),
-    getById: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input, ctx }) => {
+    getById: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
         throw new TRPCError3({
@@ -5048,7 +5364,7 @@ var appRouter = router({
       }
       return workflow;
     }),
-    getWithDetails: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
+    getWithDetails: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
         throw new TRPCError3({
@@ -5068,7 +5384,7 @@ var appRouter = router({
         comments
       };
     }),
-    submit: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ input, ctx }) => {
+    submit: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
         throw new TRPCError3({
@@ -5096,9 +5412,9 @@ var appRouter = router({
       return { success: true };
     }),
     discontinue: protectedProcedure.input(
-      z5.object({
-        id: z5.string(),
-        reason: z5.string().optional()
+      z6.object({
+        id: z6.string(),
+        reason: z6.string().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
@@ -5134,7 +5450,7 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    archive: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ input, ctx }) => {
+    archive: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
         throw new TRPCError3({
@@ -5160,7 +5476,7 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    delete: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ input, ctx }) => {
+    delete: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ input, ctx }) => {
       if (ctx.user.role !== "admin") {
         throw new TRPCError3({
           code: "FORBIDDEN",
@@ -5188,9 +5504,9 @@ var appRouter = router({
       return { success: true };
     }),
     updateStatus: protectedProcedure.input(
-      z5.object({
-        id: z5.string(),
-        status: z5.enum([
+      z6.object({
+        id: z6.string(),
+        status: z6.enum([
           "draft",
           "in_progress",
           "completed",
@@ -5212,15 +5528,15 @@ var appRouter = router({
       return { success: true };
     }),
     uploadFile: protectedProcedure.input(
-      z5.object({
-        workflowId: z5.string(),
-        stageId: z5.string().optional(),
+      z6.object({
+        workflowId: z6.string(),
+        stageId: z6.string().optional(),
         // Which stage this file belongs to
-        filename: z5.string(),
-        fileData: z5.string(),
+        filename: z6.string(),
+        fileData: z6.string(),
         // base64 encoded
-        mimeType: z5.string(),
-        fileSize: z5.number()
+        mimeType: z6.string(),
+        fileSize: z6.number()
       })
     ).mutation(async ({ input, ctx }) => {
       const fileBuffer = Buffer.from(input.fileData, "base64");
@@ -5249,10 +5565,10 @@ var appRouter = router({
       });
       return { success: true, url };
     }),
-    getFiles: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
+    getFiles: protectedProcedure.input(z6.object({ workflowId: z6.string() })).query(async ({ input }) => {
       return await Promise.all((await getFilesByWorkflow(input.workflowId)).map(withFreshS3Url));
     }),
-    deleteFile: protectedProcedure.input(z5.object({ fileId: z5.string() })).mutation(async ({ input, ctx }) => {
+    deleteFile: protectedProcedure.input(z6.object({ fileId: z6.string() })).mutation(async ({ input, ctx }) => {
       const file = await getWorkflowFileById(input.fileId);
       if (!file) {
         throw new TRPCError3({ code: "NOT_FOUND", message: "File not found" });
@@ -5274,14 +5590,14 @@ var appRouter = router({
   // Workflow Stage Management
   // ============================================
   stages: router({
-    getByWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
+    getByWorkflow: protectedProcedure.input(z6.object({ workflowId: z6.string() })).query(async ({ input }) => {
       return await getStagesByWorkflow(input.workflowId);
     }),
     approve: protectedProcedure.input(
-      z5.object({
-        stageId: z5.string(),
-        workflowId: z5.string(),
-        comments: z5.string().optional()
+      z6.object({
+        stageId: z6.string(),
+        workflowId: z6.string(),
+        comments: z6.string().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const stage = await getStageById(input.stageId);
@@ -5414,10 +5730,10 @@ var appRouter = router({
       return { success: true };
     }),
     reject: protectedProcedure.input(
-      z5.object({
-        stageId: z5.string(),
-        workflowId: z5.string(),
-        comments: z5.string()
+      z6.object({
+        stageId: z6.string(),
+        workflowId: z6.string(),
+        comments: z6.string()
       })
     ).mutation(async ({ input, ctx }) => {
       const stage = await getStageById(input.stageId);
@@ -5487,15 +5803,15 @@ var appRouter = router({
   // ============================================
   files: router({
     upload: protectedProcedure.input(
-      z5.object({
-        workflowId: z5.string(),
-        stageId: z5.string().optional(),
-        fileName: z5.string(),
-        fileType: z5.string(),
-        fileCategory: z5.string().optional(),
-        fileData: z5.string(),
+      z6.object({
+        workflowId: z6.string(),
+        stageId: z6.string().optional(),
+        fileName: z6.string(),
+        fileType: z6.string(),
+        fileCategory: z6.string().optional(),
+        fileData: z6.string(),
         // base64 encoded
-        mimeType: z5.string()
+        mimeType: z6.string()
       })
     ).mutation(async ({ input, ctx }) => {
       const fileBuffer = Buffer.from(input.fileData, "base64");
@@ -5530,10 +5846,10 @@ var appRouter = router({
       });
       return file;
     }),
-    getByWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
+    getByWorkflow: protectedProcedure.input(z6.object({ workflowId: z6.string() })).query(async ({ input }) => {
       return await Promise.all((await getFilesByWorkflow(input.workflowId)).map(withFreshS3Url));
     }),
-    getByStage: protectedProcedure.input(z5.object({ stageId: z5.string() })).query(async ({ input }) => {
+    getByStage: protectedProcedure.input(z6.object({ stageId: z6.string() })).query(async ({ input }) => {
       return await Promise.all((await getFilesByStage(input.stageId)).map(withFreshS3Url));
     })
   }),
@@ -5542,11 +5858,11 @@ var appRouter = router({
   // ============================================
   comments: router({
     create: protectedProcedure.input(
-      z5.object({
-        workflowId: z5.string(),
-        stageId: z5.string().optional(),
-        commentText: z5.string(),
-        commentType: z5.string().optional()
+      z6.object({
+        workflowId: z6.string(),
+        stageId: z6.string().optional(),
+        commentText: z6.string(),
+        commentType: z6.string().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const comment = await createComment({
@@ -5565,10 +5881,10 @@ var appRouter = router({
       });
       return comment;
     }),
-    getByWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
+    getByWorkflow: protectedProcedure.input(z6.object({ workflowId: z6.string() })).query(async ({ input }) => {
       return await getCommentsByWorkflow(input.workflowId);
     }),
-    getByStage: protectedProcedure.input(z5.object({ stageId: z5.string() })).query(async ({ input }) => {
+    getByStage: protectedProcedure.input(z6.object({ stageId: z6.string() })).query(async ({ input }) => {
       return await getCommentsByStage(input.stageId);
     })
   }),
@@ -5577,9 +5893,9 @@ var appRouter = router({
   // ============================================
   auditLogs: router({
     getByEntity: protectedProcedure.input(
-      z5.object({
-        entityType: z5.string(),
-        entityId: z5.string()
+      z6.object({
+        entityType: z6.string(),
+        entityId: z6.string()
       })
     ).query(async ({ input }) => {
       return await getAuditLogsByEntity(input.entityType, input.entityId);
@@ -5589,7 +5905,7 @@ var appRouter = router({
   // Email Recipients
   // ============================================
   emailRecipients: router({
-    getByGroup: adminProcedure2.input(z5.object({ group: z5.string() })).query(async ({ input }) => {
+    getByGroup: adminProcedure2.input(z6.object({ group: z6.string() })).query(async ({ input }) => {
       return await getEmailRecipientsByGroup(input.group);
     }),
     getAll: adminProcedure2.query(async () => {
@@ -5601,14 +5917,14 @@ var appRouter = router({
   // ============================================
   formTemplates: router({
     create: adminProcedure2.input(
-      z5.object({
-        templateName: z5.string(),
-        templateCode: z5.string(),
-        description: z5.string().optional(),
-        fields: z5.array(
-          z5.object({
-            id: z5.string(),
-            type: z5.enum([
+      z6.object({
+        templateName: z6.string(),
+        templateCode: z6.string(),
+        description: z6.string().optional(),
+        fields: z6.array(
+          z6.object({
+            id: z6.string(),
+            type: z6.enum([
               "text",
               "number",
               "date",
@@ -5618,21 +5934,21 @@ var appRouter = router({
               "checkbox",
               "email"
             ]),
-            label: z5.string(),
-            placeholder: z5.string().optional(),
-            required: z5.boolean(),
-            options: z5.array(z5.string()).optional(),
-            validation: z5.object({
-              min: z5.number().optional(),
-              max: z5.number().optional(),
-              pattern: z5.string().optional(),
-              message: z5.string().optional()
+            label: z6.string(),
+            placeholder: z6.string().optional(),
+            required: z6.boolean(),
+            options: z6.array(z6.string()).optional(),
+            validation: z6.object({
+              min: z6.number().optional(),
+              max: z6.number().optional(),
+              pattern: z6.string().optional(),
+              message: z6.string().optional()
             }).optional(),
-            defaultValue: z5.any().optional(),
-            mappingKey: z5.string().optional(),
-            showInTable: z5.boolean().optional(),
-            tableLabel: z5.string().optional(),
-            tableOrder: z5.number().int().optional()
+            defaultValue: z6.any().optional(),
+            mappingKey: z6.string().optional(),
+            showInTable: z6.boolean().optional(),
+            tableLabel: z6.string().optional(),
+            tableOrder: z6.number().int().optional()
           })
         )
       })
@@ -5662,7 +5978,7 @@ var appRouter = router({
     getActive: protectedProcedure.query(async () => {
       return await getActiveFormTemplates();
     }),
-    getById: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
+    getById: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input }) => {
       const template = await getFormTemplateById(input.id);
       if (!template) {
         throw new TRPCError3({
@@ -5673,14 +5989,14 @@ var appRouter = router({
       return template;
     }),
     update: adminProcedure2.input(
-      z5.object({
-        id: z5.string(),
-        templateName: z5.string().optional(),
-        description: z5.string().optional(),
-        fields: z5.array(
-          z5.object({
-            id: z5.string(),
-            type: z5.enum([
+      z6.object({
+        id: z6.string(),
+        templateName: z6.string().optional(),
+        description: z6.string().optional(),
+        fields: z6.array(
+          z6.object({
+            id: z6.string(),
+            type: z6.enum([
               "text",
               "number",
               "date",
@@ -5690,24 +6006,24 @@ var appRouter = router({
               "checkbox",
               "email"
             ]),
-            label: z5.string(),
-            placeholder: z5.string().optional(),
-            required: z5.boolean(),
-            options: z5.array(z5.string()).optional(),
-            validation: z5.object({
-              min: z5.number().optional(),
-              max: z5.number().optional(),
-              pattern: z5.string().optional(),
-              message: z5.string().optional()
+            label: z6.string(),
+            placeholder: z6.string().optional(),
+            required: z6.boolean(),
+            options: z6.array(z6.string()).optional(),
+            validation: z6.object({
+              min: z6.number().optional(),
+              max: z6.number().optional(),
+              pattern: z6.string().optional(),
+              message: z6.string().optional()
             }).optional(),
-            defaultValue: z5.any().optional(),
-            mappingKey: z5.string().optional(),
-            showInTable: z5.boolean().optional(),
-            tableLabel: z5.string().optional(),
-            tableOrder: z5.number().int().optional()
+            defaultValue: z6.any().optional(),
+            mappingKey: z6.string().optional(),
+            showInTable: z6.boolean().optional(),
+            tableLabel: z6.string().optional(),
+            tableOrder: z6.number().int().optional()
           })
         ).optional(),
-        isActive: z5.boolean().optional()
+        isActive: z6.boolean().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       if (input.fields) validateFieldMappings(input.fields);
@@ -5736,13 +6052,104 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    delete: adminProcedure2.input(z5.object({ id: z5.string() })).mutation(async ({ input, ctx }) => {
+    delete: adminProcedure2.input(z6.object({ id: z6.string() })).mutation(async ({ input, ctx }) => {
       await deleteFormTemplate(input.id);
       await createAuditLog({
         entityType: "form_template",
         entityId: input.id,
         action: "deleted",
         actionDescription: `Form template deleted`,
+        actorId: ctx.user.id,
+        actorEmail: ctx.user.email,
+        actorRole: ctx.user.role
+      });
+      return { success: true };
+    }),
+    uploadDocument: adminProcedure2.input(
+      z6.object({
+        formTemplateId: z6.string(),
+        documentName: z6.string(),
+        filename: z6.string(),
+        fileData: z6.string(),
+        // base64
+        fileSize: z6.number(),
+        fields: z6.array(
+          z6.object({
+            id: z6.string(),
+            name: z6.string(),
+            label: z6.string(),
+            type: z6.enum(["text", "number", "date", "email", "signature", "checkbox"]),
+            required: z6.boolean(),
+            placeholder: z6.string().optional(),
+            validation: z6.object({
+              min: z6.number().optional(),
+              max: z6.number().optional(),
+              pattern: z6.string().optional(),
+              message: z6.string().optional()
+            }).optional(),
+            position: z6.object({
+              page: z6.number().optional(),
+              x: z6.number().optional(),
+              y: z6.number().optional(),
+              width: z6.number().optional(),
+              height: z6.number().optional()
+            }).optional()
+          })
+        )
+      })
+    ).mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== "eddie.amintohir@compawnion.co") {
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Only super admin can upload documents"
+        });
+      }
+      const buffer = Buffer.from(input.fileData, "base64");
+      const documentType = input.filename.toLowerCase().endsWith(".pdf") ? "pdf" : "excel";
+      const storageUrl = await storagePut(
+        `form-templates/${input.formTemplateId}/${input.filename}`,
+        buffer,
+        `application/${documentType === "pdf" ? "pdf" : "vnd.openxmlformats-officedocument.spreadsheetml.sheet"}`
+      );
+      const { DocumentFields } = await Promise.resolve().then(() => (init_documentFields(), documentFields_exports));
+      const doc = await DocumentFields.createFormTemplateDocument(
+        input.formTemplateId,
+        input.documentName,
+        documentType,
+        input.fileSize,
+        storageUrl,
+        input.fields,
+        ctx.user.id
+      );
+      await createAuditLog({
+        entityType: "form_template_document",
+        entityId: doc.id,
+        action: "created",
+        actionDescription: `Document uploaded: ${input.documentName}`,
+        actorId: ctx.user.id,
+        actorEmail: ctx.user.email,
+        actorRole: ctx.user.role
+      });
+      return doc;
+    }),
+    getDocuments: protectedProcedure.input(z6.object({ formTemplateId: z6.string() })).query(async ({ input }) => {
+      const { DocumentFields } = await Promise.resolve().then(() => (init_documentFields(), documentFields_exports));
+      return await DocumentFields.getFormTemplateDocuments(input.formTemplateId);
+    }),
+    deleteDocument: adminProcedure2.input(z6.object({ documentId: z6.string() })).mutation(async ({ input, ctx }) => {
+      if (ctx.user.email !== "eddie.amintohir@compawnion.co") {
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Only super admin can delete documents"
+        });
+      }
+      const { DocumentFields } = await Promise.resolve().then(() => (init_documentFields(), documentFields_exports));
+      await DocumentFields.deleteFormTemplateDocument(input.documentId);
+      await createAuditLog({
+        entityType: "form_template_document",
+        entityId: input.documentId,
+        action: "deleted",
+        actionDescription: `Document deleted`,
         actorId: ctx.user.id,
         actorEmail: ctx.user.email,
         actorRole: ctx.user.role
@@ -5755,12 +6162,12 @@ var appRouter = router({
   // ============================================
   formSubmissions: router({
     create: protectedProcedure.input(
-      z5.object({
-        templateId: z5.union([z5.string(), z5.number()]).transform((val) => String(val)),
-        workflowId: z5.string().optional(),
-        stageId: z5.string().optional(),
-        formData: z5.record(z5.any()),
-        submissionStatus: z5.enum(["draft", "submitted", "approved", "rejected"]).optional()
+      z6.object({
+        templateId: z6.union([z6.string(), z6.number()]).transform((val) => String(val)),
+        workflowId: z6.string().optional(),
+        stageId: z6.string().optional(),
+        formData: z6.record(z6.any()),
+        submissionStatus: z6.enum(["draft", "submitted", "approved", "rejected"]).optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const submission = await createFormSubmission({
@@ -5783,7 +6190,7 @@ var appRouter = router({
       });
       return submission;
     }),
-    getById: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
+    getById: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input }) => {
       const submission = await getFormSubmissionById(input.id);
       if (!submission) {
         throw new TRPCError3({
@@ -5793,7 +6200,7 @@ var appRouter = router({
       }
       return submission;
     }),
-    getByWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
+    getByWorkflow: protectedProcedure.input(z6.object({ workflowId: z6.string() })).query(async ({ input }) => {
       const submissions = await getFormSubmissionsByWorkflow(
         input.workflowId
       );
@@ -5866,10 +6273,10 @@ var appRouter = router({
       });
     }),
     update: protectedProcedure.input(
-      z5.object({
-        id: z5.string(),
-        formData: z5.record(z5.any()).optional(),
-        submissionStatus: z5.enum(["draft", "submitted", "approved", "rejected"]).optional()
+      z6.object({
+        id: z6.string(),
+        formData: z6.record(z6.any()).optional(),
+        submissionStatus: z6.enum(["draft", "submitted", "approved", "rejected"]).optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const submission = await getFormSubmissionById(input.id);
@@ -5901,7 +6308,7 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    delete: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ input, ctx }) => {
+    delete: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ input, ctx }) => {
       await deleteFormSubmission(input.id);
       await createAuditLog({
         entityType: "form_submission",
@@ -5922,10 +6329,10 @@ var appRouter = router({
     getAll: adminProcedure2.query(async () => {
       return await getAllSequenceCounters();
     }),
-    getByType: adminProcedure2.input(z5.object({ type: z5.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]) })).query(async ({ input }) => {
+    getByType: adminProcedure2.input(z6.object({ type: z6.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]) })).query(async ({ input }) => {
       return await getSequenceCountersByType(input.type);
     }),
-    generate: protectedProcedure.input(z5.object({ type: z5.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]) })).mutation(async ({ input, ctx }) => {
+    generate: protectedProcedure.input(z6.object({ type: z6.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]) })).mutation(async ({ input, ctx }) => {
       const sequenceNumber = await generateSequenceNumber(input.type);
       await createAuditLog({
         entityType: "sequence",
@@ -5939,9 +6346,9 @@ var appRouter = router({
       return { sequenceNumber };
     }),
     reset: adminProcedure2.input(
-      z5.object({
-        type: z5.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]),
-        date: z5.string()
+      z6.object({
+        type: z6.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]),
+        date: z6.string()
       })
     ).mutation(async ({ input, ctx }) => {
       await resetSequenceCounter(input.type, input.date);
@@ -5996,7 +6403,7 @@ var appRouter = router({
         () => getAvgApprovalTimeByType()
       );
     }),
-    completionTrend: protectedProcedure.input(z5.object({ days: z5.number().optional().default(30) })).query(async ({ input }) => {
+    completionTrend: protectedProcedure.input(z6.object({ days: z6.number().optional().default(30) })).query(async ({ input }) => {
       return await withCache(
         `analytics:completionTrend:${input.days}`,
         CACHE_TTL.COMPLETION_TREND,
@@ -6011,7 +6418,7 @@ var appRouter = router({
       );
     }),
     // Department-specific analytics with per-department caching
-    departmentMetrics: protectedProcedure.input(z5.object({ department: z5.string() })).query(async ({ input }) => {
+    departmentMetrics: protectedProcedure.input(z6.object({ department: z6.string() })).query(async ({ input }) => {
       return await withCache(
         `analytics:departmentMetrics:${input.department}`,
         CACHE_TTL.DEPARTMENT_METRICS,
@@ -6019,9 +6426,9 @@ var appRouter = router({
       );
     }),
     departmentCostBreakdown: protectedProcedure.input(
-      z5.object({
-        department: z5.string(),
-        period: z5.enum(["monthly", "yearly"]).default("monthly")
+      z6.object({
+        department: z6.string(),
+        period: z6.enum(["monthly", "yearly"]).default("monthly")
       })
     ).query(async ({ input }) => {
       return await withCache(
@@ -6036,45 +6443,45 @@ var appRouter = router({
   // ============================================
   budgets: router({
     create: protectedProcedure.input(
-      z5.object({
-        department: z5.string(),
-        year: z5.number(),
-        month: z5.number().optional(),
-        quarter: z5.number().optional(),
-        allocatedAmount: z5.number(),
-        period: z5.enum(["monthly", "quarterly", "yearly"])
+      z6.object({
+        department: z6.string(),
+        year: z6.number(),
+        month: z6.number().optional(),
+        quarter: z6.number().optional(),
+        allocatedAmount: z6.number(),
+        period: z6.enum(["monthly", "quarterly", "yearly"])
       })
     ).mutation(async ({ input }) => {
       return await createBudget(input);
     }),
     getByDepartment: protectedProcedure.input(
-      z5.object({
-        department: z5.string(),
-        year: z5.number()
+      z6.object({
+        department: z6.string(),
+        year: z6.number()
       })
     ).query(async ({ input }) => {
       return await getBudgetsByDepartment(input.department, input.year);
     }),
-    getAll: protectedProcedure.input(z5.object({ year: z5.number() })).query(async ({ input }) => {
+    getAll: protectedProcedure.input(z6.object({ year: z6.number() })).query(async ({ input }) => {
       return await getAllBudgets(input.year);
     }),
     update: protectedProcedure.input(
-      z5.object({
-        id: z5.string(),
-        allocatedAmount: z5.number()
+      z6.object({
+        id: z6.string(),
+        allocatedAmount: z6.number()
       })
     ).mutation(async ({ input }) => {
       return await updateBudget(input.id, input.allocatedAmount);
     }),
-    delete: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ input }) => {
+    delete: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ input }) => {
       await deleteBudget(input.id);
       return { success: true };
     }),
     analytics: protectedProcedure.input(
-      z5.object({
-        department: z5.string(),
-        year: z5.number(),
-        period: z5.enum(["monthly", "quarterly", "yearly"])
+      z6.object({
+        department: z6.string(),
+        year: z6.number(),
+        period: z6.enum(["monthly", "quarterly", "yearly"])
       })
     ).query(async ({ input }) => {
       return await getDepartmentBudgetAnalytics(
@@ -6103,14 +6510,14 @@ var appRouter = router({
   // ============================================
   excelTemplates: router({
     create: adminProcedure2.input(
-      z5.object({
-        workflowType: z5.string(),
-        templateName: z5.string(),
-        description: z5.string().optional(),
-        fileUrl: z5.string(),
-        fileKey: z5.string(),
-        fileName: z5.string(),
-        fileSize: z5.number().optional()
+      z6.object({
+        workflowType: z6.string(),
+        templateName: z6.string(),
+        description: z6.string().optional(),
+        fileUrl: z6.string(),
+        fileKey: z6.string(),
+        fileName: z6.string(),
+        fileSize: z6.number().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
@@ -6137,15 +6544,15 @@ var appRouter = router({
       await ensureExcelMappingSchema();
       return await getActiveExcelTemplates();
     }),
-    getForFormTemplate: protectedProcedure.input(z5.object({ formTemplateId: z5.string().uuid() })).query(async ({ input }) => {
+    getForFormTemplate: protectedProcedure.input(z6.object({ formTemplateId: z6.string().uuid() })).query(async ({ input }) => {
       await ensureExcelMappingSchema();
       return await getExcelTemplatesByFormTemplate(input.formTemplateId);
     }),
-    getByWorkflowType: protectedProcedure.input(z5.object({ workflowType: z5.string() })).query(async ({ input }) => {
+    getByWorkflowType: protectedProcedure.input(z6.object({ workflowType: z6.string() })).query(async ({ input }) => {
       await ensureExcelMappingSchema();
       return await getExcelTemplateByWorkflowType(input.workflowType);
     }),
-    getDownloadUrl: protectedProcedure.input(z5.object({ id: z5.number() })).query(async ({ input }) => {
+    getDownloadUrl: protectedProcedure.input(z6.object({ id: z6.number() })).query(async ({ input }) => {
       await ensureExcelMappingSchema();
       const template = await getExcelTemplateById(input.id);
       if (!template) {
@@ -6158,11 +6565,11 @@ var appRouter = router({
       return { url, fileName: template.fileName };
     }),
     update: adminProcedure2.input(
-      z5.object({
-        id: z5.number(),
-        templateName: z5.string().optional(),
-        description: z5.string().optional(),
-        isActive: z5.boolean().optional()
+      z6.object({
+        id: z6.number(),
+        templateName: z6.string().optional(),
+        description: z6.string().optional(),
+        isActive: z6.boolean().optional()
       })
     ).mutation(async ({ input, ctx }) => {
       const { id, ...updates } = input;
@@ -6178,7 +6585,7 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    delete: adminProcedure2.input(z5.object({ id: z5.number() })).mutation(async ({ input, ctx }) => {
+    delete: adminProcedure2.input(z6.object({ id: z6.number() })).mutation(async ({ input, ctx }) => {
       await deleteExcelTemplate(input.id);
       await createAuditLog({
         entityType: "excel_template",
@@ -6192,13 +6599,13 @@ var appRouter = router({
       return { success: true };
     }),
     uploadFile: adminProcedure2.input(
-      z5.object({
-        workflowType: z5.string(),
-        templateName: z5.string(),
-        description: z5.string().optional(),
-        filename: z5.string().min(1).max(255),
-        fileData: z5.string().min(1).max(14e6),
-        fileSize: z5.number().int().positive().max(10 * 1024 * 1024)
+      z6.object({
+        workflowType: z6.string(),
+        templateName: z6.string(),
+        description: z6.string().optional(),
+        filename: z6.string().min(1).max(255),
+        fileData: z6.string().min(1).max(14e6),
+        fileSize: z6.number().int().positive().max(10 * 1024 * 1024)
       })
     ).mutation(async ({ input, ctx }) => {
       const safeFilename = input.filename.split(/[\\/]/).pop() || "";
@@ -6246,7 +6653,7 @@ var appRouter = router({
       return { success: true, url };
     }),
     // Inspect workbook and extract metadata
-    inspectWorkbook: adminProcedure2.input(z5.object({ id: z5.number() })).query(async ({ input, ctx }) => {
+    inspectWorkbook: adminProcedure2.input(z6.object({ id: z6.number() })).query(async ({ input, ctx }) => {
       await ensureExcelMappingSchema();
       const template = await getExcelTemplateById(input.id);
       if (!template) {
@@ -6272,11 +6679,11 @@ var appRouter = router({
     }),
     // Save mapping configuration
     saveMapping: adminProcedure2.input(
-      z5.object({
-        id: z5.number(),
-        formTemplateId: z5.string().uuid(),
+      z6.object({
+        id: z6.number(),
+        formTemplateId: z6.string().uuid(),
         mappings: excelWorkbookMappingsSchema,
-        outputFileNamePattern: z5.string().max(255).optional()
+        outputFileNamePattern: z6.string().max(255).optional()
       })
     ).mutation(async ({ input, ctx }) => {
       await ensureExcelMappingSchema();
@@ -6333,9 +6740,9 @@ var appRouter = router({
     }),
     // Generate Excel for a submission
     generateForSubmission: protectedProcedure.input(
-      z5.object({
-        excelTemplateId: z5.number(),
-        submissionId: z5.string()
+      z6.object({
+        excelTemplateId: z6.number(),
+        submissionId: z6.string()
       })
     ).mutation(async ({ input, ctx }) => {
       if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
@@ -6459,22 +6866,22 @@ var appRouter = router({
   recurringWorkflows: router({
     // Create new recurring workflow
     create: protectedProcedure.input(
-      z5.object({
-        templateId: z5.string(),
-        title: z5.string(),
-        description: z5.string().optional(),
-        department: z5.string(),
-        frequency: z5.enum(["daily", "weekly", "monthly"]),
-        dayOfMonth: z5.number().min(1).max(31).optional(),
-        dayOfWeek: z5.number().min(0).max(6).optional(),
-        startDate: z5.date(),
-        endDate: z5.date().optional(),
-        assignedTo: z5.array(z5.number()).optional(),
-        assigneePresets: z5.record(z5.array(z5.number())).optional(),
+      z6.object({
+        templateId: z6.string(),
+        title: z6.string(),
+        description: z6.string().optional(),
+        department: z6.string(),
+        frequency: z6.enum(["daily", "weekly", "monthly"]),
+        dayOfMonth: z6.number().min(1).max(31).optional(),
+        dayOfWeek: z6.number().min(0).max(6).optional(),
+        startDate: z6.date(),
+        endDate: z6.date().optional(),
+        assignedTo: z6.array(z6.number()).optional(),
+        assigneePresets: z6.record(z6.array(z6.number())).optional(),
         // { "stage_name": [userId1, userId2] }
-        formTemplateId: z5.string().optional(),
-        formData: z5.record(z5.any()).optional(),
-        contingencyWorkflowIds: z5.array(z5.string()).optional()
+        formTemplateId: z6.string().optional(),
+        formData: z6.record(z6.any()).optional(),
+        contingencyWorkflowIds: z6.array(z6.string()).optional()
       })
     ).mutation(async ({ ctx, input }) => {
       const recurring = await createRecurringWorkflow({
@@ -6497,24 +6904,24 @@ var appRouter = router({
       return await getRecurringWorkflowsByUser(ctx.user.id);
     }),
     // Get specific recurring workflow
-    getById: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
+    getById: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input }) => {
       return await getRecurringWorkflowById(input.id);
     }),
     // Update recurring workflow
     update: protectedProcedure.input(
-      z5.object({
-        id: z5.string(),
-        title: z5.string().optional(),
-        description: z5.string().optional(),
-        department: z5.string().optional(),
-        frequency: z5.enum(["daily", "weekly", "monthly"]).optional(),
-        dayOfMonth: z5.number().min(1).max(31).optional(),
-        dayOfWeek: z5.number().min(0).max(6).optional(),
-        startDate: z5.date().optional(),
-        endDate: z5.date().optional(),
-        assignedTo: z5.array(z5.number()).optional(),
-        assigneePresets: z5.record(z5.array(z5.number())).optional(),
-        formData: z5.record(z5.any()).optional()
+      z6.object({
+        id: z6.string(),
+        title: z6.string().optional(),
+        description: z6.string().optional(),
+        department: z6.string().optional(),
+        frequency: z6.enum(["daily", "weekly", "monthly"]).optional(),
+        dayOfMonth: z6.number().min(1).max(31).optional(),
+        dayOfWeek: z6.number().min(0).max(6).optional(),
+        startDate: z6.date().optional(),
+        endDate: z6.date().optional(),
+        assignedTo: z6.array(z6.number()).optional(),
+        assigneePresets: z6.record(z6.array(z6.number())).optional(),
+        formData: z6.record(z6.any()).optional()
       })
     ).mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
@@ -6544,7 +6951,7 @@ var appRouter = router({
       return updated;
     }),
     // Pause recurring workflow
-    pause: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ ctx, input }) => {
+    pause: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ ctx, input }) => {
       const existing = await getRecurringWorkflowById(input.id);
       if (!existing) {
         throw new TRPCError3({
@@ -6568,7 +6975,7 @@ var appRouter = router({
       return { success: true };
     }),
     // Resume recurring workflow
-    resume: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ ctx, input }) => {
+    resume: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ ctx, input }) => {
       const existing = await getRecurringWorkflowById(input.id);
       if (!existing) {
         throw new TRPCError3({
@@ -6592,7 +6999,7 @@ var appRouter = router({
       return { success: true };
     }),
     // Delete recurring workflow
-    delete: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ ctx, input }) => {
+    delete: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ ctx, input }) => {
       const existing = await getRecurringWorkflowById(input.id);
       if (!existing) {
         throw new TRPCError3({
@@ -6616,7 +7023,7 @@ var appRouter = router({
       return { success: true };
     }),
     // Get history of generated workflows
-    getHistory: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
+    getHistory: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input }) => {
       return await getRecurringWorkflowHistory(input.id);
     })
   }),
@@ -6626,13 +7033,13 @@ var appRouter = router({
   eSignature: router({
     // Create document record (upload only, no API send)
     createDocument: protectedProcedure.input(
-      z5.object({
-        workflowId: z5.string().optional(),
-        documentName: z5.string(),
-        documentUrl: z5.string(),
-        documentKey: z5.string().optional(),
-        signerEmail: z5.string().email(),
-        signerName: z5.string()
+      z6.object({
+        workflowId: z6.string().optional(),
+        documentName: z6.string(),
+        documentUrl: z6.string(),
+        documentKey: z6.string().optional(),
+        signerEmail: z6.string().email(),
+        signerName: z6.string()
       })
     ).mutation(async ({ ctx, input }) => {
       const documentKey = input.documentKey || storageKeyFromUrl(input.documentUrl);
@@ -6658,9 +7065,9 @@ var appRouter = router({
     }),
     // Update document with HelloDoc ID (entered manually after sending from HelloDoc)
     updateHelloDocId: protectedProcedure.input(
-      z5.object({
-        documentId: z5.string(),
-        helloDocDocumentId: z5.string()
+      z6.object({
+        documentId: z6.string(),
+        helloDocDocumentId: z6.string()
       })
     ).mutation(async ({ input }) => {
       await updateSignedDocumentHelloDocId(
@@ -6671,14 +7078,14 @@ var appRouter = router({
     }),
     // Legacy sendForSignature (kept for backward compatibility but not used in hybrid workflow)
     sendForSignature: protectedProcedure.input(
-      z5.object({
-        workflowId: z5.string().optional(),
+      z6.object({
+        workflowId: z6.string().optional(),
         // Optional for standalone usage
-        documentName: z5.string(),
-        documentUrl: z5.string(),
-        documentKey: z5.string().optional(),
-        signerEmail: z5.string().email(),
-        signerName: z5.string()
+        documentName: z6.string(),
+        documentUrl: z6.string(),
+        documentKey: z6.string().optional(),
+        signerEmail: z6.string().email(),
+        signerName: z6.string()
       })
     ).mutation(async ({ ctx, input }) => {
       const { sendDocumentForSignature } = await Promise.resolve().then(() => (init_hellodoc(), hellodoc_exports));
@@ -6709,18 +7116,18 @@ var appRouter = router({
         helloDocDocumentId: result.documentId
       };
     }),
-    checkStatus: protectedProcedure.input(z5.object({ helloDocDocumentId: z5.string() })).query(async ({ input }) => {
+    checkStatus: protectedProcedure.input(z6.object({ helloDocDocumentId: z6.string() })).query(async ({ input }) => {
       const { checkSignatureStatus: checkSignatureStatus2 } = await Promise.resolve().then(() => (init_hellodoc(), hellodoc_exports));
       return await checkSignatureStatus2(input.helloDocDocumentId);
     }),
-    getByWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
+    getByWorkflow: protectedProcedure.input(z6.object({ workflowId: z6.string() })).query(async ({ input }) => {
       return await Promise.all((await getSignedDocumentsByWorkflow(input.workflowId)).map(withFreshS3Url));
     }),
     // Get all signed documents (for standalone e-signature page)
     getAll: protectedProcedure.input(
-      z5.object({
-        status: z5.enum(["all", "pending", "signed", "rejected", "expired"]).optional(),
-        search: z5.string().optional()
+      z6.object({
+        status: z6.enum(["all", "pending", "signed", "rejected", "expired"]).optional(),
+        search: z6.string().optional()
       })
     ).query(async ({ ctx, input }) => {
       return await Promise.all((await getAllSignedDocuments(
@@ -6733,7 +7140,7 @@ var appRouter = router({
     getBySender: protectedProcedure.query(async ({ ctx }) => {
       return await Promise.all((await getSignedDocumentsBySender(ctx.user.id)).map(withFreshS3Url));
     }),
-    handleSignedDocument: protectedProcedure.input(z5.object({ helloDocDocumentId: z5.string() })).mutation(async ({ input }) => {
+    handleSignedDocument: protectedProcedure.input(z6.object({ helloDocDocumentId: z6.string() })).mutation(async ({ input }) => {
       const { checkSignatureStatus: checkSignatureStatus2, downloadSignedDocument: downloadSignedDocument2 } = await Promise.resolve().then(() => (init_hellodoc(), hellodoc_exports));
       const status = await checkSignatureStatus2(input.helloDocDocumentId);
       if (status.status !== "signed" || !status.signedDocumentUrl) {
@@ -6802,13 +7209,13 @@ var appRouter = router({
   documentTemplates: router({
     // Create new template
     create: protectedProcedure.input(
-      z5.object({
-        name: z5.string(),
-        description: z5.string().optional(),
-        category: z5.string().optional(),
-        fileUrl: z5.string(),
-        fileKey: z5.string().optional(),
-        fileType: z5.string()
+      z6.object({
+        name: z6.string(),
+        description: z6.string().optional(),
+        category: z6.string().optional(),
+        fileUrl: z6.string(),
+        fileKey: z6.string().optional(),
+        fileType: z6.string()
       })
     ).mutation(async ({ ctx, input }) => {
       const templateId = randomUUID3();
@@ -6836,17 +7243,17 @@ var appRouter = router({
       return await Promise.all((await getAllDocumentTemplates()).map(withFreshS3Url));
     }),
     // Get template by ID
-    getById: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
+    getById: protectedProcedure.input(z6.object({ id: z6.string() })).query(async ({ input }) => {
       const template = await getDocumentTemplateById(input.id);
       return template ? await withFreshS3Url(template) : template;
     }),
     // Update template
     update: protectedProcedure.input(
-      z5.object({
-        id: z5.string(),
-        name: z5.string().optional(),
-        description: z5.string().optional(),
-        category: z5.string().optional()
+      z6.object({
+        id: z6.string(),
+        name: z6.string().optional(),
+        description: z6.string().optional(),
+        category: z6.string().optional()
       })
     ).mutation(async ({ input }) => {
       await updateDocumentTemplate(input.id, {
@@ -6857,7 +7264,7 @@ var appRouter = router({
       return { success: true };
     }),
     // Delete template (soft delete)
-    delete: protectedProcedure.input(z5.object({ id: z5.string() })).mutation(async ({ input }) => {
+    delete: protectedProcedure.input(z6.object({ id: z6.string() })).mutation(async ({ input }) => {
       await deleteDocumentTemplate(input.id);
       return { success: true };
     })

@@ -508,6 +508,98 @@ export type InsertFormTemplate = typeof formTemplates.$inferInsert;
 
 /**
  * =====================================================
+ * FORM TEMPLATE DOCUMENTS TABLE
+ * Stores PDF/Excel documents with fillable fields
+ * =====================================================
+ */
+export const formTemplateDocuments = mysqlTable("form_template_documents", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  formTemplateId: varchar("form_template_id", { length: 36 }).notNull(),
+  
+  // Document information
+  documentName: varchar("document_name", { length: 255 }).notNull(),
+  documentType: mysqlEnum("document_type", ["pdf", "excel"]).notNull(),
+  fileSize: bigint("file_size").notNull(),
+  storageUrl: text("storage_url").notNull(), // Azure Blob Storage URL
+  
+  // Fillable fields definition
+  fields: json("fields")
+    .$type<
+      Array<{
+        id: string;
+        name: string;
+        label: string;
+        type: "text" | "number" | "date" | "email" | "signature" | "checkbox";
+        required: boolean;
+        placeholder?: string;
+        validation?: {
+          min?: number;
+          max?: number;
+          pattern?: string;
+          message?: string;
+        };
+        position?: {
+          page?: number;
+          x?: number;
+          y?: number;
+          width?: number;
+          height?: number;
+        };
+      }>
+    >()
+    .notNull()
+    .default([]),
+  
+  // Status
+  isActive: boolean("is_active").default(true).notNull(),
+  
+  // Creator information
+  uploadedBy: int("uploaded_by").notNull(),
+  
+  // Timestamps
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FormTemplateDocument = typeof formTemplateDocuments.$inferSelect;
+export type InsertFormTemplateDocument = typeof formTemplateDocuments.$inferInsert;
+
+/**
+ * =====================================================
+ * FORM SUBMISSION DOCUMENTS TABLE
+ * Stores filled documents for each form submission
+ * =====================================================
+ */
+export const formSubmissionDocuments = mysqlTable("form_submission_documents", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  submissionId: varchar("submission_id", { length: 36 }).notNull(),
+  templateDocumentId: varchar("template_document_id", { length: 36 }).notNull(),
+  
+  // Filled field values
+  filledData: json("filled_data")
+    .$type<Record<string, any>>()
+    .notNull()
+    .default({}),
+  
+  // Validation status
+  isComplete: boolean("is_complete").default(false).notNull(),
+  validationErrors: json("validation_errors")
+    .$type<Array<{ fieldId: string; message: string }>>()
+    .default([]),
+  
+  // Generated document
+  generatedDocumentUrl: text("generated_document_url"), // URL to filled/signed document
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FormSubmissionDocument = typeof formSubmissionDocuments.$inferSelect;
+export type InsertFormSubmissionDocument = typeof formSubmissionDocuments.$inferInsert;
+
+/**
+ * =====================================================
  * FORM_SUBMISSIONS TABLE
  * Store submitted form data
  * =====================================================

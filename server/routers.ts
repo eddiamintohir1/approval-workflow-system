@@ -1702,9 +1702,118 @@ export const appRouter = router({
         });
 
         return { success: true };
+            }),
+
+    uploadDocument: adminProcedure
+      .input(
+        z.object({
+          formTemplateId: z.string(),
+          documentName: z.string(),
+          filename: z.string(),
+          fileData: z.string(), // base64
+          fileSize: z.number(),
+          fields: z.array(
+            z.object({
+              id: z.string(),
+              name: z.string(),
+              label: z.string(),
+              type: z.enum(["text", "number", "date", "email", "signature", "checkbox"]),
+              required: z.boolean(),
+              placeholder: z.string().optional(),
+              validation: z.object({
+                min: z.number().optional(),
+                max: z.number().optional(),
+                pattern: z.string().optional(),
+                message: z.string().optional(),
+              }).optional(),
+              position: z.object({
+                page: z.number().optional(),
+                x: z.number().optional(),
+                y: z.number().optional(),
+                width: z.number().optional(),
+                height: z.number().optional(),
+              }).optional(),
+            })
+          ),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Only super admin (eddie.amintohir) can upload documents
+        if (ctx.user.email !== "eddie.amintohir@compawnion.co") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only super admin can upload documents",
+          });
+        }
+
+        // Upload file to Azure Blob Storage
+        const buffer = Buffer.from(input.fileData, "base64");
+        const documentType = input.filename.toLowerCase().endsWith(".pdf") ? "pdf" : "excel";
+        const storageUrl = await storagePut(
+          `form-templates/${input.formTemplateId}/${input.filename}`,
+          buffer,
+          `application/${documentType === "pdf" ? "pdf" : "vnd.openxmlformats-officedocument.spreadsheetml.sheet"}`
+        );
+
+        // Create document record
+        const { DocumentFields } = await import("./documentFields");
+        const doc = await DocumentFields.createFormTemplateDocument(
+          input.formTemplateId,
+          input.documentName,
+          documentType,
+          input.fileSize,
+          storageUrl,
+          input.fields,
+          ctx.user.id
+        );
+
+        await db.createAuditLog({
+          entityType: "form_template_document",
+          entityId: doc.id,
+          action: "created",
+          actionDescription: `Document uploaded: ${input.documentName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+
+        return doc;
+      }),
+
+    getDocuments: protectedProcedure
+      .input(z.object({ formTemplateId: z.string() }))
+      .query(async ({ input }) => {
+        const { DocumentFields } = await import("./documentFields");
+        return await DocumentFields.getFormTemplateDocuments(input.formTemplateId);
+      }),
+
+    deleteDocument: adminProcedure
+      .input(z.object({ documentId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        // Only super admin can delete documents
+        if (ctx.user.email !== "eddie.amintohir@compawnion.co") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only super admin can delete documents",
+          });
+        }
+
+        const { DocumentFields } = await import("./documentFields");
+        await DocumentFields.deleteFormTemplateDocument(input.documentId);
+
+        await db.createAuditLog({
+          entityType: "form_template_document",
+          entityId: input.documentId,
+          action: "deleted",
+          actionDescription: `Document deleted`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+
+        return { success: true };
       }),
   }),
-
   // ============================================
   // Form Submissions
   // ============================================
