@@ -461,7 +461,7 @@ var init_schema = __esm({
       isActive: boolean("is_active").default(true).notNull(),
       // Excel form-template mapping fields
       formTemplateId: varchar("form_template_id", { length: 36 }),
-      workbookMappings: json("workbook_mappings").$type().default([]),
+      workbookMappings: json("workbook_mappings").$type(),
       workbookMetadata: json("workbook_metadata").$type(),
       outputFileNamePattern: varchar("output_file_name_pattern", { length: 255 })
     });
@@ -738,6 +738,56 @@ import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
+function ensureExcelMappingSchema() {
+  if (excelMappingSchemaPromise) return excelMappingSchemaPromise;
+  excelMappingSchemaPromise = (async () => {
+    const dbConnection = await mysqlPool.getConnection();
+    try {
+      await dbConnection.query(
+        "SELECT GET_LOCK('excel_mapping_schema_v1', 15)"
+      );
+      const [columnRows] = await dbConnection.query(
+        `SELECT COLUMN_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'excel_templates'`
+      );
+      const columns = new Set(columnRows.map((row) => String(row.COLUMN_NAME)));
+      const additions = [
+        ["form_template_id", "VARCHAR(36) NULL"],
+        ["workbook_mappings", "JSON NULL"],
+        ["workbook_metadata", "JSON NULL"],
+        ["output_file_name_pattern", "VARCHAR(255) NULL"]
+      ].filter(([name]) => !columns.has(name));
+      for (const [name, definition] of additions) {
+        await dbConnection.query(
+          `ALTER TABLE excel_templates ADD COLUMN \`${name}\` ${definition}`
+        );
+      }
+      const [indexRows] = await dbConnection.query(
+        `SELECT INDEX_NAME
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'excel_templates'
+           AND INDEX_NAME = 'idx_excel_templates_form_template_id'`
+      );
+      if (indexRows.length === 0) {
+        await dbConnection.query(
+          "CREATE INDEX idx_excel_templates_form_template_id ON excel_templates(form_template_id)"
+        );
+      }
+    } finally {
+      await dbConnection.query(
+        "SELECT RELEASE_LOCK('excel_mapping_schema_v1')"
+      );
+      dbConnection.release();
+    }
+  })().catch((error) => {
+    excelMappingSchemaPromise = null;
+    throw error;
+  });
+  return excelMappingSchemaPromise;
+}
 async function upsertUser(user) {
   const [existingUser] = await db.select().from(users).where(eq(users.cognitoSub, user.cognitoSub)).limit(1);
   if (existingUser) {
@@ -1648,6 +1698,10 @@ async function getAllExcelTemplates() {
     fileSize: excelTemplates.fileSize,
     uploadedAt: excelTemplates.uploadedAt,
     isActive: excelTemplates.isActive,
+    formTemplateId: excelTemplates.formTemplateId,
+    workbookMappings: excelTemplates.workbookMappings,
+    workbookMetadata: excelTemplates.workbookMetadata,
+    outputFileNamePattern: excelTemplates.outputFileNamePattern,
     uploaderName: users.fullName,
     uploaderEmail: users.email
   }).from(excelTemplates).leftJoin(
@@ -1680,6 +1734,18 @@ async function getExcelTemplateByWorkflowType(workflowType) {
 async function getExcelTemplateById(id) {
   const [template] = await db.select().from(excelTemplates).where(eq(excelTemplates.id, id)).limit(1);
   return template || null;
+}
+async function getExcelTemplatesByFormTemplate(formTemplateId) {
+  return await db.select({
+    id: excelTemplates.id,
+    templateName: excelTemplates.templateName,
+    formTemplateId: excelTemplates.formTemplateId
+  }).from(excelTemplates).where(
+    and(
+      eq(excelTemplates.formTemplateId, formTemplateId),
+      eq(excelTemplates.isActive, true)
+    )
+  ).orderBy(desc(excelTemplates.uploadedAt));
 }
 async function updateExcelTemplate(id, updates) {
   await db.update(excelTemplates).set(updates).where(eq(excelTemplates.id, id));
@@ -2047,7 +2113,7 @@ async function getAllSignedDocumentsForCFO() {
     eq(signedDocuments.signerId, users.id)
   ).orderBy(desc(signedDocuments.createdAt));
 }
-var mysqlPool, connection, db;
+var mysqlPool, connection, db, excelMappingSchemaPromise;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
@@ -2062,6 +2128,7 @@ var init_db = __esm({
     });
     connection = mysqlPool;
     db = drizzle(connection, { schema: schema_exports, mode: "default" });
+    excelMappingSchemaPromise = null;
   }
 });
 
@@ -2674,24 +2741,56 @@ function convertValueForExcel(value, valueType = "auto") {
     case "auto":
     default:
       if (typeof value === "number") return value;
-      if (typeof value === "string") {
-        const num2 = Number(value);
-        if (!isNaN(num2) && value.trim() !== "") {
-          return num2;
-        }
-      }
       return value;
   }
 }
-var cellAddressRegex, cellAddressSchema, sheetNameSchema, identifierSchema, mappingKeySchema, cellMappingSchema, namedRangeMappingSchema, tableColumnMappingSchema, excelWorkbookMappingSchema, excelWorkbookMappingsSchema, workbookMetadataSchema;
+function getBuiltinValue(key, context) {
+  switch (key) {
+    case "workflow_number":
+      return context.workflowNumber || "";
+    case "workflow_title":
+      return context.workflowTitle || "";
+    case "workflow_status":
+      return context.workflowStatus || "";
+    case "department":
+      return context.department || "";
+    case "submitter_name":
+      return context.submitterName || "";
+    case "submitter_email":
+      return context.submitterEmail || "";
+    case "submitted_at":
+      return context.submittedAt || null;
+    case "created_at":
+      return context.createdAt || null;
+    case "updated_at":
+      return context.updatedAt || null;
+    default:
+      return null;
+  }
+}
+var BUILTIN_MAPPING_KEYS, cellAddressRegex, cellAddressSchema, sheetNameSchema, identifierSchema, mappingKeySchema, cellMappingSchema, namedRangeMappingSchema, tableColumnMappingSchema, excelWorkbookMappingSchema, excelWorkbookMappingsSchema, workbookMetadataSchema;
 var init_excelMapping = __esm({
   "shared/excelMapping.ts"() {
     "use strict";
+    BUILTIN_MAPPING_KEYS = [
+      "workflow_number",
+      "workflow_title",
+      "workflow_status",
+      "department",
+      "submitter_name",
+      "submitter_email",
+      "submitted_at",
+      "created_at",
+      "updated_at"
+    ];
     cellAddressRegex = /^[A-Z]+\d+$/;
     cellAddressSchema = z4.string().regex(cellAddressRegex, "Invalid cell address format (e.g., A1, B5)");
     sheetNameSchema = z4.string().min(1).max(31).regex(/^[^\[\]:\*?/\\]+$/, "Invalid sheet name");
     identifierSchema = z4.string().min(1).max(255);
-    mappingKeySchema = z4.string().min(1).max(255).regex(/^[a-zA-Z0-9_]+$/, "Mapping key must contain only alphanumeric and underscore");
+    mappingKeySchema = z4.string().min(1).max(255).regex(
+      /^[a-zA-Z0-9_]+$/,
+      "Mapping key must contain only alphanumeric and underscore"
+    );
     cellMappingSchema = z4.object({
       mappingKey: mappingKeySchema,
       targetType: z4.literal("cell"),
@@ -2722,10 +2821,13 @@ var init_excelMapping = __esm({
     excelWorkbookMappingsSchema = z4.array(excelWorkbookMappingSchema);
     workbookMetadataSchema = z4.object({
       worksheetNames: z4.array(z4.string()),
-      worksheetDimensions: z4.record(z4.string(), z4.object({
-        rows: z4.number(),
-        columns: z4.number()
-      })),
+      worksheetDimensions: z4.record(
+        z4.string(),
+        z4.object({
+          rows: z4.number(),
+          columns: z4.number()
+        })
+      ),
       definedNames: z4.array(
         z4.object({
           name: z4.string(),
@@ -2766,66 +2868,112 @@ __export(excelWorkbook_exports, {
   validateMappings: () => validateMappings
 });
 import ExcelJS from "exceljs";
+function definedNameModels(workbook) {
+  return (workbook.definedNames.model || []).slice(
+    0,
+    INSPECTION_LIMITS.maxDefinedNames
+  );
+}
+function parseNamedRange(range) {
+  const match = range.match(
+    /^(?:'((?:[^']|'')+)'|([^!]+))!\$?([A-Z]+)\$?(\d+)$/i
+  );
+  if (!match) return null;
+  return {
+    sheetName: (match[1] || match[2]).replace(/''/g, "'"),
+    cellAddress: `${match[3].toUpperCase()}${match[4]}`
+  };
+}
+function readableCellValue(value) {
+  if (value === null || value === void 0) return "";
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") {
+    if ("text" in value && typeof value.text === "string") return value.text;
+    if ("formula" in value) return `=${value.formula}`;
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+function valueAtPath(value, path) {
+  if (!path) return value;
+  return path.split(".").reduce((current, segment) => {
+    if (current === null || current === void 0) return void 0;
+    if (Array.isArray(current) && /^\d+$/.test(segment)) {
+      return current[Number(segment)];
+    }
+    if (typeof current === "object") {
+      return current[segment];
+    }
+    return void 0;
+  }, value);
+}
+function writeCell(cell, value, valueType = "auto") {
+  cell.value = convertValueForExcel(value, valueType);
+  if (valueType === "text") cell.numFmt = "@";
+}
 async function inspectWorkbook(buffer) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  const worksheetNames = [];
+  const worksheets = workbook.worksheets.slice(
+    0,
+    INSPECTION_LIMITS.maxWorksheets
+  );
+  const worksheetNames = worksheets.map((worksheet) => worksheet.name);
   const worksheetDimensions = {};
   const sampleCells = [];
   const tables = [];
-  let cellCount = 0;
-  for (const worksheet of workbook.worksheets) {
-    worksheetNames.push(worksheet.name);
-    const dimensions = worksheet.dimensions || {};
+  for (const worksheet of worksheets) {
     worksheetDimensions[worksheet.name] = {
-      rows: dimensions.lastRow || 0,
-      columns: dimensions.lastCol || 0
+      rows: worksheet.rowCount,
+      columns: worksheet.columnCount
     };
     const maxRows = Math.min(
-      dimensions?.lastRow || 0,
+      worksheet.rowCount,
       INSPECTION_LIMITS.maxRowsPerSheet
     );
-    const maxCols = Math.min(
-      dimensions?.lastCol || 0,
+    const maxColumns = Math.min(
+      worksheet.columnCount,
       INSPECTION_LIMITS.maxColumnsPerSheet
     );
-    for (let row = 1; row <= maxRows && cellCount < INSPECTION_LIMITS.maxSampleCells; row++) {
-      for (let col = 1; col <= maxCols && cellCount < INSPECTION_LIMITS.maxSampleCells; col++) {
-        const cell = worksheet.getCell(row, col);
+    for (let row = 1; row <= maxRows; row += 1) {
+      for (let column = 1; column <= maxColumns; column += 1) {
+        if (sampleCells.length >= INSPECTION_LIMITS.maxSampleCells) break;
+        const cell = worksheet.getCell(row, column);
         if (cell.value !== null && cell.value !== void 0) {
-          const colLetter = ExcelJS.utils.colNumToLetter(col);
-          const cellAddress = `${colLetter}${row}`;
           sampleCells.push({
             sheetName: worksheet.name,
-            cellAddress,
-            value: String(cell.value),
-            type: cell.type
+            cellAddress: cell.address,
+            value: readableCellValue(cell.value),
+            type: String(cell.type)
           });
-          cellCount++;
         }
       }
+      if (sampleCells.length >= INSPECTION_LIMITS.maxSampleCells) break;
     }
-    if (worksheet.tables) {
-      for (const [tableName, tableData] of Object.entries(worksheet.tables)) {
-        const columns = (tableData?.columns || []).map((col) => col.name) || [];
-        tables.push({
-          sheetName: worksheet.name,
-          tableName,
-          displayName: tableData?.displayName || tableName,
-          columns,
-          ref: tableData?.ref
-        });
-      }
+    const worksheetTables = Object.values(
+      worksheet.tables || {}
+    );
+    for (const table of worksheetTables) {
+      if (tables.length >= INSPECTION_LIMITS.maxTables) break;
+      const model = table.table;
+      tables.push({
+        sheetName: worksheet.name,
+        tableName: table.name,
+        displayName: table.displayName || table.name,
+        columns: (model.columns || []).map(
+          (column) => column.name
+        ),
+        ref: model.ref || model.tableRef
+      });
     }
   }
-  const definedNames = (Array.isArray(workbook.definedNames) ? workbook.definedNames : []).map((name) => ({
-    name: name.name,
-    formula: name.formula || ""
-  }));
   return {
     worksheetNames,
     worksheetDimensions,
-    definedNames,
+    definedNames: definedNameModels(workbook).map((item) => ({
+      name: item.name,
+      formula: item.ranges.join(",")
+    })),
     tables,
     sampleCells
   };
@@ -2833,132 +2981,195 @@ async function inspectWorkbook(buffer) {
 async function generateMappedWorkbook(input) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(input.templateBuffer);
-  const mappingsByKey = new Map(input.mappings.map((m) => [m.mappingKey, m]));
+  const values = /* @__PURE__ */ new Map();
   for (const field of input.formTemplate.fields || []) {
-    const mapping = mappingsByKey.get(field.mappingKey);
-    if (!mapping) continue;
-    const value = input.submission.formData?.[field.id];
-    if (value === void 0 || value === null) continue;
-    const convertedValue = convertValueForExcel(value, mapping.valueType);
-    if (mapping.targetType === "cell") {
-      const cellMapping = mapping;
-      const worksheet = workbook.getWorksheet(cellMapping.sheetName);
-      if (worksheet) {
-        const cell = worksheet.getCell(cellMapping.cellAddress);
-        if (looksLikeFormula(value) && typeof convertedValue === "string") {
-          cell.value = `'${convertedValue}`;
-        } else {
-          cell.value = convertedValue;
-        }
-      }
-    } else if (mapping.targetType === "named_range") {
-      const namedMapping = mapping;
-      const namedRange = (Array.isArray(workbook.definedNames) ? workbook.definedNames : []).find(
-        (n) => n.name === namedMapping.namedRange
-      );
-      if (namedRange) {
-        const formula = namedRange.formula;
-        const match = formula.match(/^'?([^']+)'?!([A-Z]+\d+)$/);
-        if (match) {
-          const sheetName = match[1];
-          const cellAddress = match[2];
-          const worksheet = workbook.getWorksheet(sheetName);
-          if (worksheet) {
-            const cell = worksheet.getCell(cellAddress);
-            cell.value = convertedValue;
-          }
-        }
-      }
-    } else if (mapping.targetType === "table_column") {
-      const tableMapping = mapping;
-      const worksheet = workbook.getWorksheet(tableMapping.sheetName);
-      if (worksheet && worksheet.tables) {
-        const table = worksheet.tables[tableMapping.tableName];
-        if (table) {
-          const columnIndex = (table.columns || []).findIndex(
-            (col) => col.name === tableMapping.columnName
-          );
-          if (columnIndex >= 0) {
-            const startRow = parseInt(table.ref.split(":")[0].replace(/[A-Z]/g, ""));
-            const values = mapping.values || [];
-            for (let i = 0; i < values.length; i++) {
-              const row = startRow + 1 + i;
-              const cell = worksheet.getCell(row, columnIndex + 1);
-              cell.value = convertValueForExcel(values[i], "auto");
-            }
-          }
-        }
-      }
+    if (field.mappingKey) {
+      values.set(field.mappingKey, input.submission.formData?.[field.id]);
     }
   }
-  return await workbook.xlsx.writeBuffer();
+  const builtinContext = {
+    workflowNumber: input.workflow?.workflowNumber,
+    workflowTitle: input.workflow?.title,
+    workflowStatus: input.workflow?.status,
+    department: input.workflow?.department,
+    submitterName: input.submitter?.name,
+    submitterEmail: input.submitter?.email,
+    submittedAt: input.submittedAt,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt
+  };
+  for (const key of BUILTIN_MAPPING_KEYS) {
+    values.set(key, getBuiltinValue(key, builtinContext));
+  }
+  const namedRanges = new Map(
+    definedNameModels(workbook).map((item) => [item.name, item.ranges])
+  );
+  const tableGroups = /* @__PURE__ */ new Map();
+  for (const mapping of input.mappings) {
+    if (mapping.targetType === "table_column") {
+      const groupKey = `${mapping.sheetName}\0${mapping.tableName}`;
+      tableGroups.set(groupKey, [
+        ...tableGroups.get(groupKey) || [],
+        mapping
+      ]);
+      continue;
+    }
+    const value = values.get(mapping.mappingKey);
+    if (value === void 0 || value === null) continue;
+    if (mapping.targetType === "cell") {
+      const worksheet2 = workbook.getWorksheet(mapping.sheetName);
+      if (!worksheet2) throw new Error(`Sheet "${mapping.sheetName}" not found`);
+      writeCell(
+        worksheet2.getCell(mapping.cellAddress),
+        value,
+        mapping.valueType
+      );
+      continue;
+    }
+    const range = namedRanges.get(mapping.namedRange)?.[0];
+    const target = range ? parseNamedRange(range) : null;
+    if (!target)
+      throw new Error(`Named range "${mapping.namedRange}" is invalid`);
+    const worksheet = workbook.getWorksheet(target.sheetName);
+    if (!worksheet) throw new Error(`Sheet "${target.sheetName}" not found`);
+    writeCell(worksheet.getCell(target.cellAddress), value, mapping.valueType);
+  }
+  for (const [groupKey, mappings] of Array.from(tableGroups.entries())) {
+    const [sheetName, tableName] = groupKey.split("\0");
+    const worksheet = workbook.getWorksheet(sheetName);
+    const table = worksheet?.getTable(tableName);
+    if (!worksheet || !table) throw new Error(`Table "${tableName}" not found`);
+    const model = table.table;
+    const columnNames = (model.columns || []).map(
+      (column) => column.name
+    );
+    const sourceRows = mappings.map(
+      (mapping) => {
+        const raw = values.get(mapping.mappingKey);
+        return Array.isArray(raw) ? raw : raw === void 0 || raw === null ? [] : [raw];
+      }
+    );
+    const rowCount = Math.max(
+      0,
+      ...sourceRows.map((rows) => rows.length)
+    );
+    const appendedRows = [];
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      const row = Array(columnNames.length).fill(null);
+      mappings.forEach(
+        (mapping, mappingIndex) => {
+          if (mapping.targetType !== "table_column") return;
+          const columnIndex = columnNames.indexOf(mapping.columnName);
+          if (columnIndex < 0) return;
+          const sourceValue = valueAtPath(
+            sourceRows[mappingIndex][rowIndex],
+            mapping.sourcePath
+          );
+          row[columnIndex] = convertValueForExcel(
+            sourceValue,
+            mapping.valueType
+          );
+        }
+      );
+      appendedRows.push(row);
+    }
+    if (appendedRows.length > 0) {
+      const range = String(model.ref || model.tableRef || "");
+      const [startAddress, endAddress] = range.split(":");
+      if (!startAddress || !endAddress) {
+        throw new Error(`Table "${tableName}" has an invalid range`);
+      }
+      const start = worksheet.getCell(startAddress.replace(/\$/g, ""));
+      const end = worksheet.getCell(endAddress.replace(/\$/g, ""));
+      const firstDataRow = Number(start.row) + (model.headerRow === false ? 0 : 1);
+      const lastDataRow = Number(end.row) - (model.totalsRow ? 1 : 0);
+      const existingRows = [];
+      for (let rowNumber = firstDataRow; rowNumber <= lastDataRow; rowNumber += 1) {
+        existingRows.push(
+          columnNames.map(
+            (_, index2) => worksheet.getCell(rowNumber, Number(start.col) + index2).value
+          )
+        );
+      }
+      worksheet.removeTable(tableName);
+      worksheet.addTable({
+        name: model.name,
+        displayName: model.displayName || model.name,
+        ref: startAddress.replace(/\$/g, ""),
+        headerRow: model.headerRow !== false,
+        totalsRow: Boolean(model.totalsRow),
+        style: model.style,
+        columns: model.columns,
+        rows: [...existingRows, ...appendedRows]
+      });
+    }
+  }
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 async function validateMappings(buffer, mappings) {
   const errors = [];
   try {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
-    const worksheetNames = new Set(workbook.worksheets.map((ws) => ws.name));
-    const definedNames = new Set(
-      (Array.isArray(workbook.definedNames) ? workbook.definedNames : []).map((name) => name.name)
+    const namedRanges = new Map(
+      definedNameModels(workbook).map((item) => [item.name, item.ranges])
     );
+    const targets = /* @__PURE__ */ new Set();
     for (const mapping of mappings) {
+      let targetKey;
       if (mapping.targetType === "cell") {
-        const cellMapping = mapping;
-        if (!worksheetNames.has(cellMapping.sheetName)) {
-          errors.push(`Sheet "${cellMapping.sheetName}" not found`);
+        targetKey = `cell:${mapping.sheetName}:${mapping.cellAddress}`;
+        if (!workbook.getWorksheet(mapping.sheetName)) {
+          errors.push(`Sheet "${mapping.sheetName}" not found`);
         }
       } else if (mapping.targetType === "named_range") {
-        const namedMapping = mapping;
-        if (!definedNames.has(namedMapping.namedRange)) {
-          errors.push(`Named range "${namedMapping.namedRange}" not found`);
+        targetKey = `name:${mapping.namedRange}`;
+        if (!namedRanges.has(mapping.namedRange)) {
+          errors.push(`Named range "${mapping.namedRange}" not found`);
         }
-      } else if (mapping.targetType === "table_column") {
-        const tableMapping = mapping;
-        if (!worksheetNames.has(tableMapping.sheetName)) {
-          errors.push(`Sheet "${tableMapping.sheetName}" not found for table mapping`);
-        }
-        let tableFound = false;
-        const worksheet = workbook.getWorksheet(tableMapping.sheetName);
-        if (worksheet && worksheet.tables) {
-          const table = worksheet.tables[tableMapping.tableName];
-          if (table) {
-            const columns = (table.columns || []).map((col) => col.name);
-            if (!columns.includes(tableMapping.columnName)) {
-              errors.push(
-                `Column "${tableMapping.columnName}" not found in table "${tableMapping.tableName}"`
-              );
-            }
-            tableFound = true;
+      } else {
+        targetKey = `table:${mapping.sheetName}:${mapping.tableName}:${mapping.columnName}`;
+        const table = workbook.getWorksheet(mapping.sheetName)?.getTable(mapping.tableName);
+        if (!table) {
+          errors.push(
+            `Table "${mapping.tableName}" not found in sheet "${mapping.sheetName}"`
+          );
+        } else {
+          const columns = (table.table.columns || []).map(
+            (column) => column.name
+          );
+          if (!columns.includes(mapping.columnName)) {
+            errors.push(
+              `Column "${mapping.columnName}" not found in table "${mapping.tableName}"`
+            );
           }
         }
-        if (!tableFound) {
-          errors.push(`Table "${tableMapping.tableName}" not found in sheet "${tableMapping.sheetName}"`);
-        }
       }
+      if (targets.has(targetKey))
+        errors.push(`Target "${targetKey}" is mapped twice`);
+      targets.add(targetKey);
     }
   } catch (error) {
-    errors.push(`Failed to validate workbook: ${error instanceof Error ? error.message : "Unknown error"}`);
+    errors.push(
+      `Failed to validate workbook: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
-  return {
-    valid: errors.length === 0,
-    errors
-  };
+  return { valid: errors.length === 0, errors };
 }
 function generateOutputFilename(pattern, context) {
   let filename = pattern || "{templateName}_{workflowNumber}_{timestamp}.xlsx";
-  filename = filename.replace("{templateName}", context.templateName || "export");
-  filename = filename.replace("{workflowNumber}", context.workflowNumber || "");
-  filename = filename.replace(
-    "{timestamp}",
-    (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").substring(0, 19)
-  );
-  filename = filename.replace("{date}", (/* @__PURE__ */ new Date()).toISOString().substring(0, 10));
-  filename = sanitizeFilename(filename);
-  if (!filename.endsWith(".xlsx")) {
-    filename += ".xlsx";
+  const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const replacements = {
+    "{templateName}": context.templateName || "export",
+    "{workflowNumber}": context.workflowNumber || "",
+    "{timestamp}": timestamp2,
+    "{date}": (context.submittedAt || /* @__PURE__ */ new Date()).toISOString().slice(0, 10)
+  };
+  for (const [token, value] of Object.entries(replacements)) {
+    filename = filename.replaceAll(token, value);
   }
-  return filename;
+  filename = sanitizeFilename(filename) || `export_${timestamp2}`;
+  return filename.toLowerCase().endsWith(".xlsx") ? filename : `${filename}.xlsx`;
 }
 var INSPECTION_LIMITS;
 var init_excelWorkbook = __esm({
@@ -2966,11 +3177,12 @@ var init_excelWorkbook = __esm({
     "use strict";
     init_excelMapping();
     INSPECTION_LIMITS = {
+      maxWorksheets: 30,
       maxRowsPerSheet: 1e3,
-      maxColumnsPerSheet: 50,
-      maxSampleCells: 100,
-      maxTables: 20,
-      maxDefinedNames: 50
+      maxColumnsPerSheet: 100,
+      maxSampleCells: 200,
+      maxTables: 50,
+      maxDefinedNames: 100
     };
   }
 });
@@ -4235,6 +4447,7 @@ function deriveProcessingStatus(input) {
 }
 
 // server/routers.ts
+init_excelMapping();
 var APP_BASE_URL = (process.env.VITE_APP_URL || "https://approval-workflow-system-nine.vercel.app").replace(/\/$/, "");
 function validateFieldMappings(fields) {
   const mappingKeys = fields.map((field) => field.mappingKey?.trim()).filter((key) => Boolean(key));
@@ -5842,7 +6055,7 @@ var appRouter = router({
   // Excel Template Management
   // ============================================
   excelTemplates: router({
-    create: protectedProcedure.input(
+    create: adminProcedure2.input(
       z5.object({
         workflowType: z5.string(),
         templateName: z5.string(),
@@ -5869,16 +6082,24 @@ var appRouter = router({
       });
       return result;
     }),
-    getAll: protectedProcedure.query(async () => {
+    getAll: adminProcedure2.query(async () => {
+      await ensureExcelMappingSchema();
       return await getAllExcelTemplates();
     }),
     getActive: protectedProcedure.query(async () => {
+      await ensureExcelMappingSchema();
       return await getActiveExcelTemplates();
     }),
+    getForFormTemplate: protectedProcedure.input(z5.object({ formTemplateId: z5.string().uuid() })).query(async ({ input }) => {
+      await ensureExcelMappingSchema();
+      return await getExcelTemplatesByFormTemplate(input.formTemplateId);
+    }),
     getByWorkflowType: protectedProcedure.input(z5.object({ workflowType: z5.string() })).query(async ({ input }) => {
+      await ensureExcelMappingSchema();
       return await getExcelTemplateByWorkflowType(input.workflowType);
     }),
     getDownloadUrl: protectedProcedure.input(z5.object({ id: z5.number() })).query(async ({ input }) => {
+      await ensureExcelMappingSchema();
       const template = await getExcelTemplateById(input.id);
       if (!template) {
         throw new TRPCError3({
@@ -5889,7 +6110,7 @@ var appRouter = router({
       const { url } = await storageGet(template.fileKey, 3600);
       return { url, fileName: template.fileName };
     }),
-    update: protectedProcedure.input(
+    update: adminProcedure2.input(
       z5.object({
         id: z5.number(),
         templateName: z5.string().optional(),
@@ -5910,7 +6131,7 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    delete: protectedProcedure.input(z5.object({ id: z5.number() })).mutation(async ({ input, ctx }) => {
+    delete: adminProcedure2.input(z5.object({ id: z5.number() })).mutation(async ({ input, ctx }) => {
       await deleteExcelTemplate(input.id);
       await createAuditLog({
         entityType: "excel_template",
@@ -5923,20 +6144,34 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    uploadFile: protectedProcedure.input(
+    uploadFile: adminProcedure2.input(
       z5.object({
         workflowType: z5.string(),
         templateName: z5.string(),
         description: z5.string().optional(),
-        filename: z5.string(),
-        fileData: z5.string(),
-        // base64 encoded
-        fileSize: z5.number()
+        filename: z5.string().min(1).max(255),
+        fileData: z5.string().min(1).max(14e6),
+        fileSize: z5.number().int().positive().max(10 * 1024 * 1024)
       })
     ).mutation(async ({ input, ctx }) => {
-      if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
+      const safeFilename = input.filename.split(/[\\/]/).pop() || "";
+      if (!safeFilename.toLowerCase().endsWith(".xlsx")) {
+        throw new TRPCError3({
+          code: "BAD_REQUEST",
+          message: "Only .xlsx workbooks are supported"
+        });
+      }
       const fileBuffer = Buffer.from(input.fileData, "base64");
-      const fileKey = `excel-templates/${input.workflowType}/${Date.now()}-${input.filename}`;
+      if (fileBuffer.length !== input.fileSize || fileBuffer[0] !== 80 || fileBuffer[1] !== 75) {
+        throw new TRPCError3({
+          code: "BAD_REQUEST",
+          message: "The uploaded file is not a valid .xlsx workbook"
+        });
+      }
+      const { inspectWorkbook: inspectWorkbook2 } = await Promise.resolve().then(() => (init_excelWorkbook(), excelWorkbook_exports));
+      await inspectWorkbook2(fileBuffer);
+      const workflowKey = input.workflowType.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const fileKey = `excel-templates/${workflowKey}/${Date.now()}-${safeFilename}`;
       const { url } = await storagePut(
         fileKey,
         fileBuffer,
@@ -5948,7 +6183,7 @@ var appRouter = router({
         description: input.description,
         fileUrl: url,
         fileKey,
-        fileName: input.filename,
+        fileName: safeFilename,
         fileSize: input.fileSize,
         uploadedBy: ctx.user.id
       });
@@ -5964,8 +6199,8 @@ var appRouter = router({
       return { success: true, url };
     }),
     // Inspect workbook and extract metadata
-    inspectWorkbook: protectedProcedure.input(z5.object({ id: z5.number() })).query(async ({ input, ctx }) => {
-      if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
+    inspectWorkbook: adminProcedure2.input(z5.object({ id: z5.number() })).query(async ({ input, ctx }) => {
+      await ensureExcelMappingSchema();
       const template = await getExcelTemplateById(input.id);
       if (!template) {
         throw new TRPCError3({
@@ -5976,6 +6211,7 @@ var appRouter = router({
       const buffer = await storageDownload(template.fileKey);
       const { inspectWorkbook: inspectWorkbook2 } = await Promise.resolve().then(() => (init_excelWorkbook(), excelWorkbook_exports));
       const metadata = await inspectWorkbook2(buffer);
+      await updateExcelTemplate(input.id, { workbookMetadata: metadata });
       await createAuditLog({
         entityType: "excel_template",
         entityId: input.id.toString(),
@@ -5988,20 +6224,38 @@ var appRouter = router({
       return metadata;
     }),
     // Save mapping configuration
-    saveMapping: protectedProcedure.input(
+    saveMapping: adminProcedure2.input(
       z5.object({
         id: z5.number(),
-        formTemplateId: z5.string(),
-        mappings: z5.array(z5.any()),
-        outputFileNamePattern: z5.string().optional()
+        formTemplateId: z5.string().uuid(),
+        mappings: excelWorkbookMappingsSchema,
+        outputFileNamePattern: z5.string().max(255).optional()
       })
     ).mutation(async ({ input, ctx }) => {
-      if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
+      await ensureExcelMappingSchema();
       const template = await getExcelTemplateById(input.id);
       if (!template) {
         throw new TRPCError3({
           code: "NOT_FOUND",
           message: "Template not found"
+        });
+      }
+      const formTemplate = await getFormTemplateById(input.formTemplateId);
+      if (!formTemplate) {
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Form template not found"
+        });
+      }
+      const allowedKeys = /* @__PURE__ */ new Set([
+        ...BUILTIN_MAPPING_KEYS,
+        ...formTemplate.fields.map((field) => field.mappingKey?.trim()).filter((key) => Boolean(key))
+      ]);
+      const invalidKeys = input.mappings.map((mapping) => mapping.mappingKey).filter((key) => !allowedKeys.has(key));
+      if (invalidKeys.length > 0) {
+        throw new TRPCError3({
+          code: "BAD_REQUEST",
+          message: `Unknown mapping keys: ${Array.from(new Set(invalidKeys)).join(", ")}`
         });
       }
       const buffer = await storageDownload(template.fileKey);
@@ -6015,7 +6269,8 @@ var appRouter = router({
       }
       await updateExcelTemplate(input.id, {
         formTemplateId: input.formTemplateId,
-        workbookMappings: JSON.stringify(input.mappings),
+        workbookMappings: input.mappings,
+        workbookMetadata: await (await Promise.resolve().then(() => (init_excelWorkbook(), excelWorkbook_exports))).inspectWorkbook(buffer),
         outputFileNamePattern: input.outputFileNamePattern || ""
       });
       await createAuditLog({
@@ -6037,6 +6292,7 @@ var appRouter = router({
       })
     ).mutation(async ({ input, ctx }) => {
       if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
+      await ensureExcelMappingSchema();
       const template = await getExcelTemplateById(input.excelTemplateId);
       if (!template) {
         throw new TRPCError3({
@@ -6057,7 +6313,15 @@ var appRouter = router({
           message: "Submission not found"
         });
       }
-      const formTemplate = await getFormTemplateById(template.formTemplateId);
+      if (submission.templateId !== template.formTemplateId) {
+        throw new TRPCError3({
+          code: "BAD_REQUEST",
+          message: "Excel template is not linked to this form template"
+        });
+      }
+      const formTemplate = await getFormTemplateById(
+        template.formTemplateId
+      );
       if (!formTemplate) {
         throw new TRPCError3({
           code: "NOT_FOUND",
@@ -6074,7 +6338,9 @@ var appRouter = router({
       }
       const templateBuffer = await storageDownload(template.fileKey);
       const { generateMappedWorkbook: generateMappedWorkbook2, generateOutputFilename: generateOutputFilename2 } = await Promise.resolve().then(() => (init_excelWorkbook(), excelWorkbook_exports));
-      const mappings = template.workbookMappings ? JSON.parse(template.workbookMappings) : [];
+      const mappings = Array.isArray(
+        template.workbookMappings
+      ) ? template.workbookMappings : typeof template.workbookMappings === "string" ? JSON.parse(template.workbookMappings) : [];
       let workflow = null;
       if (submission.workflowId) {
         workflow = await getWorkflowById(submission.workflowId);
@@ -6090,19 +6356,22 @@ var appRouter = router({
           status: workflow.overallStatus || "draft",
           department: workflow.department
         } : void 0,
-        submitter: {
-          name: submission.submittedBy ? (await getUserById(submission.submittedBy))?.fullName || "" : "",
-          email: submission.submittedBy ? (await getUserById(submission.submittedBy))?.email || "" : ""
-        },
+        submitter: await (async () => {
+          const user = await getUserById(submission.submittedBy);
+          return { name: user?.fullName || "", email: user?.email || "" };
+        })(),
         submittedAt: submission.submittedAt || void 0,
         createdAt: submission.createdAt || void 0,
         updatedAt: submission.updatedAt || void 0
       });
-      const filename = generateOutputFilename2(template.outputFileNamePattern || "", {
-        templateName: template.templateName,
-        workflowNumber: workflow?.workflowNumber,
-        submittedAt: submission.submittedAt || void 0
-      });
+      const filename = generateOutputFilename2(
+        template.outputFileNamePattern || "",
+        {
+          templateName: template.templateName,
+          workflowNumber: workflow?.workflowNumber,
+          submittedAt: submission.submittedAt || void 0
+        }
+      );
       const fileKey = `generated-workbooks/${Date.now()}-${filename}`;
       const { url } = await storagePut(
         fileKey,

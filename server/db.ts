@@ -29,6 +29,62 @@ export const mysqlPool = mysql.createPool({
 const connection = mysqlPool;
 export const db = drizzle(connection, { schema, mode: "default" });
 
+let excelMappingSchemaPromise: Promise<void> | null = null;
+
+/** Ensure the Excel mapping columns exist if deployment preceded migration. */
+export function ensureExcelMappingSchema(): Promise<void> {
+  if (excelMappingSchemaPromise) return excelMappingSchemaPromise;
+  excelMappingSchemaPromise = (async () => {
+    const dbConnection = await mysqlPool.getConnection();
+    try {
+      await dbConnection.query(
+        "SELECT GET_LOCK('excel_mapping_schema_v1', 15)"
+      );
+      const [columnRows] = await dbConnection.query<mysql.RowDataPacket[]>(
+        `SELECT COLUMN_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'excel_templates'`
+      );
+      const columns = new Set(columnRows.map(row => String(row.COLUMN_NAME)));
+      const additions = [
+        ["form_template_id", "VARCHAR(36) NULL"],
+        ["workbook_mappings", "JSON NULL"],
+        ["workbook_metadata", "JSON NULL"],
+        ["output_file_name_pattern", "VARCHAR(255) NULL"],
+      ].filter(([name]) => !columns.has(name));
+
+      for (const [name, definition] of additions) {
+        await dbConnection.query(
+          `ALTER TABLE excel_templates ADD COLUMN \`${name}\` ${definition}`
+        );
+      }
+
+      const [indexRows] = await dbConnection.query<mysql.RowDataPacket[]>(
+        `SELECT INDEX_NAME
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'excel_templates'
+           AND INDEX_NAME = 'idx_excel_templates_form_template_id'`
+      );
+      if (indexRows.length === 0) {
+        await dbConnection.query(
+          "CREATE INDEX idx_excel_templates_form_template_id ON excel_templates(form_template_id)"
+        );
+      }
+    } finally {
+      await dbConnection.query(
+        "SELECT RELEASE_LOCK('excel_mapping_schema_v1')"
+      );
+      dbConnection.release();
+    }
+  })().catch(error => {
+    excelMappingSchemaPromise = null;
+    throw error;
+  });
+  return excelMappingSchemaPromise;
+}
+
 // ============================================
 // User Management
 // ============================================
@@ -1864,6 +1920,10 @@ export async function getAllExcelTemplates() {
       fileSize: schema.excelTemplates.fileSize,
       uploadedAt: schema.excelTemplates.uploadedAt,
       isActive: schema.excelTemplates.isActive,
+      formTemplateId: schema.excelTemplates.formTemplateId,
+      workbookMappings: schema.excelTemplates.workbookMappings,
+      workbookMetadata: schema.excelTemplates.workbookMetadata,
+      outputFileNamePattern: schema.excelTemplates.outputFileNamePattern,
       uploaderName: schema.users.fullName,
       uploaderEmail: schema.users.email,
     })
@@ -1917,6 +1977,23 @@ export async function getExcelTemplateById(id: number) {
   return template || null;
 }
 
+export async function getExcelTemplatesByFormTemplate(formTemplateId: string) {
+  return await db
+    .select({
+      id: schema.excelTemplates.id,
+      templateName: schema.excelTemplates.templateName,
+      formTemplateId: schema.excelTemplates.formTemplateId,
+    })
+    .from(schema.excelTemplates)
+    .where(
+      and(
+        eq(schema.excelTemplates.formTemplateId, formTemplateId),
+        eq(schema.excelTemplates.isActive, true)
+      )
+    )
+    .orderBy(desc(schema.excelTemplates.uploadedAt));
+}
+
 export async function updateExcelTemplate(
   id: number,
   updates: {
@@ -1924,8 +2001,8 @@ export async function updateExcelTemplate(
     description?: string;
     isActive?: boolean;
     formTemplateId?: string;
-    workbookMappings?: string;
-    workbookMetadata?: any;
+    workbookMappings?: schema.ExcelTemplate["workbookMappings"];
+    workbookMetadata?: schema.ExcelTemplate["workbookMetadata"];
     outputFileNamePattern?: string;
   }
 ) {

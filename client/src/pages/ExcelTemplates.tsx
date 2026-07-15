@@ -19,6 +19,7 @@ import {
   Download,
   Home,
   Edit,
+  Settings2,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -40,6 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
+import { ExcelMappingEditor } from "@/components/ExcelMappingEditor";
 
 export default function ExcelTemplates() {
   const utils = trpc.useUtils();
@@ -63,6 +65,7 @@ export default function ExcelTemplates() {
   const [deletingTemplateId, setDeletingTemplateId] = useState<number | null>(
     null
   );
+  const [mappingTemplate, setMappingTemplate] = useState<any>(null);
 
   // Fetch all templates
   const { data: templates, isLoading } = trpc.excelTemplates.getAll.useQuery();
@@ -117,12 +120,12 @@ export default function ExcelTemplates() {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file type
-      const validTypes = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-      ];
-      if (!validTypes.includes(file.type)) {
-        toast.error("Please select an Excel file (.xlsx or .xls)");
+      if (!file.name.toLowerCase().endsWith(".xlsx")) {
+        toast.error("Please select an .xlsx workbook");
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Workbook must be 10 MB or smaller");
         return;
       }
       setSelectedFile(file);
@@ -320,6 +323,16 @@ export default function ExcelTemplates() {
                   <Download className="h-4 w-4 mr-2" />
                   Download
                 </Button>
+                <Button
+                  className="w-full mt-2"
+                  variant={template.formTemplateId ? "secondary" : "default"}
+                  onClick={() => setMappingTemplate(template)}
+                >
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  {template.formTemplateId
+                    ? "Edit Mapping"
+                    : "Configure Mapping"}
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -382,7 +395,7 @@ export default function ExcelTemplates() {
               <Input
                 id="file"
                 type="file"
-                accept=".xlsx,.xls"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={handleFileSelect}
               />
               {selectedFile && (
@@ -478,6 +491,15 @@ export default function ExcelTemplates() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExcelMappingEditor
+        template={mappingTemplate}
+        open={Boolean(mappingTemplate)}
+        onOpenChange={open => {
+          if (!open) setMappingTemplate(null);
+        }}
+        onSaved={() => utils.excelTemplates.getAll.invalidate()}
+      />
     </div>
   );
 }

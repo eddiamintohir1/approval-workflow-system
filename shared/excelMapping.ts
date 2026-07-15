@@ -129,7 +129,10 @@ export const mappingKeySchema = z
   .string()
   .min(1)
   .max(255)
-  .regex(/^[a-zA-Z0-9_]+$/, "Mapping key must contain only alphanumeric and underscore");
+  .regex(
+    /^[a-zA-Z0-9_]+$/,
+    "Mapping key must contain only alphanumeric and underscore"
+  );
 
 /**
  * Validation schema for cell mapping
@@ -184,10 +187,13 @@ export const excelWorkbookMappingsSchema = z.array(excelWorkbookMappingSchema);
  */
 export const workbookMetadataSchema = z.object({
   worksheetNames: z.array(z.string()),
-  worksheetDimensions: z.record(z.string(), z.object({
+  worksheetDimensions: z.record(
+    z.string(),
+    z.object({
       rows: z.number(),
       columns: z.number(),
-    })),
+    })
+  ),
   definedNames: z.array(
     z.object({
       name: z.string(),
@@ -292,14 +298,9 @@ export function convertValueForExcel(
       return isNaN(date.getTime()) ? value : date;
     case "auto":
     default:
-      // Auto-detect: if it looks like a number, convert it
+      // Preserve strings by default. Financial identifiers often contain
+      // leading zeroes; numeric conversion must be explicitly requested.
       if (typeof value === "number") return value;
-      if (typeof value === "string") {
-        const num = Number(value);
-        if (!isNaN(num) && value.trim() !== "") {
-          return num;
-        }
-      }
       return value;
   }
 }

@@ -1,7 +1,7 @@
 -- Add Excel form-template mapping fields to excel_templates table
 ALTER TABLE excel_templates
 ADD COLUMN form_template_id VARCHAR(36),
-ADD COLUMN workbook_mappings JSON DEFAULT '[]',
+ADD COLUMN workbook_mappings JSON,
 ADD COLUMN workbook_metadata JSON,
 ADD COLUMN output_file_name_pattern VARCHAR(255);
 

@@ -27,6 +27,11 @@ import {
   buildProcessingFields,
   deriveProcessingStatus,
 } from "./formProcessing";
+import {
+  BUILTIN_MAPPING_KEYS,
+  excelWorkbookMappingsSchema,
+  type ExcelWorkbookMapping,
+} from "../shared/excelMapping";
 
 const APP_BASE_URL = (
   process.env.VITE_APP_URL || "https://approval-workflow-system-nine.vercel.app"
@@ -2090,7 +2095,7 @@ export const appRouter = router({
   // Excel Template Management
   // ============================================
   excelTemplates: router({
-    create: protectedProcedure
+    create: adminProcedure
       .input(
         z.object({
           workflowType: z.string(),
@@ -2123,23 +2128,34 @@ export const appRouter = router({
         return result;
       }),
 
-    getAll: protectedProcedure.query(async () => {
+    getAll: adminProcedure.query(async () => {
+      await db.ensureExcelMappingSchema();
       return await db.getAllExcelTemplates();
     }),
 
     getActive: protectedProcedure.query(async () => {
+      await db.ensureExcelMappingSchema();
       return await db.getActiveExcelTemplates();
     }),
+
+    getForFormTemplate: protectedProcedure
+      .input(z.object({ formTemplateId: z.string().uuid() }))
+      .query(async ({ input }) => {
+        await db.ensureExcelMappingSchema();
+        return await db.getExcelTemplatesByFormTemplate(input.formTemplateId);
+      }),
 
     getByWorkflowType: protectedProcedure
       .input(z.object({ workflowType: z.string() }))
       .query(async ({ input }) => {
+        await db.ensureExcelMappingSchema();
         return await db.getExcelTemplateByWorkflowType(input.workflowType);
       }),
 
     getDownloadUrl: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
+        await db.ensureExcelMappingSchema();
         const template = await db.getExcelTemplateById(input.id);
         if (!template) {
           throw new TRPCError({
@@ -2154,7 +2170,7 @@ export const appRouter = router({
         return { url, fileName: template.fileName };
       }),
 
-    update: protectedProcedure
+    update: adminProcedure
       .input(
         z.object({
           id: z.number(),
@@ -2180,7 +2196,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    delete: protectedProcedure
+    delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         await db.deleteExcelTemplate(input.id);
@@ -2198,25 +2214,46 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    uploadFile: protectedProcedure
+    uploadFile: adminProcedure
       .input(
         z.object({
           workflowType: z.string(),
           templateName: z.string(),
           description: z.string().optional(),
-          filename: z.string(),
-          fileData: z.string(), // base64 encoded
-          fileSize: z.number(),
+          filename: z.string().min(1).max(255),
+          fileData: z.string().min(1).max(14_000_000),
+          fileSize: z
+            .number()
+            .int()
+            .positive()
+            .max(10 * 1024 * 1024),
         })
       )
       .mutation(async ({ input, ctx }) => {
-        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-        // Convert base64 to buffer
+        const safeFilename = input.filename.split(/[\\/]/).pop() || "";
+        if (!safeFilename.toLowerCase().endsWith(".xlsx")) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Only .xlsx workbooks are supported",
+          });
+        }
         const fileBuffer = Buffer.from(input.fileData, "base64");
+        if (
+          fileBuffer.length !== input.fileSize ||
+          fileBuffer[0] !== 0x50 ||
+          fileBuffer[1] !== 0x4b
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "The uploaded file is not a valid .xlsx workbook",
+          });
+        }
 
-        // Upload to S3
-        const fileKey = `excel-templates/${input.workflowType}/${Date.now()}-${input.filename}`;
+        const { inspectWorkbook } = await import("./excelWorkbook");
+        await inspectWorkbook(fileBuffer);
+
+        const workflowKey = input.workflowType.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const fileKey = `excel-templates/${workflowKey}/${Date.now()}-${safeFilename}`;
         const { url } = await storagePut(
           fileKey,
           fileBuffer,
@@ -2230,7 +2267,7 @@ export const appRouter = router({
           description: input.description,
           fileUrl: url,
           fileKey: fileKey,
-          fileName: input.filename,
+          fileName: safeFilename,
           fileSize: input.fileSize,
           uploadedBy: ctx.user.id,
         });
@@ -2249,11 +2286,10 @@ export const appRouter = router({
       }),
 
     // Inspect workbook and extract metadata
-    inspectWorkbook: protectedProcedure
+    inspectWorkbook: adminProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
-        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-
+        await db.ensureExcelMappingSchema();
         const template = await db.getExcelTemplateById(input.id);
         if (!template) {
           throw new TRPCError({
@@ -2268,6 +2304,7 @@ export const appRouter = router({
         // Inspect workbook
         const { inspectWorkbook } = await import("./excelWorkbook");
         const metadata = await inspectWorkbook(buffer);
+        await db.updateExcelTemplate(input.id, { workbookMetadata: metadata });
 
         await db.createAuditLog({
           entityType: "excel_template",
@@ -2283,18 +2320,17 @@ export const appRouter = router({
       }),
 
     // Save mapping configuration
-    saveMapping: protectedProcedure
+    saveMapping: adminProcedure
       .input(
         z.object({
           id: z.number(),
-          formTemplateId: z.string(),
-          mappings: z.array(z.any()),
-          outputFileNamePattern: z.string().optional(),
+          formTemplateId: z.string().uuid(),
+          mappings: excelWorkbookMappingsSchema,
+          outputFileNamePattern: z.string().max(255).optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
-        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-
+        await db.ensureExcelMappingSchema();
         const template = await db.getExcelTemplateById(input.id);
         if (!template) {
           throw new TRPCError({
@@ -2303,7 +2339,29 @@ export const appRouter = router({
           });
         }
 
-        // Validate mappings against workbook
+        const formTemplate = await db.getFormTemplateById(input.formTemplateId);
+        if (!formTemplate) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Form template not found",
+          });
+        }
+        const allowedKeys = new Set([
+          ...BUILTIN_MAPPING_KEYS,
+          ...formTemplate.fields
+            .map(field => field.mappingKey?.trim())
+            .filter((key): key is string => Boolean(key)),
+        ]);
+        const invalidKeys = input.mappings
+          .map(mapping => mapping.mappingKey)
+          .filter(key => !allowedKeys.has(key as any));
+        if (invalidKeys.length > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Unknown mapping keys: ${Array.from(new Set(invalidKeys)).join(", ")}`,
+          });
+        }
+
         const buffer = await storageDownload(template.fileKey);
         const { validateMappings } = await import("./excelWorkbook");
         const validation = await validateMappings(buffer, input.mappings);
@@ -2318,7 +2376,10 @@ export const appRouter = router({
         // Save mapping
         await db.updateExcelTemplate(input.id, {
           formTemplateId: input.formTemplateId,
-          workbookMappings: JSON.stringify(input.mappings),
+          workbookMappings: input.mappings,
+          workbookMetadata: await (
+            await import("./excelWorkbook")
+          ).inspectWorkbook(buffer),
           outputFileNamePattern: input.outputFileNamePattern || "",
         });
 
@@ -2345,6 +2406,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input, ctx }) => {
         if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+        await db.ensureExcelMappingSchema();
 
         const template = await db.getExcelTemplateById(input.excelTemplateId);
         if (!template) {
@@ -2369,9 +2431,17 @@ export const appRouter = router({
             message: "Submission not found",
           });
         }
+        if (submission.templateId !== template.formTemplateId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Excel template is not linked to this form template",
+          });
+        }
 
         // Get form template
-        const formTemplate = await db.getFormTemplateById(template.formTemplateId);
+        const formTemplate = await db.getFormTemplateById(
+          template.formTemplateId
+        );
         if (!formTemplate) {
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -2397,9 +2467,13 @@ export const appRouter = router({
         const { generateMappedWorkbook, generateOutputFilename } = await import(
           "./excelWorkbook"
         );
-        const mappings = template.workbookMappings
-          ? JSON.parse(template.workbookMappings as any)
-          : [];
+        const mappings: ExcelWorkbookMapping[] = Array.isArray(
+          template.workbookMappings
+        )
+          ? template.workbookMappings
+          : typeof template.workbookMappings === "string"
+            ? JSON.parse(template.workbookMappings)
+            : [];
 
         // Get workflow if available
         let workflow = null;
@@ -2420,21 +2494,24 @@ export const appRouter = router({
                 department: workflow.department,
               }
             : undefined,
-          submitter: {
-            name: submission.submittedBy ? (await db.getUserById(submission.submittedBy))?.fullName || "" : "",
-            email: submission.submittedBy ? (await db.getUserById(submission.submittedBy))?.email || "" : "",
-          },
+          submitter: await (async () => {
+            const user = await db.getUserById(submission.submittedBy);
+            return { name: user?.fullName || "", email: user?.email || "" };
+          })(),
           submittedAt: submission.submittedAt || undefined,
           createdAt: submission.createdAt || undefined,
           updatedAt: submission.updatedAt || undefined,
         });
 
         // Generate filename
-        const filename = generateOutputFilename(template.outputFileNamePattern || "", {
-          templateName: template.templateName,
-          workflowNumber: workflow?.workflowNumber,
-          submittedAt: submission.submittedAt || undefined,
-        });
+        const filename = generateOutputFilename(
+          template.outputFileNamePattern || "",
+          {
+            templateName: template.templateName,
+            workflowNumber: workflow?.workflowNumber,
+            submittedAt: submission.submittedAt || undefined,
+          }
+        );
 
         // Upload to Azure Blob
         const fileKey = `generated-workbooks/${Date.now()}-${filename}`;
@@ -2457,8 +2534,6 @@ export const appRouter = router({
 
         return { url, filename };
       }),
-
-
   }),
 
   // ============================================
