@@ -1923,6 +1923,10 @@ export async function updateExcelTemplate(
     templateName?: string;
     description?: string;
     isActive?: boolean;
+    formTemplateId?: string;
+    workbookMappings?: string;
+    workbookMetadata?: any;
+    outputFileNamePattern?: string;
   }
 ) {
   await db

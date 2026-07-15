@@ -669,6 +669,11 @@ export const excelTemplates = mysqlTable("excel_templates", {
   uploadedBy: int("uploaded_by").notNull(),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  // Excel form-template mapping fields
+  formTemplateId: varchar("form_template_id", { length: 36 }),
+  workbookMappings: json("workbook_mappings").$type<any[]>().default([]),
+  workbookMetadata: json("workbook_metadata").$type<any>(),
+  outputFileNamePattern: varchar("output_file_name_pattern", { length: 255 }),
 });
 
 export type ExcelTemplate = typeof excelTemplates.$inferSelect;
