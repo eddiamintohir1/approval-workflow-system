@@ -5,7 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import * as db from "./db";
 import * as schema from "../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { storagePut, storageGet } from "./storage";
+import { storagePut, storageGet, storageDownload } from "./storage";
 import { randomUUID } from "crypto";
 import {
   withCache,
@@ -2247,6 +2247,218 @@ export const appRouter = router({
 
         return { success: true, url };
       }),
+
+    // Inspect workbook and extract metadata
+    inspectWorkbook: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        const template = await db.getExcelTemplateById(input.id);
+        if (!template) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Template not found",
+          });
+        }
+
+        // Download workbook from Azure Blob
+        const buffer = await storageDownload(template.fileKey);
+
+        // Inspect workbook
+        const { inspectWorkbook } = await import("./excelWorkbook");
+        const metadata = await inspectWorkbook(buffer);
+
+        await db.createAuditLog({
+          entityType: "excel_template",
+          entityId: input.id.toString(),
+          action: "inspected",
+          actionDescription: `Excel template inspected: ${template.templateName}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+
+        return metadata;
+      }),
+
+    // Save mapping configuration
+    saveMapping: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          formTemplateId: z.string(),
+          mappings: z.array(z.any()),
+          outputFileNamePattern: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        const template = await db.getExcelTemplateById(input.id);
+        if (!template) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Template not found",
+          });
+        }
+
+        // Validate mappings against workbook
+        const buffer = await storageDownload(template.fileKey);
+        const { validateMappings } = await import("./excelWorkbook");
+        const validation = await validateMappings(buffer, input.mappings);
+
+        if (!validation.valid) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Invalid mappings: ${validation.errors.join(", ")}`,
+          });
+        }
+
+        // Save mapping
+        await db.updateExcelTemplate(input.id, {
+          formTemplateId: input.formTemplateId,
+          workbookMappings: JSON.stringify(input.mappings),
+          outputFileNamePattern: input.outputFileNamePattern || "",
+        });
+
+        await db.createAuditLog({
+          entityType: "excel_template",
+          entityId: input.id.toString(),
+          action: "mapping_saved",
+          actionDescription: `Excel template mapping saved for form template ${input.formTemplateId}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+
+        return { success: true };
+      }),
+
+    // Generate Excel for a submission
+    generateForSubmission: protectedProcedure
+      .input(
+        z.object({
+          excelTemplateId: z.number(),
+          submissionId: z.string(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+        const template = await db.getExcelTemplateById(input.excelTemplateId);
+        if (!template) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Excel template not found",
+          });
+        }
+
+        if (!template.formTemplateId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Excel template has no form mapping",
+          });
+        }
+
+        // Get submission
+        const submission = await db.getFormSubmissionById(input.submissionId);
+        if (!submission) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Submission not found",
+          });
+        }
+
+        // Get form template
+        const formTemplate = await db.getFormTemplateById(template.formTemplateId);
+        if (!formTemplate) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Form template not found",
+          });
+        }
+
+        // Check authorization: submitter or admin
+        const isSubmitter = submission.submittedBy === ctx.user.id;
+        const isAdmin = ctx.user.role === "admin";
+
+        if (!isSubmitter && !isAdmin) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not authorized to generate Excel for this submission",
+          });
+        }
+
+        // Download template
+        const templateBuffer = await storageDownload(template.fileKey);
+
+        // Generate mapped workbook
+        const { generateMappedWorkbook, generateOutputFilename } = await import(
+          "./excelWorkbook"
+        );
+        const mappings = template.workbookMappings
+          ? JSON.parse(template.workbookMappings as any)
+          : [];
+
+        // Get workflow if available
+        let workflow = null;
+        if (submission.workflowId) {
+          workflow = await db.getWorkflowById(submission.workflowId);
+        }
+
+        const generatedBuffer = await generateMappedWorkbook({
+          templateBuffer,
+          mappings,
+          formTemplate,
+          submission: { formData: submission.formData },
+          workflow: workflow
+            ? {
+                workflowNumber: workflow.workflowNumber,
+                title: workflow.title,
+                status: workflow.overallStatus || "draft",
+                department: workflow.department,
+              }
+            : undefined,
+          submitter: {
+            name: submission.submittedBy ? (await db.getUserById(submission.submittedBy))?.fullName || "" : "",
+            email: submission.submittedBy ? (await db.getUserById(submission.submittedBy))?.email || "" : "",
+          },
+          submittedAt: submission.submittedAt || undefined,
+          createdAt: submission.createdAt || undefined,
+          updatedAt: submission.updatedAt || undefined,
+        });
+
+        // Generate filename
+        const filename = generateOutputFilename(template.outputFileNamePattern || "", {
+          templateName: template.templateName,
+          workflowNumber: workflow?.workflowNumber,
+          submittedAt: submission.submittedAt || undefined,
+        });
+
+        // Upload to Azure Blob
+        const fileKey = `generated-workbooks/${Date.now()}-${filename}`;
+        const { url } = await storagePut(
+          fileKey,
+          generatedBuffer,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+
+        // Audit log
+        await db.createAuditLog({
+          entityType: "excel_generation",
+          entityId: input.submissionId,
+          action: "generated",
+          actionDescription: `Excel workbook generated for submission ${input.submissionId}`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
+        });
+
+        return { url, filename };
+      }),
+
+
   }),
 
   // ============================================

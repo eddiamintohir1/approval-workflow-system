@@ -66,3 +66,32 @@ export async function storageGet(
     );
   }
 }
+
+/**
+ * Download file content as Buffer from Azure Blob Storage
+ * Used for server-side operations like workbook generation
+ */
+export async function storageDownload(relKey: string): Promise<Buffer> {
+  const key = normalizeKey(relKey);
+
+  try {
+    const blob = getContainerClient().getBlobClient(key);
+    const downloadBlockBlobResponse = await blob.download();
+
+    if (!downloadBlockBlobResponse.readableStreamBody) {
+      throw new Error("No stream body in download response");
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of downloadBlockBlobResponse.readableStreamBody) {
+      chunks.push(Buffer.from(chunk));
+    }
+
+    return Buffer.concat(chunks);
+  } catch (error) {
+    console.error("Azure Blob download failed", error);
+    throw new Error(
+      `Failed to download file from Azure Blob Storage: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+}
