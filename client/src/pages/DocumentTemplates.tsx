@@ -4,9 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Plus, Upload, Pencil, Trash2, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -43,7 +64,7 @@ export default function DocumentTemplates() {
     try {
       setUploading(true);
 
-      // Upload file to S3
+      // Upload file to Azure Blob Storage.
       const formData = new FormData();
       formData.append("file", file);
       const uploadResponse = await fetch("/api/upload", {
@@ -58,7 +79,7 @@ export default function DocumentTemplates() {
         description: templateDescription,
         category: templateCategory,
         fileUrl: url,
-        fileType: file.name.split('.').pop() || 'pdf',
+        fileType: file.name.split(".").pop() || "pdf",
       });
 
       // Reset form
@@ -92,7 +113,7 @@ export default function DocumentTemplates() {
 
   const getCategoryBadge = (category?: string) => {
     if (!category) return null;
-    
+
     const colors: Record<string, string> = {
       Contract: "bg-blue-100 text-blue-700",
       NDA: "bg-purple-100 text-purple-700",
@@ -114,7 +135,9 @@ export default function DocumentTemplates() {
           <FileText className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-3xl font-bold">Document Templates</h1>
-            <p className="text-muted-foreground">Manage reusable document templates for e-signature</p>
+            <p className="text-muted-foreground">
+              Manage reusable document templates for e-signature
+            </p>
           </div>
         </div>
 
@@ -129,7 +152,8 @@ export default function DocumentTemplates() {
             <DialogHeader>
               <DialogTitle>Create New Template</DialogTitle>
               <DialogDescription>
-                Upload a document template that can be reused for e-signature requests
+                Upload a document template that can be reused for e-signature
+                requests
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -149,7 +173,7 @@ export default function DocumentTemplates() {
                 <Input
                   id="template-name"
                   value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
+                  onChange={e => setTemplateName(e.target.value)}
                   placeholder="e.g., Standard NDA"
                   disabled={uploading}
                 />
@@ -160,18 +184,20 @@ export default function DocumentTemplates() {
                 <Input
                   id="template-category"
                   value={templateCategory}
-                  onChange={(e) => setTemplateCategory(e.target.value)}
+                  onChange={e => setTemplateCategory(e.target.value)}
                   placeholder="e.g., Contract, NDA, Invoice"
                   disabled={uploading}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="template-description">Description (Optional)</Label>
+                <Label htmlFor="template-description">
+                  Description (Optional)
+                </Label>
                 <Textarea
                   id="template-description"
                   value={templateDescription}
-                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  onChange={e => setTemplateDescription(e.target.value)}
                   placeholder="Brief description of this template..."
                   rows={3}
                   disabled={uploading}
@@ -179,10 +205,17 @@ export default function DocumentTemplates() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={uploading}>
+              <Button
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+                disabled={uploading}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleCreateTemplate} disabled={uploading || !file || !templateName}>
+              <Button
+                onClick={handleCreateTemplate}
+                disabled={uploading || !file || !templateName}
+              >
                 {uploading ? (
                   <>
                     <Upload className="mr-2 h-4 w-4 animate-pulse" />
@@ -223,28 +256,42 @@ export default function DocumentTemplates() {
               <TableBody>
                 {!templates || templates.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No templates found. Create your first template to get started.
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-muted-foreground py-8"
+                    >
+                      No templates found. Create your first template to get
+                      started.
                     </TableCell>
                   </TableRow>
                 ) : (
                   templates.map((template: any) => (
                     <TableRow key={template.id}>
-                      <TableCell className="font-medium">{template.name}</TableCell>
-                      <TableCell>{getCategoryBadge(template.category)}</TableCell>
+                      <TableCell className="font-medium">
+                        {template.name}
+                      </TableCell>
+                      <TableCell>
+                        {getCategoryBadge(template.category)}
+                      </TableCell>
                       <TableCell className="max-w-xs truncate">
                         {template.description || "-"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{template.fileType.toUpperCase()}</Badge>
+                        <Badge variant="outline">
+                          {template.fileType.toUpperCase()}
+                        </Badge>
                       </TableCell>
-                      <TableCell>{new Date(template.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {new Date(template.createdAt).toLocaleDateString()}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(template.s3Url, "_blank")}
+                            onClick={() =>
+                              window.open(template.s3Url, "_blank")
+                            }
                           >
                             <Download className="h-4 w-4" />
                           </Button>

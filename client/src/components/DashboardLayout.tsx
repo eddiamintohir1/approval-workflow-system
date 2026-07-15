@@ -18,47 +18,135 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, HelpCircle, FileText, BarChart3, FileEdit, UserCog, FileSpreadsheet, Upload, Repeat, FileSignature, FolderOpen, Inbox, Hash } from "lucide-react";
+import {
+  LayoutDashboard,
+  LogOut,
+  PanelLeft,
+  Users,
+  HelpCircle,
+  FileText,
+  BarChart3,
+  FileEdit,
+  UserCog,
+  FileSpreadsheet,
+  Upload,
+  Repeat,
+  FileSignature,
+  FolderOpen,
+  Inbox,
+  Hash,
+} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import { HelpButton } from './HelpButton';
-import { useCognitoAuth } from '@/hooks/useCognitoAuth';
-import { useUserRole } from '@/hooks/useUserRole';
-import { LanguageSwitcher } from './LanguageSwitcher';
-import { StartGuide } from './StartGuide';
-import { useTranslation } from 'react-i18next';
+import { HelpButton } from "./HelpButton";
+import { useEntraAuth } from "@/hooks/useEntraAuth";
+import { useUserRole } from "@/hooks/useUserRole";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { StartGuide } from "./StartGuide";
+import { useTranslation } from "react-i18next";
 
 // Navigation organized into logical sections
 const getMenuItems = (t: (key: string) => string) => [
   // Overview Section
-  { icon: LayoutDashboard, label: t('common.dashboard'), path: "/", section: "overview" },
-  { icon: HelpCircle, label: t('common.startGuide'), path: "#guide", isAction: true, section: "overview" },
-  
+  {
+    icon: LayoutDashboard,
+    label: t("common.dashboard"),
+    path: "/",
+    section: "overview",
+  },
+  {
+    icon: HelpCircle,
+    label: t("common.startGuide"),
+    path: "#guide",
+    isAction: true,
+    section: "overview",
+  },
+
   // Workflows Section
-  { icon: Repeat, label: t('common.myPersonalizedWF'), path: "/my-personalized-workflows", section: "workflows" },
-  { icon: UserCog, label: t('common.capacity'), path: "/capacity", section: "workflows" },
-  
+  {
+    icon: Repeat,
+    label: t("common.myPersonalizedWF"),
+    path: "/my-personalized-workflows",
+    section: "workflows",
+  },
+  {
+    icon: UserCog,
+    label: t("common.capacity"),
+    path: "/capacity",
+    section: "workflows",
+  },
+
   // Documents Section
-  { icon: FileSignature, label: t('common.eSignature'), path: "/esignature", section: "documents" },
-  { icon: Inbox, label: t('common.documentQueue'), path: "/cfo-document-queue", adminOrCfo: true, section: "documents" },
-  { icon: FolderOpen, label: t('common.documentTemplates'), path: "/document-templates", section: "documents" },
-  { icon: Hash, label: t('common.documentSequence'), path: "/document-sequence", section: "documents" },
-  
+  {
+    icon: FileSignature,
+    label: t("common.eSignature"),
+    path: "/esignature",
+    section: "documents",
+  },
+  {
+    icon: Inbox,
+    label: t("common.documentQueue"),
+    path: "/cfo-document-queue",
+    adminOrCfo: true,
+    section: "documents",
+  },
+  {
+    icon: FolderOpen,
+    label: t("common.documentTemplates"),
+    path: "/document-templates",
+    section: "documents",
+  },
+  {
+    icon: Hash,
+    label: t("common.documentSequence"),
+    path: "/document-sequence",
+    section: "documents",
+  },
+
   // Analytics Section
-  { icon: BarChart3, label: t('common.analytics'), path: "/analytics", section: "analytics" },
+  {
+    icon: BarChart3,
+    label: t("common.analytics"),
+    path: "/analytics",
+    section: "analytics",
+  },
 ];
 
 // Administration menu with section grouping
 const getAdminMenuItems = (t: (key: string) => string) => [
-  { icon: Users, label: t('common.userManagement'), path: "/users", section: "admin" },
-  { icon: FileText, label: t('common.workflowTemplates'), path: "/templates", section: "admin" },
-  { icon: FileSpreadsheet, label: t('common.formTemplates'), path: "/admin/form-templates", section: "admin" },
-  { icon: Upload, label: t('common.excelTemplates'), path: "/admin/excel-templates", section: "admin" },
-  { icon: FileEdit, label: t('common.sequenceGenerator'), path: "/admin/sequences", section: "admin" },
+  {
+    icon: Users,
+    label: t("common.userManagement"),
+    path: "/users",
+    section: "admin",
+  },
+  {
+    icon: FileText,
+    label: t("common.workflowTemplates"),
+    path: "/templates",
+    section: "admin",
+  },
+  {
+    icon: FileSpreadsheet,
+    label: t("common.formTemplates"),
+    path: "/admin/form-templates",
+    section: "admin",
+  },
+  {
+    icon: Upload,
+    label: t("common.excelTemplates"),
+    path: "/admin/excel-templates",
+    section: "admin",
+  },
+  {
+    icon: FileEdit,
+    label: t("common.sequenceGenerator"),
+    path: "/admin/sequences",
+    section: "admin",
+  },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -75,14 +163,14 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useCognitoAuth();
+  const { loading, user } = useEntraAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
   if (loading) {
-    return <DashboardLayoutSkeleton />
+    return <DashboardLayoutSkeleton />;
   }
 
   if (!user) {
@@ -94,13 +182,12 @@ export default function DashboardLayout({
               Sign in to continue
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              Access to this dashboard requires authentication. Continue to
+              launch the login flow.
             </p>
           </div>
           <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
+            onClick={() => window.location.assign("/login")}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
@@ -136,7 +223,7 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { t } = useTranslation();
-  const { user, signOut } = useCognitoAuth();
+  const { user, signOut } = useEntraAuth();
   const { user: userWithRole } = useUserRole();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
@@ -204,7 +291,11 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <img src="https://files.manuscdn.com/user_upload_by_module/session_file/94657144/VBJnHGARwdnBRpGK.png" alt="Compawnion" className="h-8 w-8 rounded-full" />
+                  <img
+                    src="https://files.manuscdn.com/user_upload_by_module/session_file/94657144/VBJnHGARwdnBRpGK.png"
+                    alt="Compawnion"
+                    className="h-8 w-8 rounded-full"
+                  />
                   <span className="font-semibold tracking-tight truncate">
                     Compawnion
                   </span>
@@ -215,108 +306,139 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             {/* Render menu items grouped by section */}
-            {['overview', 'workflows', 'documents', 'analytics'].map(section => {
-              const sectionItems = menuItems.filter(item => {
-                // Filter by section
-                if (item.section !== section) return false;
-                
-                // Hide Document Queue from non-Admin/CFO users
-                if ((item as any).adminOrCfo) {
-                  return userWithRole && (userWithRole.role === 'CFO' || userWithRole.role === 'admin');
-                }
-                // Hide Capacity and Analytics from Dept Heads and Staff
-                if (['Capacity', 'Analytics'].includes(item.label)) {
-                  return userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'].includes(userWithRole.role);
-                }
-                return true;
-              });
-              
-              if (sectionItems.length === 0) return null;
-              
-              const sectionTitles: Record<string, string> = {
-                overview: t('common.overview'),
-                workflows: t('common.workflows'),
-                documents: t('common.documents'),
-                analytics: t('common.analytics'),
-              };
-              
-              return (
-                <div key={section}>
-                  {!isCollapsed && section !== 'overview' && (
+            {["overview", "workflows", "documents", "analytics"].map(
+              section => {
+                const sectionItems = menuItems.filter(item => {
+                  // Filter by section
+                  if (item.section !== section) return false;
+
+                  // Hide Document Queue from non-Admin/CFO users
+                  if ((item as any).adminOrCfo) {
+                    return (
+                      userWithRole &&
+                      (userWithRole.role === "CFO" ||
+                        userWithRole.role === "admin")
+                    );
+                  }
+                  // Hide Capacity and Analytics from Dept Heads and Staff
+                  if (["Capacity", "Analytics"].includes(item.label)) {
+                    return (
+                      userWithRole &&
+                      ["admin", "CEO", "CFO", "COO", "Exec Asst"].includes(
+                        userWithRole.role
+                      )
+                    );
+                  }
+                  return true;
+                });
+
+                if (sectionItems.length === 0) return null;
+
+                const sectionTitles: Record<string, string> = {
+                  overview: t("common.overview"),
+                  workflows: t("common.workflows"),
+                  documents: t("common.documents"),
+                  analytics: t("common.analytics"),
+                };
+
+                return (
+                  <div key={section}>
+                    {!isCollapsed && section !== "overview" && (
+                      <div className="px-4 py-2 mt-4">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {sectionTitles[section]}
+                        </p>
+                      </div>
+                    )}
+                    <SidebarMenu className="px-2 py-1">
+                      {sectionItems.map(item => {
+                        const isActive = location === item.path;
+                        return (
+                          <SidebarMenuItem key={item.path}>
+                            <SidebarMenuButton
+                              isActive={isActive}
+                              onClick={() => {
+                                if (item.isAction && item.path === "#guide") {
+                                  setGuideOpen(true);
+                                } else {
+                                  setLocation(item.path);
+                                }
+                              }}
+                              tooltip={item.label}
+                              className={`h-10 transition-all font-normal`}
+                            >
+                              <item.icon
+                                className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                              />
+                              <span>{item.label}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </div>
+                );
+              }
+            )}
+
+            {/* Admin Menu Section */}
+            {userWithRole &&
+              [
+                "admin",
+                "CEO",
+                "CFO",
+                "COO",
+                "Exec Asst",
+                "PPIC",
+                "Purchasing",
+                "Finance",
+                "Sales",
+                "GA",
+                "Brand Manager",
+                "PR Manager",
+              ].includes(userWithRole.role) && (
+                <>
+                  {!isCollapsed && (
                     <div className="px-4 py-2 mt-4">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        {sectionTitles[section]}
+                        {t("common.administration")}
                       </p>
                     </div>
                   )}
                   <SidebarMenu className="px-2 py-1">
-                    {sectionItems.map(item => {
-                const isActive = location === item.path;
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => {
-                        if (item.isAction && item.path === '#guide') {
-                          setGuideOpen(true);
-                        } else {
-                          setLocation(item.path);
+                    {adminMenuItems
+                      .filter(item => {
+                        // Only show User Management to Admin and CFO
+                        if (item.label === t("common.userManagement")) {
+                          return (
+                            userWithRole &&
+                            (userWithRole.role === "admin" ||
+                              userWithRole.role === "CFO")
+                          );
                         }
-                      }}
-                      tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
-                    >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-                    })}
+                        return true;
+                      })
+                      .map(item => {
+                        const isActive = location === item.path;
+                        return (
+                          <SidebarMenuItem key={item.path}>
+                            <SidebarMenuButton
+                              isActive={isActive}
+                              onClick={() => setLocation(item.path)}
+                              tooltip={item.label}
+                              className={`h-10 transition-all font-normal`}
+                            >
+                              <item.icon
+                                className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                              />
+                              <span>{item.label}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })}
                   </SidebarMenu>
-                </div>
-              );
-            })}
-            
-            {/* Admin Menu Section */}
-            {userWithRole && ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst', 'PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(userWithRole.role) && (
-              <>
-                {!isCollapsed && (
-                  <div className="px-4 py-2 mt-4">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {t('common.administration')}
-                    </p>
-                  </div>
-                )}
-                <SidebarMenu className="px-2 py-1">
-                  {adminMenuItems.filter(item => {
-                    // Only show User Management to Admin and CFO
-                    if (item.label === t('common.userManagement')) {
-                      return userWithRole && (userWithRole.role === 'admin' || userWithRole.role === 'CFO');
-                    }
-                    return true;
-                  }).map(item => {
-                    const isActive = location === item.path;
-                    return (
-                      <SidebarMenuItem key={item.path}>
-                        <SidebarMenuButton
-                          isActive={isActive}
-                          onClick={() => setLocation(item.path)}
-                          tooltip={item.label}
-                          className={`h-10 transition-all font-normal`}
-                        >
-                          <item.icon
-                            className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                          />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </>
-            )}
+                </>
+              )}
           </SidebarContent>
 
           <SidebarFooter className="p-3 space-y-2">
@@ -328,20 +450,23 @@ function DashboardLayoutContent({
               className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <HelpCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-sm group-data-[collapsible=icon]:hidden">{t('common.helpSupport')}</span>
+              <span className="text-sm group-data-[collapsible=icon]:hidden">
+                {t("common.helpSupport")}
+              </span>
             </a>
-            
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Avatar className="h-9 w-9 border shrink-0">
                     <AvatarFallback className="text-xs font-medium">
-                      {user?.fullName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
+                      {user?.fullName?.charAt(0).toUpperCase() ||
+                        user?.email?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-medium truncate leading-none">
-                      {user?.fullName || user?.email?.split('@')[0] || "-"}
+                      {user?.fullName || user?.email?.split("@")[0] || "-"}
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-1.5">
                       {user?.email || "-"}
@@ -355,7 +480,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>{t('auth.signOut')}</span>
+                  <span>{t("auth.signOut")}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

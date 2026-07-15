@@ -4,7 +4,6 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { storagePut } from "../storage";
 import { createContext } from "./context";
-import { registerOAuthRoutes } from "./oauth";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -21,24 +20,25 @@ export function createApiApp() {
   app.get("/api/health", (_req, res) => {
     const requiredConfiguration = {
       database: Boolean(process.env.DATABASE_URL),
-      cognito: Boolean(
-        process.env.VITE_COGNITO_USER_POOL_ID &&
-          process.env.VITE_COGNITO_CLIENT_ID,
+      microsoftEntra: Boolean(
+        (process.env.ENTRA_TENANT_ID || process.env.VITE_ENTRA_TENANT_ID) &&
+          (process.env.ENTRA_CLIENT_ID || process.env.VITE_ENTRA_CLIENT_ID)
       ),
-      objectStorage: Boolean(
-        process.env.AWS_ACCESS_KEY_ID &&
-          process.env.AWS_SECRET_ACCESS_KEY &&
-          process.env.AWS_S3_BUCKET,
+      azureBlobStorage: Boolean(process.env.AZURE_STORAGE_CONNECTION_STRING),
+      microsoftGraphEmail: Boolean(
+        process.env.GRAPH_TENANT_ID &&
+          process.env.GRAPH_CLIENT_ID &&
+          process.env.GRAPH_CLIENT_SECRET &&
+          process.env.GRAPH_SENDER_MAILBOX
       ),
     };
 
     res.json({
       status: "ok",
+      platform: "microsoft-365",
       configured: requiredConfiguration,
     });
   });
-
-  registerOAuthRoutes(app);
 
   app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
@@ -51,7 +51,7 @@ export function createApiApp() {
       const { url } = await storagePut(
         fileKey,
         req.file.buffer,
-        req.file.mimetype,
+        req.file.mimetype
       );
 
       return res.json({ url });
@@ -68,7 +68,7 @@ export function createApiApp() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
-    }),
+    })
   );
 
   return app;

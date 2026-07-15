@@ -1,13 +1,20 @@
-import { createTRPCReact, httpBatchLink } from '@trpc/react-query';
+import { createTRPCReact, httpBatchLink } from "@trpc/react-query";
 import type { AppRouter } from "../../../server/routers";
-import superjson from 'superjson';
-import { cognitoAuth } from './cognito';
+import superjson from "superjson";
+import { entraAuth } from "./entra";
 
 export const trpc = createTRPCReact<AppRouter>();
 
 // API endpoint - use same origin (Manus hosting)
 const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
-console.log('🌐 API_URL:', API_URL, '| VITE_API_URL:', import.meta.env.VITE_API_URL, '| origin:', window.location.origin);
+console.log(
+  "🌐 API_URL:",
+  API_URL,
+  "| VITE_API_URL:",
+  import.meta.env.VITE_API_URL,
+  "| origin:",
+  window.location.origin
+);
 
 export const trpcClient = trpc.createClient({
   links: [
@@ -15,10 +22,10 @@ export const trpcClient = trpc.createClient({
       url: `${API_URL}/api/trpc`,
       transformer: superjson,
       async headers() {
-        // Get Cognito ID token and add to headers
-        const idToken = await cognitoAuth.getIdToken();
+        // Send the Microsoft Entra access token issued for this API.
+        const accessToken = await entraAuth.getAccessToken();
         return {
-          authorization: idToken ? `Bearer ${idToken}` : '',
+          authorization: accessToken ? `Bearer ${accessToken}` : "",
         };
       },
     }),

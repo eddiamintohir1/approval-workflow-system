@@ -1,21 +1,9 @@
-/**
- * AWS SES Email Service
- * Sends emails via AWS SES with dynamic sender based on workflow actor
- */
+/** Microsoft Graph email service. */
 
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-
-// Initialize SES client
-const sesClient = new SESClient({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+import { sendGraphEmail } from "./microsoft-graph";
 
 export interface EmailOptions {
-  from: string; // Email address of the sender (must be verified in SES)
+  from: string; // Used as Reply-To; Graph sends from GRAPH_SENDER_MAILBOX.
   to: string[]; // Array of recipient email addresses
   subject: string;
   htmlBody: string;
@@ -23,43 +11,22 @@ export interface EmailOptions {
 }
 
 /**
- * Send email via AWS SES
+ * Send email through the configured Microsoft 365 mailbox.
  */
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    const command = new SendEmailCommand({
-      Source: options.from,
-      Destination: {
-        ToAddresses: options.to,
-      },
-      Message: {
-        Subject: {
-          Data: options.subject,
-          Charset: "UTF-8",
-        },
-        Body: {
-          Html: {
-            Data: options.htmlBody,
-            Charset: "UTF-8",
-          },
-          ...(options.textBody && {
-            Text: {
-              Data: options.textBody,
-              Charset: "UTF-8",
-            },
-          }),
-        },
-      },
+    await sendGraphEmail({
+      to: options.to,
+      subject: options.subject,
+      htmlBody: options.htmlBody,
+      replyTo: options.from,
     });
-
-    const response = await sesClient.send(command);
-    console.log(`✅ Email sent successfully:`, {
-      messageId: response.MessageId,
-      from: options.from,
+    console.log(`✅ Microsoft Graph email accepted:`, {
+      replyTo: options.from,
       to: options.to,
       subject: options.subject,
     });
-    
+
     return true;
   } catch (error) {
     console.error(`❌ Failed to send email:`, error);
@@ -249,6 +216,7 @@ Sent by ${params.fromName} via Approval Workflow System
  * Get workflow URL for email links
  */
 export function getWorkflowUrl(workflowId: string): string {
-  const baseUrl = process.env.VITE_APP_URL || "https://approval-workflow-system.manus.space";
+  const baseUrl =
+    process.env.VITE_APP_URL || "https://approval-workflow-system.manus.space";
   return `${baseUrl}/workflows/${workflowId}`;
 }

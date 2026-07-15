@@ -5,43 +5,44 @@ A comprehensive multi-layer approval workflow management system for manufacturin
 ## 🚀 Features
 
 - **Multi-layer Approval Workflows**: Support for MAF (Material Approval Form) and PR (Purchase Request) workflows
-- **AWS Cognito Authentication**: Secure JWT-based authentication with @compawnion.co email restriction
+- **Microsoft Entra Authentication**: Passwordless Microsoft 365 sign-in restricted to @compawnion.co
 - **Role-Based Access Control**: 8 user roles (Brand, PPIC, Production, Purchasing, Sales Manager, Director, Admin, Super Admin)
-- **File Upload/Download**: AWS S3 integration for form templates and submissions
-- **Email Notifications**: Amazon SES integration for approval requests and status updates
+- **File Upload/Download**: Private Azure Blob Storage for templates and submissions
+- **Email Notifications**: Microsoft Graph mail for approval requests and status updates
 - **Sequence Generators**: Automatic SKU/PAF/MAF number generation
 - **Audit Trail**: Complete logging of all workflow actions
-- **PostgreSQL Database**: AWS RDS for data persistence
+- **Database**: PostgreSQL-compatible application database
 
 ## 🛠️ Tech Stack
 
 **Frontend:**
+
 - React 19
 - TypeScript
 - Tailwind CSS 4
-- AWS Amplify SDK
+- Microsoft Authentication Library (MSAL)
 
 **Backend:**
+
 - Node.js + Express
 - TypeScript
-- AWS Cognito (JWT verification)
-- PostgreSQL (AWS RDS)
+- Microsoft Entra access-token verification
+- PostgreSQL-compatible database
 
-**AWS Services:**
-- AWS Cognito (Authentication)
-- AWS RDS (PostgreSQL Database)
-- AWS S3 (File Storage)
-- Amazon SES (Email Notifications)
-- AWS Amplify (Hosting & CI/CD)
+**Microsoft/Vercel Services:**
+
+- Microsoft Entra ID (Authentication)
+- Azure Blob Storage (File Storage)
+- Microsoft Graph (Email and directory sync)
+- Vercel (Hosting and Functions)
 
 ## 📋 Prerequisites
 
 - Node.js 18+ and npm/pnpm
-- AWS Account with configured services:
-  - Cognito User Pool
-  - RDS PostgreSQL Database
-  - S3 Bucket
-  - SES Verified Domain
+- Microsoft 365 tenant with an Entra app registration
+- Azure Storage account and private blob container
+- Microsoft Graph application permissions for mail and directory sync
+- A PostgreSQL-compatible database
 - GitHub account for CI/CD
 
 ## 🔧 Environment Variables
@@ -49,32 +50,31 @@ A comprehensive multi-layer approval workflow management system for manufacturin
 Create a `.env` file with the following variables:
 
 ```env
-# AWS Cognito
-COGNITO_USER_POOL_ID=your-user-pool-id
-COGNITO_REGION=ap-southeast-1
-COGNITO_CLIENT_ID=your-client-id
+# Microsoft Entra ID
+VITE_ENTRA_TENANT_ID=your-tenant-id
+VITE_ENTRA_CLIENT_ID=your-client-id
+ENTRA_TENANT_ID=your-tenant-id
+ENTRA_CLIENT_ID=your-client-id
 
 # Database
-DB_HOST=your-rds-endpoint.rds.amazonaws.com
-DB_PORT=5432
-DB_NAME=workflow_db
-DB_USER=postgres
-DB_PASSWORD=your-db-password
+DATABASE_URL=postgresql://...
 
-# AWS S3
-AWS_S3_BUCKET=your-bucket-name
-AWS_S3_REGION=ap-southeast-1
+# Azure Blob Storage
+AZURE_STORAGE_CONNECTION_STRING=...
+AZURE_STORAGE_CONTAINER=finance-attachments
 
-# Amazon SES
-AWS_SES_REGION=us-west-2
-AWS_SES_FROM_EMAIL=noreply@yourdomain.com
+# Microsoft Graph
+GRAPH_TENANT_ID=your-tenant-id
+GRAPH_CLIENT_ID=your-server-app-client-id
+GRAPH_CLIENT_SECRET=...
+GRAPH_SENDER_MAILBOX=finance-system@compawnion.co
 
 # Application
 NODE_ENV=production
 PORT=3000
 ```
 
-## 🚀 Deployment to AWS Amplify
+## 🚀 Deployment to Vercel
 
 ### Step 1: Push to GitHub
 
@@ -84,21 +84,20 @@ git commit -m "Initial commit"
 git push origin main
 ```
 
-### Step 2: Connect to AWS Amplify
+### Step 2: Connect to Vercel
 
-1. Go to [AWS Amplify Console](https://console.aws.amazon.com/amplify/)
-2. Click "New app" → "Host web app"
-3. Select "GitHub" and authorize
-4. Select this repository and branch
-5. Configure build settings (see `amplify.yml`)
-6. Add environment variables from `.env`
-7. Click "Save and deploy"
+1. Import this GitHub repository in Vercel.
+2. Keep the Vite settings from `vercel.json`.
+3. Add the environment variables from `.env.example`.
+4. Add the production `/auth/callback` URL to the Entra SPA registration.
+5. Deploy from `main`.
 
-### Step 3: Update Cognito Callback URLs
+### Step 3: Configure Microsoft Entra
 
-After deployment, update your Cognito User Pool app client:
-- Add Amplify URL to "Allowed callback URLs"
-- Add Amplify URL to "Allowed sign-out URLs"
+Expose the delegated API scope `api://<client-id>/access_as_user`, then add:
+
+- `https://approval-workflow-system-nine.vercel.app/auth/callback`
+- `http://localhost:3000/auth/callback`
 
 ## 📦 Local Development
 
@@ -121,7 +120,7 @@ pnpm test
 The database schema is in `supabase_schema.sql`. Run this on your PostgreSQL database:
 
 ```bash
-psql -h your-rds-endpoint -U postgres -d workflow_db -f supabase_schema.sql
+psql "$DATABASE_URL" -f supabase_schema.sql
 ```
 
 ## 👥 User Roles
@@ -141,9 +140,9 @@ Only emails with `@compawnion.co` domain can register and use the system.
 
 ## 🔒 Security
 
-- JWT-based authentication with AWS Cognito
+- Microsoft Entra OAuth with tenant, audience, scope and domain validation
 - Row-level security policies in PostgreSQL
-- Secure file storage with presigned S3 URLs
+- Secure file storage with time-limited Azure Blob SAS URLs
 - Environment variables for sensitive data
 - HTTPS enforced in production
 

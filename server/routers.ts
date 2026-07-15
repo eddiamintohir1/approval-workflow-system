@@ -7,18 +7,30 @@ import * as schema from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { storagePut, storageGet } from "./storage";
 import { randomUUID } from "crypto";
-import { withCache, CACHE_TTL, invalidateAnalyticsCache } from "./analyticsCache";
+import {
+  withCache,
+  CACHE_TTL,
+  invalidateAnalyticsCache,
+} from "./analyticsCache";
 import { triggerRemindersNow } from "./reminderScheduler";
-import { sendMilestoneCompletionEmail, sendCompletionEmail, sendRejectionEmail } from "./email";
+import {
+  sendMilestoneCompletionEmail,
+  sendCompletionEmail,
+  sendRejectionEmail,
+} from "./email";
 import { documentSequenceRouter } from "./routers/documentSequence";
 import { skuGeneratorRouter } from "./routers/skuGenerator";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { listMicrosoftDirectoryUsers } from "./microsoft-graph";
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Admin access required",
+    });
   }
   return next({ ctx });
 });
@@ -28,34 +40,46 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 // ============================================
 const assignmentsRouter = router({
   create: protectedProcedure
-    .input(z.object({
-      workflowId: z.string(),
-      assignedTo: z.number(),
-    }))
+    .input(
+      z.object({
+        workflowId: z.string(),
+        assignedTo: z.number(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       // Only dept heads can assign tasks
-      const deptHeadRoles = ['PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'];
+      const deptHeadRoles = [
+        "PPIC",
+        "Purchasing",
+        "Finance",
+        "Sales",
+        "GA",
+        "Brand Manager",
+        "PR Manager",
+      ];
       if (!deptHeadRoles.includes(ctx.user.role)) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only department heads can assign tasks' });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only department heads can assign tasks",
+        });
       }
-      
+
       return await db.createTaskAssignment({
         workflowId: input.workflowId,
         assignedTo: input.assignedTo,
         assignedBy: ctx.user.id,
       });
     }),
-  
+
   getByUser: protectedProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ input }) => {
       return await db.getTaskAssignmentsByUser(input.userId);
     }),
-  
-  getTeamAssignments: protectedProcedure
-    .query(async ({ ctx }) => {
-      return await db.getTeamAssignments(ctx.user.id);
-    }),
+
+  getTeamAssignments: protectedProcedure.query(async ({ ctx }) => {
+    return await db.getTeamAssignments(ctx.user.id);
+  }),
 });
 
 // ============================================
@@ -67,17 +91,16 @@ const metricsRouter = router({
     .mutation(async ({ input }) => {
       return await db.calculateUserMetrics(input.userId);
     }),
-  
+
   getUserMetrics: protectedProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ input }) => {
       return await db.getUserMetrics(input.userId);
     }),
-  
-  recalculateAll: adminProcedure
-    .mutation(async () => {
-      return await db.recalculateAllMetrics();
-    }),
+
+  recalculateAll: adminProcedure.mutation(async () => {
+    return await db.recalculateAllMetrics();
+  }),
 });
 
 // ============================================
@@ -85,33 +108,37 @@ const metricsRouter = router({
 // ============================================
 const salaryRouter = router({
   syncFromQapita: adminProcedure
-    .input(z.object({
-      userId: z.number(),
-      salaryAmount: z.number(),
-      currency: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        userId: z.number(),
+        salaryAmount: z.number(),
+        currency: z.string().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       // TODO: Integrate with Qapita API when credentials are provided
       return await db.upsertSalaryCache(input);
     }),
-  
+
   getUserSalary: protectedProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ ctx, input }) => {
       // Only admin/CEO/CFO/COO can view salaries
-      const allowedRoles = ['admin', 'CEO', 'CFO', 'COO'];
+      const allowedRoles = ["admin", "CEO", "CFO", "COO"];
       if (!allowedRoles.includes(ctx.user.role)) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not authorized to view salary data' });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Not authorized to view salary data",
+        });
       }
-      
+
       return await db.getUserSalary(input.userId);
     }),
-  
-  syncAll: adminProcedure
-    .mutation(async () => {
-      // TODO: Implement batch sync from Qapita API
-      return { success: true, message: 'Qapita API integration pending' };
-    }),
+
+  syncAll: adminProcedure.mutation(async () => {
+    // TODO: Implement batch sync from Qapita API
+    return { success: true, message: "Qapita API integration pending" };
+  }),
 });
 
 // ============================================
@@ -119,24 +146,29 @@ const salaryRouter = router({
 // ============================================
 const capacityRouter = router({
   getUserList: protectedProcedure
-    .input(z.object({
-      page: z.number().default(1),
-      pageSize: z.number().default(20),
-      department: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        page: z.number().default(1),
+        pageSize: z.number().default(20),
+        department: z.string().optional(),
+      })
+    )
     .query(async ({ ctx, input }) => {
       // Only admin/CEO/CFO/COO/Exec Asst can access capacity page
-      const allowedRoles = ['admin', 'CEO', 'CFO', 'COO', 'Exec Asst'];
+      const allowedRoles = ["admin", "CEO", "CFO", "COO", "Exec Asst"];
       if (!allowedRoles.includes(ctx.user.role)) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not authorized to access capacity management' });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Not authorized to access capacity management",
+        });
       }
-      
+
       return await db.getUserListPaginated({
         ...input,
-        managerId: input.department === 'My Team' ? ctx.user.id : undefined,
+        managerId: input.department === "My Team" ? ctx.user.id : undefined,
       });
     }),
-  
+
   getUserDetails: protectedProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ ctx, input }) => {
@@ -145,13 +177,13 @@ const capacityRouter = router({
       if (!metrics) {
         metrics = await db.calculateUserMetrics(input.userId);
       }
-      
+
       // Get salary if authorized
-      const allowedRoles = ['admin', 'CEO', 'CFO', 'COO'];
+      const allowedRoles = ["admin", "CEO", "CFO", "COO"];
       const salary = allowedRoles.includes(ctx.user.role)
         ? await db.getUserSalary(input.userId)
         : null;
-      
+
       return { metrics, salary };
     }),
 });
@@ -160,25 +192,29 @@ const capacityRouter = router({
 const templatesRouter = router({
   // Create new template
   create: protectedProcedure
-    .input(z.object({
-      name: z.string(),
-      description: z.string().optional(),
-      workflowType: z.string(),
-      isDefault: z.boolean().optional(),
-      stages: z.array(z.object({
-        stageOrder: z.number(),
-        stageName: z.string(),
-        stageDescription: z.string().optional(),
-        department: z.string().optional(),
-        requiredRole: z.string().optional(),
-        requiresOneOf: z.array(z.string()).optional(),
-        approvalRequired: z.boolean(),
-        fileUploadRequired: z.boolean(),
-        notificationEmails: z.array(z.string()).optional(),
-        visibleToDepartments: z.array(z.string()).optional(),
-        approvalThreshold: z.number().optional(),
-      })),
-    }))
+    .input(
+      z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        workflowType: z.string(),
+        isDefault: z.boolean().optional(),
+        stages: z.array(
+          z.object({
+            stageOrder: z.number(),
+            stageName: z.string(),
+            stageDescription: z.string().optional(),
+            department: z.string().optional(),
+            requiredRole: z.string().optional(),
+            requiresOneOf: z.array(z.string()).optional(),
+            approvalRequired: z.boolean(),
+            fileUploadRequired: z.boolean(),
+            notificationEmails: z.array(z.string()).optional(),
+            visibleToDepartments: z.array(z.string()).optional(),
+            approvalThreshold: z.number().optional(),
+          })
+        ),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       return await db.createWorkflowTemplate({
         ...input,
@@ -188,10 +224,14 @@ const templatesRouter = router({
 
   // Get all templates
   getAll: protectedProcedure
-    .input(z.object({
-      workflowType: z.string().optional(),
-      isActive: z.boolean().optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          workflowType: z.string().optional(),
+          isActive: z.boolean().optional(),
+        })
+        .optional()
+    )
     .query(async ({ input }) => {
       return await db.getWorkflowTemplates(input || {});
     }),
@@ -202,7 +242,10 @@ const templatesRouter = router({
     .query(async ({ input }) => {
       const template = await db.getWorkflowTemplateById(input.id);
       if (!template) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Template not found",
+        });
       }
       return template;
     }),
@@ -216,27 +259,33 @@ const templatesRouter = router({
 
   // Update template
   update: protectedProcedure
-    .input(z.object({
-      id: z.string(),
-      name: z.string().optional(),
-      description: z.string().optional(),
-      isDefault: z.boolean().optional(),
-      isActive: z.boolean().optional(),
-      stages: z.array(z.object({
-        id: z.string().optional(),
-        stageOrder: z.number(),
-        stageName: z.string(),
-        stageDescription: z.string().optional(),
-        department: z.string().optional(),
-        requiredRole: z.string().optional(),
-        requiresOneOf: z.array(z.string()).optional(),
-        approvalRequired: z.boolean(),
-        fileUploadRequired: z.boolean(),
-        notificationEmails: z.array(z.string()).optional(),
-        visibleToDepartments: z.array(z.string()).optional(),
-        approvalThreshold: z.number().optional(),
-      })).optional(),
-    }))
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        isDefault: z.boolean().optional(),
+        isActive: z.boolean().optional(),
+        stages: z
+          .array(
+            z.object({
+              id: z.string().optional(),
+              stageOrder: z.number(),
+              stageName: z.string(),
+              stageDescription: z.string().optional(),
+              department: z.string().optional(),
+              requiredRole: z.string().optional(),
+              requiresOneOf: z.array(z.string()).optional(),
+              approvalRequired: z.boolean(),
+              fileUploadRequired: z.boolean(),
+              notificationEmails: z.array(z.string()).optional(),
+              visibleToDepartments: z.array(z.string()).optional(),
+              approvalThreshold: z.number().optional(),
+            })
+          )
+          .optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const { id, ...updates } = input;
       return await db.updateWorkflowTemplate(id, updates);
@@ -248,38 +297,39 @@ const templatesRouter = router({
     .mutation(async ({ input }) => {
       return await db.deleteWorkflowTemplate(input.id);
     }),
-  
+
   // Toggle quick assign for template
   toggleQuickAssign: protectedProcedure
-    .input(z.object({
-      id: z.string(),
-      isQuickAssignEnabled: z.boolean(),
-    }))
+    .input(
+      z.object({
+        id: z.string(),
+        isQuickAssignEnabled: z.boolean(),
+      })
+    )
     .mutation(async ({ input }) => {
       return await db.updateWorkflowTemplate(input.id, {
         isQuickAssignEnabled: input.isQuickAssignEnabled,
       });
     }),
-  
+
   // Get templates enabled for quick assign
-  getQuickAssignTemplates: protectedProcedure
-    .query(async () => {
-      return await db.getWorkflowTemplates({
-        isActive: true,
-        isQuickAssignEnabled: true,
-      });
-    }),
+  getQuickAssignTemplates: protectedProcedure.query(async () => {
+    return await db.getWorkflowTemplates({
+      isActive: true,
+      isQuickAssignEnabled: true,
+    });
+  }),
 });
 
 export const appRouter = router({
   system: systemRouter,
-  
+
   // ============================================
   // Authentication
   // ============================================
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    
+
     logout: publicProcedure.mutation(async ({ ctx }) => {
       ctx.res.clearCookie(COOKIE_NAME, {
         ...getSessionCookieOptions(ctx.req),
@@ -287,17 +337,6 @@ export const appRouter = router({
       });
       return { success: true };
     }),
-    
-    getUsernameByEmail: publicProcedure
-      .input(z.object({ email: z.string().email() }))
-      .query(async ({ input }) => {
-        // Look up username from email in database
-        const user = await db.getUserByEmail(input.email);
-        if (!user) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
-        }
-        return { username: user.cognitoUsername };
-      }),
   }),
 
   // ============================================
@@ -323,12 +362,29 @@ export const appRouter = router({
       .input(
         z.object({
           userId: z.number(),
-          role: z.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "R&D", "Sales", "Marketing", "Operations", "Staff", "admin"]),
+          role: z.enum([
+            "CEO",
+            "COO",
+            "CFO",
+            "Exec Asst",
+            "PPIC",
+            "Purchasing",
+            "GA",
+            "Finance",
+            "Production",
+            "Logistics",
+            "R&D",
+            "Sales",
+            "Marketing",
+            "Operations",
+            "Staff",
+            "admin",
+          ]),
         })
       )
       .mutation(async ({ input, ctx }) => {
         await db.updateUserRole(input.userId, input.role);
-        
+
         await db.createAuditLog({
           entityType: "user",
           entityId: input.userId.toString(),
@@ -338,7 +394,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -351,7 +407,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input, ctx }) => {
         await db.updateUserStatus(input.userId, input.isActive);
-        
+
         await db.createAuditLog({
           entityType: "user",
           entityId: input.userId.toString(),
@@ -361,7 +417,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -373,7 +429,10 @@ export const appRouter = router({
         if (currentPinned.includes(input.workflowId)) {
           return { success: true, message: "Already pinned" };
         }
-        await db.updateUserPinnedWorkflows(ctx.user.id, [...currentPinned, input.workflowId]);
+        await db.updateUserPinnedWorkflows(ctx.user.id, [
+          ...currentPinned,
+          input.workflowId,
+        ]);
         return { success: true };
       }),
 
@@ -391,17 +450,37 @@ export const appRouter = router({
     switchRole: protectedProcedure
       .input(
         z.object({
-          role: z.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "R&D", "Sales", "Marketing", "Operations", "Staff", "admin"]),
+          role: z.enum([
+            "CEO",
+            "COO",
+            "CFO",
+            "Exec Asst",
+            "PPIC",
+            "Purchasing",
+            "GA",
+            "Finance",
+            "Production",
+            "Logistics",
+            "R&D",
+            "Sales",
+            "Marketing",
+            "Operations",
+            "Staff",
+            "admin",
+          ]),
         })
       )
       .mutation(async ({ input, ctx }) => {
         // Only allow test user to switch roles
         if (ctx.user.email !== "test@compawnion.co") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Role switching is only available for test user" });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Role switching is only available for test user",
+          });
         }
-        
+
         await db.updateUserRole(ctx.user.id, input.role);
-        
+
         await db.createAuditLog({
           entityType: "user",
           entityId: ctx.user.id.toString(),
@@ -411,75 +490,60 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: input.role,
         });
-        
+
         return { success: true };
       }),
 
-    // Bulk sync users from Cognito to database
-    syncFromCognito: adminProcedure
-      .mutation(async ({ ctx }) => {
-        const { CognitoIdentityProviderClient, ListUsersCommand } = await import("@aws-sdk/client-cognito-identity-provider");
-        
-        const client = new CognitoIdentityProviderClient({
-          region: process.env.VITE_COGNITO_REGION!,
+    // Bulk sync active @compawnion.co users from Microsoft Entra ID.
+    syncFromMicrosoft: adminProcedure.mutation(async ({ ctx }) => {
+      let syncedCount = 0;
+
+      try {
+        const directoryUsers = await listMicrosoftDirectoryUsers();
+        for (const directoryUser of directoryUsers) {
+          const email = (
+            directoryUser.mail ||
+            directoryUser.userPrincipalName ||
+            ""
+          ).toLowerCase();
+          if (
+            !directoryUser.id ||
+            directoryUser.accountEnabled === false ||
+            !email.endsWith("@compawnion.co")
+          ) {
+            continue;
+          }
+
+          await db.upsertUser({
+            // Retained for database compatibility until the column is renamed.
+            cognitoSub: directoryUser.id,
+            openId: directoryUser.id,
+            email,
+            fullName: directoryUser.displayName || email.split("@")[0],
+            role: email === "eddie.amintohir@compawnion.co" ? "admin" : "PPIC",
+          });
+          syncedCount++;
+        }
+
+        await db.createAuditLog({
+          entityType: "user",
+          entityId: "bulk",
+          action: "bulk_sync",
+          actionDescription: `Synced ${syncedCount} users from Microsoft Entra ID`,
+          actorId: ctx.user.id,
+          actorEmail: ctx.user.email,
+          actorRole: ctx.user.role,
         });
 
-        const userPoolId = process.env.VITE_COGNITO_USER_POOL_ID!;
-        let syncedCount = 0;
-        let paginationToken: string | undefined;
-
-        try {
-          do {
-            const command = new ListUsersCommand({
-              UserPoolId: userPoolId,
-              Limit: 60,
-              PaginationToken: paginationToken,
-            });
-
-            const response = await client.send(command);
-            
-            if (response.Users) {
-              for (const cognitoUser of response.Users) {
-                const email = cognitoUser.Attributes?.find(attr => attr.Name === "email")?.Value;
-                const sub = cognitoUser.Attributes?.find(attr => attr.Name === "sub")?.Value;
-                const name = cognitoUser.Attributes?.find(attr => attr.Name === "name")?.Value;
-                
-                if (email && sub && email.endsWith("@compawnion.co")) {
-                  // Upsert user to database
-                  await db.upsertUser({
-                    cognitoSub: sub,
-                    openId: sub, // Use sub as openId for Cognito users
-                    email: email,
-                    fullName: name || email.split("@")[0],
-                    role: email === "eddie.amintohir@compawnion.co" ? "admin" : "PPIC", // Default role
-                  });
-                  syncedCount++;
-                }
-              }
-            }
-
-            paginationToken = response.PaginationToken;
-          } while (paginationToken);
-
-          await db.createAuditLog({
-            entityType: "user",
-            entityId: "bulk",
-            action: "bulk_sync",
-            actionDescription: `Synced ${syncedCount} users from Cognito`,
-            actorId: ctx.user.id,
-            actorEmail: ctx.user.email,
-            actorRole: ctx.user.role,
-          });
-
-          return { success: true, syncedCount };
-        } catch (error: any) {
-          console.error("Cognito sync error:", error);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `Failed to sync users from Cognito: ${error.message}`,
-          });
-        }
-      }),
+        return { success: true, syncedCount };
+      } catch (error: any) {
+        console.error("Microsoft Entra sync error:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to sync users from Microsoft Entra ID: ${error.message}`,
+        });
+      }
+    }),
   }),
 
   // ============================================
@@ -506,7 +570,7 @@ export const appRouter = router({
           ...input,
           requesterId: ctx.user.id,
         });
-        
+
         // Create stages from template if provided, otherwise use default logic
         if (input.templateId) {
           const template = await db.getWorkflowTemplateById(input.templateId);
@@ -528,9 +592,13 @@ export const appRouter = router({
           }
         } else {
           // Create initial stages based on workflow type (fallback)
-          await createInitialStages(workflow.id, input.workflowType, input.estimatedAmount);
+          await createInitialStages(
+            workflow.id,
+            input.workflowType,
+            input.estimatedAmount
+          );
         }
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: workflow.id,
@@ -540,35 +608,40 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         // Invalidate analytics cache
         invalidateAnalyticsCache();
-        
+
         return workflow;
       }),
 
     createFromTemplate: protectedProcedure
-      .input(z.object({
-        templateId: z.string(),
-        assignToUserId: z.number().optional(),
-      }))
+      .input(
+        z.object({
+          templateId: z.string(),
+          assignToUserId: z.number().optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         // Get template
         const template = await db.getWorkflowTemplateById(input.templateId);
         if (!template) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Template not found' });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Template not found",
+          });
         }
-        
+
         // Create workflow from template
         const workflow = await db.createWorkflow({
           workflowType: template.workflowType,
           title: `${template.name} - ${new Date().toLocaleDateString()}`,
-          description: template.description || '',
+          description: template.description || "",
           department: ctx.user.role,
           requesterId: ctx.user.id,
           templateId: input.templateId,
         });
-        
+
         // Create stages from template
         if (template.stages) {
           for (const stage of template.stages) {
@@ -576,7 +649,7 @@ export const appRouter = router({
               workflowId: workflow.id,
               stageOrder: stage.stageOrder,
               stageName: stage.stageName,
-              stageType: stage.approvalRequired ? 'approval' : 'review',
+              stageType: stage.approvalRequired ? "approval" : "review",
               requiredRole: stage.requiredRole,
               requiresOneOf: stage.requiresOneOf,
               requiresFileUpload: stage.requiresFileUpload,
@@ -584,27 +657,31 @@ export const appRouter = router({
             });
           }
         }
-        
+
         return workflow;
       }),
 
     search: protectedProcedure
-      .input(z.object({ 
-        query: z.string(),
-        limit: z.number().optional()
-      }))
+      .input(
+        z.object({
+          query: z.string(),
+          limit: z.number().optional(),
+        })
+      )
       .query(async ({ input, ctx }) => {
         const limit = input.limit || 20;
-        const workflows = ctx.user.role === "admin" 
-          ? await db.getAllWorkflows()
-          : await db.getWorkflowsByRequester(ctx.user.id);
-        
+        const workflows =
+          ctx.user.role === "admin"
+            ? await db.getAllWorkflows()
+            : await db.getWorkflowsByRequester(ctx.user.id);
+
         // Simple search by title or workflow number
-        const filtered = workflows.filter(w => 
-          w.title.toLowerCase().includes(input.query.toLowerCase()) ||
-          w.workflowNumber.toLowerCase().includes(input.query.toLowerCase())
+        const filtered = workflows.filter(
+          w =>
+            w.title.toLowerCase().includes(input.query.toLowerCase()) ||
+            w.workflowNumber.toLowerCase().includes(input.query.toLowerCase())
         );
-        
+
         return filtered.slice(0, limit);
       }),
 
@@ -628,7 +705,10 @@ export const appRouter = router({
       .query(async ({ input, ctx }) => {
         const workflow = await db.getWorkflowById(input.id);
         if (!workflow) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Workflow not found",
+          });
         }
 
         // Check if user has access to this workflow
@@ -640,9 +720,9 @@ export const appRouter = router({
         );
 
         if (!accessCheck.hasAccess) {
-          throw new TRPCError({ 
-            code: "FORBIDDEN", 
-            message: `Access denied: ${accessCheck.reason}` 
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Access denied: ${accessCheck.reason}`,
           });
         }
 
@@ -654,14 +734,17 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const workflow = await db.getWorkflowById(input.id);
         if (!workflow) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Workflow not found",
+          });
         }
-        
+
         const stages = await db.getStagesByWorkflow(input.id);
         const approvals = await db.getApprovalsByWorkflow(input.id);
         const files = await db.getFilesByWorkflow(input.id);
         const comments = await db.getCommentsByWorkflow(input.id);
-        
+
         return {
           workflow,
           stages,
@@ -676,21 +759,24 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const workflow = await db.getWorkflowById(input.id);
         if (!workflow) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Workflow not found",
+          });
         }
-        
+
         if (workflow.requesterId !== ctx.user.id && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
         }
-        
+
         await db.submitWorkflow(input.id);
-        
+
         // Update first stage to in_progress
         const stages = await db.getStagesByWorkflow(input.id);
         if (stages.length > 0) {
           await db.updateStageStatus(stages[0].id, "in_progress");
         }
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: input.id,
@@ -700,45 +786,60 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         // TODO: Send email notifications to approvers
-        
+
         return { success: true };
       }),
 
     discontinue: protectedProcedure
-      .input(z.object({ 
-        id: z.string(),
-        reason: z.string().optional()
-      }))
+      .input(
+        z.object({
+          id: z.string(),
+          reason: z.string().optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         const workflow = await db.getWorkflowById(input.id);
         if (!workflow) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Workflow not found",
+          });
         }
-        
+
         // Only requester or admin can discontinue
         if (workflow.requesterId !== ctx.user.id && ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to discontinue this workflow" });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not authorized to discontinue this workflow",
+          });
         }
-        
+
         // Cannot discontinue already completed or discontinued workflows
-        if (["completed", "discontinued", "archived"].includes(workflow.overallStatus)) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot discontinue ${workflow.overallStatus} workflow` });
+        if (
+          ["completed", "discontinued", "archived"].includes(
+            workflow.overallStatus
+          )
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Cannot discontinue ${workflow.overallStatus} workflow`,
+          });
         }
-        
+
         await db.discontinueWorkflow(input.id, input.reason);
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: input.id,
           action: "discontinued",
-          actionDescription: `Workflow discontinued${input.reason ? `: ${input.reason}` : ''}`,
+          actionDescription: `Workflow discontinued${input.reason ? `: ${input.reason}` : ""}`,
           actorId: ctx.user.id,
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -747,16 +848,22 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const workflow = await db.getWorkflowById(input.id);
         if (!workflow) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Workflow not found",
+          });
         }
-        
+
         // Only admin can archive
         if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can archive workflows" });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only admins can archive workflows",
+          });
         }
-        
+
         await db.archiveWorkflow(input.id);
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: input.id,
@@ -766,7 +873,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -775,17 +882,23 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         // Only admin can delete workflows
         if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can delete workflows" });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Only admins can delete workflows",
+          });
         }
-        
+
         const workflow = await db.getWorkflowById(input.id);
         if (!workflow) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Workflow not found",
+          });
         }
-        
+
         // Delete workflow and all related data (cascade)
         await db.deleteWorkflow(input.id);
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: input.id,
@@ -795,10 +908,10 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         // Invalidate analytics cache
         invalidateAnalyticsCache();
-        
+
         return { success: true };
       }),
 
@@ -806,12 +919,18 @@ export const appRouter = router({
       .input(
         z.object({
           id: z.string(),
-          status: z.enum(["draft", "in_progress", "completed", "rejected", "cancelled"]),
+          status: z.enum([
+            "draft",
+            "in_progress",
+            "completed",
+            "rejected",
+            "cancelled",
+          ]),
         })
       )
       .mutation(async ({ input, ctx }) => {
         await db.updateWorkflowStatus(input.id, input.status);
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: input.id,
@@ -821,7 +940,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -839,11 +958,11 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         // Convert base64 to buffer
         const fileBuffer = Buffer.from(input.fileData, "base64");
-        
+
         // Upload to S3
         const fileKey = `workflows/${input.workflowId}/${Date.now()}-${input.filename}`;
         const { url } = await storagePut(fileKey, fileBuffer, input.mimeType);
-        
+
         // Save file metadata to database
         await db.createWorkflowFile({
           workflowId: input.workflowId,
@@ -857,7 +976,7 @@ export const appRouter = router({
           mimeType: input.mimeType,
           uploadedBy: ctx.user.id,
         });
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: input.workflowId.toString(),
@@ -867,7 +986,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true, url };
       }),
 
@@ -884,9 +1003,9 @@ export const appRouter = router({
         if (!file) {
           throw new TRPCError({ code: "NOT_FOUND", message: "File not found" });
         }
-        
+
         await db.deleteWorkflowFile(input.fileId);
-        
+
         await db.createAuditLog({
           entityType: "workflow",
           entityId: file.workflowId.toString(),
@@ -896,7 +1015,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
   }),
@@ -922,27 +1041,43 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const stage = await db.getStageById(input.stageId);
         if (!stage) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Stage not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Stage not found",
+          });
         }
-        
+
         // Check if user has permission to approve this stage
-        if (stage.requiredRole && ctx.user.role !== stage.requiredRole && ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to approve this stage" });
+        if (
+          stage.requiredRole &&
+          ctx.user.role !== stage.requiredRole &&
+          ctx.user.role !== "admin"
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not authorized to approve this stage",
+          });
         }
-        
+
         // Check if form has been uploaded for this stage (except CEO/CFO/admin who have bypass)
-        if (ctx.user.role !== "CEO" && ctx.user.role !== "CFO" && ctx.user.role !== "admin") {
+        if (
+          ctx.user.role !== "CEO" &&
+          ctx.user.role !== "CFO" &&
+          ctx.user.role !== "admin"
+        ) {
           const stageFiles = await db.getFilesByStage(input.stageId);
-          const userUploadedFile = stageFiles.find(f => f.uploadedBy === ctx.user.id);
-          
+          const userUploadedFile = stageFiles.find(
+            f => f.uploadedBy === ctx.user.id
+          );
+
           if (!userUploadedFile) {
-            throw new TRPCError({ 
-              code: "PRECONDITION_FAILED", 
-              message: "You must upload a form before approving this stage" 
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "You must upload a form before approving this stage",
             });
           }
         }
-        
+
         // Create approval record
         await db.createApproval({
           workflowId: input.workflowId,
@@ -952,41 +1087,53 @@ export const appRouter = router({
           action: "approved",
           comments: input.comments,
         });
-        
+
         // Update stage status
         await db.updateStageStatus(input.stageId, "completed");
-        
+
         // Get workflow details for email notifications
         const workflow = await db.getWorkflowById(input.workflowId);
         if (!workflow) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Workflow not found",
+          });
         }
-        
+
         // Check if this was the last stage
         const stages = await db.getStagesByWorkflow(input.workflowId);
         const currentStageIndex = stages.findIndex(s => s.id === input.stageId);
-        
+
         if (currentStageIndex < stages.length - 1) {
           // Move to next stage
           const nextStage = stages[currentStageIndex + 1];
           await db.updateStageStatus(nextStage.id, "in_progress");
-          
+
           // Send email notification to next approver
           if (nextStage.requiredRole) {
-            const nextApprovers = await db.getUsersByRole(nextStage.requiredRole);
+            const nextApprovers = await db.getUsersByRole(
+              nextStage.requiredRole
+            );
             for (const approver of nextApprovers) {
               try {
-                await sendMilestoneCompletionEmail({
-                  workflowNumber: workflow.workflowNumber,
-                  workflowTitle: workflow.title,
-                  milestoneName: nextStage.stageName,
-                  approverName: approver.fullName,
-                  approverEmail: approver.email,
-                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
-                  completedBy: ctx.user.fullName,
-                }, workflow.id, ctx.user.email); // Pass logged-in user's email
+                await sendMilestoneCompletionEmail(
+                  {
+                    workflowNumber: workflow.workflowNumber,
+                    workflowTitle: workflow.title,
+                    milestoneName: nextStage.stageName,
+                    approverName: approver.fullName,
+                    approverEmail: approver.email,
+                    workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                    completedBy: ctx.user.fullName,
+                  },
+                  workflow.id,
+                  ctx.user.email
+                ); // Pass logged-in user's email
               } catch (emailError) {
-                console.error(`Failed to send email to ${approver.email}:`, emailError);
+                console.error(
+                  `Failed to send email to ${approver.email}:`,
+                  emailError
+                );
                 // Don't fail the approval if email fails
               }
             }
@@ -994,52 +1141,64 @@ export const appRouter = router({
         } else {
           // This is the last stage - check contingency workflows before completing
           const workflow = await db.getWorkflowById(input.workflowId);
-          
-          if (workflow?.contingencyWorkflowIds && workflow.contingencyWorkflowIds.length > 0) {
+
+          if (
+            workflow?.contingencyWorkflowIds &&
+            workflow.contingencyWorkflowIds.length > 0
+          ) {
             // Check if all contingency workflows are completed
             const contingencyWorkflows = await Promise.all(
               workflow.contingencyWorkflowIds.map(id => db.getWorkflowById(id))
             );
-            
+
             const incompleteContingencies = contingencyWorkflows.filter(
               w => w && w.overallStatus !== "completed"
             );
-            
+
             if (incompleteContingencies.length > 0) {
-              const names = incompleteContingencies.map(w => w?.title || "Unknown").join(", ");
+              const names = incompleteContingencies
+                .map(w => w?.title || "Unknown")
+                .join(", ");
               throw new TRPCError({
                 code: "PRECONDITION_FAILED",
-                message: `Cannot complete workflow. The following contingency workflows must be completed first: ${names}`
+                message: `Cannot complete workflow. The following contingency workflows must be completed first: ${names}`,
               });
             }
           }
-          
+
           // All contingencies satisfied - complete workflow
           await db.updateWorkflowStatus(input.workflowId, "completed");
-          
+
           // Send completion email to workflow creator
           const creator = await db.getUserById(workflow.requesterId);
           if (creator) {
             try {
-              await sendCompletionEmail({
-                workflowNumber: workflow.workflowNumber,
-                workflowTitle: workflow.title,
-                completedAt: new Date().toLocaleString('en-US', { 
-                  dateStyle: 'medium', 
-                  timeStyle: 'short',
-                  timeZone: 'Asia/Jakarta'
-                }),
-                recipientName: creator.fullName,
-                recipientEmail: creator.email,
-                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
-              }, workflow.id, ctx.user.email); // Pass logged-in user's email (final approver)
+              await sendCompletionEmail(
+                {
+                  workflowNumber: workflow.workflowNumber,
+                  workflowTitle: workflow.title,
+                  completedAt: new Date().toLocaleString("en-US", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                    timeZone: "Asia/Jakarta",
+                  }),
+                  recipientName: creator.fullName,
+                  recipientEmail: creator.email,
+                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                },
+                workflow.id,
+                ctx.user.email
+              ); // Pass logged-in user's email (final approver)
             } catch (emailError) {
-              console.error(`Failed to send completion email to ${creator.email}:`, emailError);
+              console.error(
+                `Failed to send completion email to ${creator.email}:`,
+                emailError
+              );
               // Don't fail the approval if email fails
             }
           }
         }
-        
+
         await db.createAuditLog({
           entityType: "stage",
           entityId: input.stageId,
@@ -1049,7 +1208,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -1064,14 +1223,24 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const stage = await db.getStageById(input.stageId);
         if (!stage) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Stage not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Stage not found",
+          });
         }
-        
+
         // Check if user has permission to reject this stage
-        if (stage.requiredRole && ctx.user.role !== stage.requiredRole && ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to reject this stage" });
+        if (
+          stage.requiredRole &&
+          ctx.user.role !== stage.requiredRole &&
+          ctx.user.role !== "admin"
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not authorized to reject this stage",
+          });
         }
-        
+
         // Create rejection record
         await db.createApproval({
           workflowId: input.workflowId,
@@ -1081,34 +1250,41 @@ export const appRouter = router({
           action: "rejected",
           comments: input.comments,
         });
-        
+
         // Update stage and workflow status
         await db.updateStageStatus(input.stageId, "rejected");
         await db.updateWorkflowStatus(input.workflowId, "rejected");
-        
+
         // Send rejection email to workflow creator
         const workflow = await db.getWorkflowById(input.workflowId);
         if (workflow) {
           const creator = await db.getUserById(workflow.requesterId);
           if (creator) {
             try {
-              await sendRejectionEmail({
-                workflowNumber: workflow.workflowNumber,
-                workflowTitle: workflow.title,
-                milestoneName: stage.stageName,
-                rejectedBy: ctx.user.fullName,
-                rejectionReason: input.comments,
-                creatorName: creator.fullName,
-                creatorEmail: creator.email,
-                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
-              }, workflow.id, ctx.user.email); // Pass logged-in user's email (rejector)
+              await sendRejectionEmail(
+                {
+                  workflowNumber: workflow.workflowNumber,
+                  workflowTitle: workflow.title,
+                  milestoneName: stage.stageName,
+                  rejectedBy: ctx.user.fullName,
+                  rejectionReason: input.comments,
+                  creatorName: creator.fullName,
+                  creatorEmail: creator.email,
+                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                },
+                workflow.id,
+                ctx.user.email
+              ); // Pass logged-in user's email (rejector)
             } catch (emailError) {
-              console.error(`Failed to send rejection email to ${creator.email}:`, emailError);
+              console.error(
+                `Failed to send rejection email to ${creator.email}:`,
+                emailError
+              );
               // Don't fail the rejection if email fails
             }
           }
         }
-        
+
         await db.createAuditLog({
           entityType: "stage",
           entityId: input.stageId,
@@ -1118,7 +1294,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
   }),
@@ -1142,11 +1318,15 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         // Decode base64 file data
         const fileBuffer = Buffer.from(input.fileData, "base64");
-        
-        // Upload to S3
-        const s3Key = `workflows/${input.workflowId}/${randomUUID()}-${input.fileName}`;
-        const { url } = await storagePut(s3Key, fileBuffer, input.mimeType);
-        
+
+        // Upload to Azure Blob Storage.
+        const storageKey = `workflows/${input.workflowId}/${randomUUID()}-${input.fileName}`;
+        const { url } = await storagePut(
+          storageKey,
+          fileBuffer,
+          input.mimeType
+        );
+
         // Create file record
         const file = await db.createWorkflowFile({
           workflowId: input.workflowId,
@@ -1154,14 +1334,16 @@ export const appRouter = router({
           fileName: input.fileName,
           fileType: input.fileType,
           fileCategory: input.fileCategory,
-          s3Bucket: process.env.AWS_S3_BUCKET!,
-          s3Key,
+          // Legacy database column names retained until the storage schema migration.
+          s3Bucket:
+            process.env.AZURE_STORAGE_CONTAINER || "finance-attachments",
+          s3Key: storageKey,
           s3Url: url,
           fileSize: fileBuffer.length,
           mimeType: input.mimeType,
           uploadedBy: ctx.user.id,
         });
-        
+
         await db.createAuditLog({
           entityType: "file",
           entityId: file.id,
@@ -1171,7 +1353,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return file;
       }),
 
@@ -1207,7 +1389,7 @@ export const appRouter = router({
           authorId: ctx.user.id,
           authorRole: ctx.user.role,
         });
-        
+
         await db.createAuditLog({
           entityType: "comment",
           entityId: comment.id,
@@ -1217,7 +1399,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return comment;
       }),
 
@@ -1278,17 +1460,28 @@ export const appRouter = router({
           fields: z.array(
             z.object({
               id: z.string(),
-              type: z.enum(["text", "number", "date", "dropdown", "textarea", "file", "checkbox", "email"]),
+              type: z.enum([
+                "text",
+                "number",
+                "date",
+                "dropdown",
+                "textarea",
+                "file",
+                "checkbox",
+                "email",
+              ]),
               label: z.string(),
               placeholder: z.string().optional(),
               required: z.boolean(),
               options: z.array(z.string()).optional(),
-              validation: z.object({
-                min: z.number().optional(),
-                max: z.number().optional(),
-                pattern: z.string().optional(),
-                message: z.string().optional(),
-              }).optional(),
+              validation: z
+                .object({
+                  min: z.number().optional(),
+                  max: z.number().optional(),
+                  pattern: z.string().optional(),
+                  message: z.string().optional(),
+                })
+                .optional(),
               defaultValue: z.any().optional(),
             })
           ),
@@ -1302,7 +1495,7 @@ export const appRouter = router({
           fields: input.fields,
           createdBy: ctx.user.id,
         });
-        
+
         await db.createAuditLog({
           entityType: "form_template",
           entityId: template.id,
@@ -1312,7 +1505,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return template;
       }),
 
@@ -1329,7 +1522,10 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const template = await db.getFormTemplateById(input.id);
         if (!template) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Form template not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Form template not found",
+          });
         }
         return template;
       }),
@@ -1340,23 +1536,36 @@ export const appRouter = router({
           id: z.string(),
           templateName: z.string().optional(),
           description: z.string().optional(),
-          fields: z.array(
-            z.object({
-              id: z.string(),
-              type: z.enum(["text", "number", "date", "dropdown", "textarea", "file", "checkbox", "email"]),
-              label: z.string(),
-              placeholder: z.string().optional(),
-              required: z.boolean(),
-              options: z.array(z.string()).optional(),
-              validation: z.object({
-                min: z.number().optional(),
-                max: z.number().optional(),
-                pattern: z.string().optional(),
-                message: z.string().optional(),
-              }).optional(),
-              defaultValue: z.any().optional(),
-            })
-          ).optional(),
+          fields: z
+            .array(
+              z.object({
+                id: z.string(),
+                type: z.enum([
+                  "text",
+                  "number",
+                  "date",
+                  "dropdown",
+                  "textarea",
+                  "file",
+                  "checkbox",
+                  "email",
+                ]),
+                label: z.string(),
+                placeholder: z.string().optional(),
+                required: z.boolean(),
+                options: z.array(z.string()).optional(),
+                validation: z
+                  .object({
+                    min: z.number().optional(),
+                    max: z.number().optional(),
+                    pattern: z.string().optional(),
+                    message: z.string().optional(),
+                  })
+                  .optional(),
+                defaultValue: z.any().optional(),
+              })
+            )
+            .optional(),
           isActive: z.boolean().optional(),
         })
       )
@@ -1367,7 +1576,7 @@ export const appRouter = router({
           fields: input.fields,
           isActive: input.isActive,
         });
-        
+
         await db.createAuditLog({
           entityType: "form_template",
           entityId: input.id,
@@ -1377,7 +1586,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -1385,7 +1594,7 @@ export const appRouter = router({
       .input(z.object({ id: z.string() }))
       .mutation(async ({ input, ctx }) => {
         await db.deleteFormTemplate(input.id);
-        
+
         await db.createAuditLog({
           entityType: "form_template",
           entityId: input.id,
@@ -1395,7 +1604,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
   }),
@@ -1407,11 +1616,15 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          templateId: z.union([z.string(), z.number()]).transform(val => String(val)),
+          templateId: z
+            .union([z.string(), z.number()])
+            .transform(val => String(val)),
           workflowId: z.string().optional(),
           stageId: z.string().optional(),
           formData: z.record(z.any()),
-          submissionStatus: z.enum(["draft", "submitted", "approved", "rejected"]).optional(),
+          submissionStatus: z
+            .enum(["draft", "submitted", "approved", "rejected"])
+            .optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -1422,9 +1635,10 @@ export const appRouter = router({
           formData: input.formData,
           submittedBy: ctx.user.id,
           submissionStatus: input.submissionStatus || "draft",
-          submittedAt: input.submissionStatus === "submitted" ? new Date() : undefined,
+          submittedAt:
+            input.submissionStatus === "submitted" ? new Date() : undefined,
         });
-        
+
         await db.createAuditLog({
           entityType: "form_submission",
           entityId: submission.id,
@@ -1434,7 +1648,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return submission;
       }),
 
@@ -1443,7 +1657,10 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const submission = await db.getFormSubmissionById(input.id);
         if (!submission) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Form submission not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Form submission not found",
+          });
         }
         return submission;
       }),
@@ -1451,19 +1668,23 @@ export const appRouter = router({
     getByWorkflow: protectedProcedure
       .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
-        const submissions = await db.getFormSubmissionsByWorkflow(input.workflowId);
-        
+        const submissions = await db.getFormSubmissionsByWorkflow(
+          input.workflowId
+        );
+
         // Fetch templates for each submission
         const submissionsWithTemplates = await Promise.all(
-          submissions.map(async (submission) => {
-            const template = await db.getFormTemplateById(submission.templateId);
+          submissions.map(async submission => {
+            const template = await db.getFormTemplateById(
+              submission.templateId
+            );
             return {
               ...submission,
               template,
             };
           })
         );
-        
+
         return submissionsWithTemplates;
       }),
 
@@ -1472,16 +1693,19 @@ export const appRouter = router({
         z.object({
           id: z.string(),
           formData: z.record(z.any()).optional(),
-          submissionStatus: z.enum(["draft", "submitted", "approved", "rejected"]).optional(),
+          submissionStatus: z
+            .enum(["draft", "submitted", "approved", "rejected"])
+            .optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
         await db.updateFormSubmission(input.id, {
           formData: input.formData,
           submissionStatus: input.submissionStatus,
-          submittedAt: input.submissionStatus === "submitted" ? new Date() : undefined,
+          submittedAt:
+            input.submissionStatus === "submitted" ? new Date() : undefined,
         });
-        
+
         await db.createAuditLog({
           entityType: "form_submission",
           entityId: input.id,
@@ -1491,7 +1715,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -1499,7 +1723,7 @@ export const appRouter = router({
       .input(z.object({ id: z.string() }))
       .mutation(async ({ input, ctx }) => {
         await db.deleteFormSubmission(input.id);
-        
+
         await db.createAuditLog({
           entityType: "form_submission",
           entityId: input.id,
@@ -1509,7 +1733,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
   }),
@@ -1517,7 +1741,8 @@ export const appRouter = router({
   // ============================================
   // Sequence Generators
   // ============================================
-  sequences: router({    getAll: adminProcedure.query(async () => {
+  sequences: router({
+    getAll: adminProcedure.query(async () => {
       return await db.getAllSequenceCounters();
     }),
 
@@ -1531,7 +1756,7 @@ export const appRouter = router({
       .input(z.object({ type: z.enum(["MAF", "PR", "CATTO", "SKU", "PAF"]) }))
       .mutation(async ({ input, ctx }) => {
         const sequenceNumber = await db.generateSequenceNumber(input.type);
-        
+
         await db.createAuditLog({
           entityType: "sequence",
           entityId: sequenceNumber,
@@ -1541,7 +1766,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { sequenceNumber };
       }),
 
@@ -1554,7 +1779,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input, ctx }) => {
         await db.resetSequenceCounter(input.type, input.date);
-        
+
         await db.createAuditLog({
           entityType: "sequence",
           entityId: `${input.type}-${input.date}`,
@@ -1564,7 +1789,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
   }),
@@ -1574,40 +1799,34 @@ export const appRouter = router({
   // ============================================
   analytics: router({
     overview: protectedProcedure.query(async () => {
-      return await withCache(
-        'analytics:overview',
-        CACHE_TTL.OVERVIEW,
-        () => db.getWorkflowAnalytics()
+      return await withCache("analytics:overview", CACHE_TTL.OVERVIEW, () =>
+        db.getWorkflowAnalytics()
       );
     }),
 
     byType: protectedProcedure.query(async () => {
-      return await withCache(
-        'analytics:byType',
-        CACHE_TTL.BY_TYPE,
-        () => db.getWorkflowsByType()
+      return await withCache("analytics:byType", CACHE_TTL.BY_TYPE, () =>
+        db.getWorkflowsByType()
       );
     }),
 
     byDepartment: protectedProcedure.query(async () => {
       return await withCache(
-        'analytics:byDepartment',
+        "analytics:byDepartment",
         CACHE_TTL.BY_DEPARTMENT,
         () => db.getWorkflowsByDepartment()
       );
     }),
 
     byStatus: protectedProcedure.query(async () => {
-      return await withCache(
-        'analytics:byStatus',
-        CACHE_TTL.BY_STATUS,
-        () => db.getWorkflowsByStatus()
+      return await withCache("analytics:byStatus", CACHE_TTL.BY_STATUS, () =>
+        db.getWorkflowsByStatus()
       );
     }),
 
     avgTimeByType: protectedProcedure.query(async () => {
       return await withCache(
-        'analytics:avgTimeByType',
+        "analytics:avgTimeByType",
         CACHE_TTL.AVG_TIME,
         () => db.getAvgApprovalTimeByType()
       );
@@ -1624,10 +1843,8 @@ export const appRouter = router({
       }),
 
     timeline: protectedProcedure.query(async () => {
-      return await withCache(
-        'analytics:timeline',
-        CACHE_TTL.TIMELINE,
-        () => db.getWorkflowTimeline()
+      return await withCache("analytics:timeline", CACHE_TTL.TIMELINE, () =>
+        db.getWorkflowTimeline()
       );
     }),
 
@@ -1643,10 +1860,12 @@ export const appRouter = router({
       }),
 
     departmentCostBreakdown: protectedProcedure
-      .input(z.object({ 
-        department: z.string(),
-        period: z.enum(["monthly", "yearly"]).default("monthly")
-      }))
+      .input(
+        z.object({
+          department: z.string(),
+          period: z.enum(["monthly", "yearly"]).default("monthly"),
+        })
+      )
       .query(async ({ input }) => {
         return await withCache(
           `analytics:costBreakdown:${input.department}:${input.period}`,
@@ -1661,23 +1880,27 @@ export const appRouter = router({
   // ============================================
   budgets: router({
     create: protectedProcedure
-      .input(z.object({
-        department: z.string(),
-        year: z.number(),
-        month: z.number().optional(),
-        quarter: z.number().optional(),
-        allocatedAmount: z.number(),
-        period: z.enum(['monthly', 'quarterly', 'yearly']),
-      }))
+      .input(
+        z.object({
+          department: z.string(),
+          year: z.number(),
+          month: z.number().optional(),
+          quarter: z.number().optional(),
+          allocatedAmount: z.number(),
+          period: z.enum(["monthly", "quarterly", "yearly"]),
+        })
+      )
       .mutation(async ({ input }) => {
         return await db.createBudget(input);
       }),
 
     getByDepartment: protectedProcedure
-      .input(z.object({
-        department: z.string(),
-        year: z.number(),
-      }))
+      .input(
+        z.object({
+          department: z.string(),
+          year: z.number(),
+        })
+      )
       .query(async ({ input }) => {
         return await db.getBudgetsByDepartment(input.department, input.year);
       }),
@@ -1689,10 +1912,12 @@ export const appRouter = router({
       }),
 
     update: protectedProcedure
-      .input(z.object({
-        id: z.string(),
-        allocatedAmount: z.number(),
-      }))
+      .input(
+        z.object({
+          id: z.string(),
+          allocatedAmount: z.number(),
+        })
+      )
       .mutation(async ({ input }) => {
         return await db.updateBudget(input.id, input.allocatedAmount);
       }),
@@ -1705,13 +1930,19 @@ export const appRouter = router({
       }),
 
     analytics: protectedProcedure
-      .input(z.object({
-        department: z.string(),
-        year: z.number(),
-        period: z.enum(['monthly', 'quarterly', 'yearly']),
-      }))
+      .input(
+        z.object({
+          department: z.string(),
+          year: z.number(),
+          period: z.enum(["monthly", "quarterly", "yearly"]),
+        })
+      )
       .query(async ({ input }) => {
-        return await db.getDepartmentBudgetAnalytics(input.department, input.year, input.period);
+        return await db.getDepartmentBudgetAnalytics(
+          input.department,
+          input.year,
+          input.period
+        );
       }),
   }),
 
@@ -1736,23 +1967,25 @@ export const appRouter = router({
   // ============================================
   excelTemplates: router({
     create: protectedProcedure
-      .input(z.object({
-        workflowType: z.string(),
-        templateName: z.string(),
-        description: z.string().optional(),
-        fileUrl: z.string(),
-        fileKey: z.string(),
-        fileName: z.string(),
-        fileSize: z.number().optional(),
-      }))
+      .input(
+        z.object({
+          workflowType: z.string(),
+          templateName: z.string(),
+          description: z.string().optional(),
+          fileUrl: z.string(),
+          fileKey: z.string(),
+          fileName: z.string(),
+          fileSize: z.number().optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-        
+
         const result = await db.createExcelTemplate({
           ...input,
           uploadedBy: ctx.user.id,
         });
-        
+
         await db.createAuditLog({
           entityType: "excel_template",
           entityId: result.insertId?.toString() || "unknown",
@@ -1762,19 +1995,17 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return result;
       }),
 
-    getAll: protectedProcedure
-      .query(async () => {
-        return await db.getAllExcelTemplates();
-      }),
+    getAll: protectedProcedure.query(async () => {
+      return await db.getAllExcelTemplates();
+    }),
 
-    getActive: protectedProcedure
-      .query(async () => {
-        return await db.getActiveExcelTemplates();
-      }),
+    getActive: protectedProcedure.query(async () => {
+      return await db.getActiveExcelTemplates();
+    }),
 
     getByWorkflowType: protectedProcedure
       .input(z.object({ workflowType: z.string() }))
@@ -1787,26 +2018,31 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const template = await db.getExcelTemplateById(input.id);
         if (!template) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Template not found",
+          });
         }
-        
+
         // Generate fresh presigned URL (valid for 1 hour)
         const { url } = await storageGet(template.fileKey, 3600);
-        
+
         return { url, fileName: template.fileName };
       }),
 
     update: protectedProcedure
-      .input(z.object({
-        id: z.number(),
-        templateName: z.string().optional(),
-        description: z.string().optional(),
-        isActive: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number(),
+          templateName: z.string().optional(),
+          description: z.string().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;
         await db.updateExcelTemplate(id, updates);
-        
+
         await db.createAuditLog({
           entityType: "excel_template",
           entityId: id.toString(),
@@ -1816,7 +2052,7 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
@@ -1824,7 +2060,7 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         await db.deleteExcelTemplate(input.id);
-        
+
         await db.createAuditLog({
           entityType: "excel_template",
           entityId: input.id.toString(),
@@ -1834,29 +2070,35 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
 
     uploadFile: protectedProcedure
-      .input(z.object({
-        workflowType: z.string(),
-        templateName: z.string(),
-        description: z.string().optional(),
-        filename: z.string(),
-        fileData: z.string(), // base64 encoded
-        fileSize: z.number(),
-      }))
+      .input(
+        z.object({
+          workflowType: z.string(),
+          templateName: z.string(),
+          description: z.string().optional(),
+          filename: z.string(),
+          fileData: z.string(), // base64 encoded
+          fileSize: z.number(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
         if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-        
+
         // Convert base64 to buffer
         const fileBuffer = Buffer.from(input.fileData, "base64");
-        
+
         // Upload to S3
         const fileKey = `excel-templates/${input.workflowType}/${Date.now()}-${input.filename}`;
-        const { url } = await storagePut(fileKey, fileBuffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        
+        const { url } = await storagePut(
+          fileKey,
+          fileBuffer,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+
         // Save to database
         const result = await db.createExcelTemplate({
           workflowType: input.workflowType,
@@ -1868,7 +2110,7 @@ export const appRouter = router({
           fileSize: input.fileSize,
           uploadedBy: ctx.user.id,
         });
-        
+
         await db.createAuditLog({
           entityType: "excel_template",
           entityId: result.insertId?.toString() || "unknown",
@@ -1878,59 +2120,61 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true, url };
       }),
   }),
-  
+
   // ============================================
   // Task Assignments
   // ============================================
   assignments: assignmentsRouter,
-  
+
   // ============================================
   // Performance Metrics
   // ============================================
   metrics: metricsRouter,
-  
+
   // ============================================
   // Salary Integration
   // ============================================
   salary: salaryRouter,
-  
+
   // ============================================
   // Capacity Management
   // ============================================
   capacity: capacityRouter,
-  
+
   // ============================================
   // Recurring Workflows
   // ============================================
   recurringWorkflows: router({
     // Create new recurring workflow
     create: protectedProcedure
-      .input(z.object({
-        templateId: z.string(),
-        title: z.string(),
-        description: z.string().optional(),
-        department: z.string(),
-        frequency: z.enum(["daily", "weekly", "monthly"]),
-        dayOfMonth: z.number().min(1).max(31).optional(),
-        dayOfWeek: z.number().min(0).max(6).optional(),
-        startDate: z.date(),
-        endDate: z.date().optional(),
-        assignedTo: z.array(z.number()).optional(),
-        assigneePresets: z.record(z.array(z.number())).optional(), // { "stage_name": [userId1, userId2] }
-        formTemplateId: z.string().optional(),
-        formData: z.record(z.any()).optional(),
-        contingencyWorkflowIds: z.array(z.string()).optional(),
-      }))
+      .input(
+        z.object({
+          templateId: z.string(),
+          title: z.string(),
+          description: z.string().optional(),
+          department: z.string(),
+          frequency: z.enum(["daily", "weekly", "monthly"]),
+          dayOfMonth: z.number().min(1).max(31).optional(),
+          dayOfWeek: z.number().min(0).max(6).optional(),
+          startDate: z.date(),
+          endDate: z.date().optional(),
+          assignedTo: z.array(z.number()).optional(),
+          assigneePresets: z.record(z.array(z.number())).optional(), // { "stage_name": [userId1, userId2] }
+          formTemplateId: z.string().optional(),
+          formData: z.record(z.any()).optional(),
+          contingencyWorkflowIds: z.array(z.string()).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const recurring = await db.createRecurringWorkflow({
           ...input,
           createdBy: ctx.user.id,
         });
-        
+
         await db.createAuditLog({
           entityType: "recurring_workflow",
           entityId: recurring.id,
@@ -1940,53 +2184,60 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return recurring;
       }),
-    
+
     // Get user's recurring workflows
-    getMyRecurringWorkflows: protectedProcedure
-      .query(async ({ ctx }) => {
-        return await db.getRecurringWorkflowsByUser(ctx.user.id);
-      }),
-    
+    getMyRecurringWorkflows: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getRecurringWorkflowsByUser(ctx.user.id);
+    }),
+
     // Get specific recurring workflow
     getById: protectedProcedure
       .input(z.object({ id: z.string() }))
       .query(async ({ input }) => {
         return await db.getRecurringWorkflowById(input.id);
       }),
-    
+
     // Update recurring workflow
     update: protectedProcedure
-      .input(z.object({
-        id: z.string(),
-        title: z.string().optional(),
-        description: z.string().optional(),
-        department: z.string().optional(),
-        frequency: z.enum(["daily", "weekly", "monthly"]).optional(),
-        dayOfMonth: z.number().min(1).max(31).optional(),
-        dayOfWeek: z.number().min(0).max(6).optional(),
-        startDate: z.date().optional(),
-        endDate: z.date().optional(),
-        assignedTo: z.array(z.number()).optional(),
-        assigneePresets: z.record(z.array(z.number())).optional(),
-        formData: z.record(z.any()).optional(),
-      }))
+      .input(
+        z.object({
+          id: z.string(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          department: z.string().optional(),
+          frequency: z.enum(["daily", "weekly", "monthly"]).optional(),
+          dayOfMonth: z.number().min(1).max(31).optional(),
+          dayOfWeek: z.number().min(0).max(6).optional(),
+          startDate: z.date().optional(),
+          endDate: z.date().optional(),
+          assignedTo: z.array(z.number()).optional(),
+          assigneePresets: z.record(z.array(z.number())).optional(),
+          formData: z.record(z.any()).optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { id, ...updateData } = input;
-        
+
         // Verify ownership
         const existing = await db.getRecurringWorkflowById(id);
         if (!existing) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Recurring workflow not found",
+          });
         }
         if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to update this recurring workflow" });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Not authorized to update this recurring workflow",
+          });
         }
-        
+
         const updated = await db.updateRecurringWorkflow(id, updateData);
-        
+
         await db.createAuditLog({
           entityType: "recurring_workflow",
           entityId: id,
@@ -1996,10 +2247,10 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return updated;
       }),
-    
+
     // Pause recurring workflow
     pause: protectedProcedure
       .input(z.object({ id: z.string() }))
@@ -2007,14 +2258,17 @@ export const appRouter = router({
         // Verify ownership
         const existing = await db.getRecurringWorkflowById(input.id);
         if (!existing) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Recurring workflow not found",
+          });
         }
         if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
         }
-        
+
         await db.pauseRecurringWorkflow(input.id);
-        
+
         await db.createAuditLog({
           entityType: "recurring_workflow",
           entityId: input.id,
@@ -2024,10 +2278,10 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
-    
+
     // Resume recurring workflow
     resume: protectedProcedure
       .input(z.object({ id: z.string() }))
@@ -2035,14 +2289,17 @@ export const appRouter = router({
         // Verify ownership
         const existing = await db.getRecurringWorkflowById(input.id);
         if (!existing) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Recurring workflow not found",
+          });
         }
         if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
         }
-        
+
         await db.resumeRecurringWorkflow(input.id);
-        
+
         await db.createAuditLog({
           entityType: "recurring_workflow",
           entityId: input.id,
@@ -2052,10 +2309,10 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
-    
+
     // Delete recurring workflow
     delete: protectedProcedure
       .input(z.object({ id: z.string() }))
@@ -2063,14 +2320,17 @@ export const appRouter = router({
         // Verify ownership
         const existing = await db.getRecurringWorkflowById(input.id);
         if (!existing) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Recurring workflow not found",
+          });
         }
         if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
         }
-        
+
         await db.deleteRecurringWorkflow(input.id);
-        
+
         await db.createAuditLog({
           entityType: "recurring_workflow",
           entityId: input.id,
@@ -2080,10 +2340,10 @@ export const appRouter = router({
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role,
         });
-        
+
         return { success: true };
       }),
-    
+
     // Get history of generated workflows
     getHistory: protectedProcedure
       .input(z.object({ id: z.string() }))
@@ -2091,27 +2351,29 @@ export const appRouter = router({
         return await db.getRecurringWorkflowHistory(input.id);
       }),
   }),
-  
+
   // ============================================
   // E-Signature (HelloDoc Integration)
   // ============================================
   eSignature: router({
     // Create document record (upload only, no API send)
     createDocument: protectedProcedure
-      .input(z.object({
-        workflowId: z.string().optional(),
-        documentName: z.string(),
-        documentUrl: z.string(),
-        signerEmail: z.string().email(),
-        signerName: z.string(),
-      }))
+      .input(
+        z.object({
+          workflowId: z.string().optional(),
+          documentName: z.string(),
+          documentUrl: z.string(),
+          signerEmail: z.string().email(),
+          signerName: z.string(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const docId = await db.createSignedDocument({
           workflowId: input.workflowId || "standalone",
           documentName: input.documentName,
           s3Key: null,
           s3Url: null,
-          uploadedS3Key: input.documentUrl.split('?')[0].split('/').pop() || '',
+          uploadedS3Key: input.documentUrl.split("?")[0].split("/").pop() || "",
           uploadedS3Url: input.documentUrl,
           helloDocDocumentId: null,
           signerId: ctx.user.id,
@@ -2120,27 +2382,34 @@ export const appRouter = router({
         });
         return { documentId: docId };
       }),
-    
+
     // Update document with HelloDoc ID (entered manually after sending from HelloDoc)
     updateHelloDocId: protectedProcedure
-      .input(z.object({
-        documentId: z.string(),
-        helloDocDocumentId: z.string(),
-      }))
+      .input(
+        z.object({
+          documentId: z.string(),
+          helloDocDocumentId: z.string(),
+        })
+      )
       .mutation(async ({ input }) => {
-        await db.updateSignedDocumentHelloDocId(input.documentId, input.helloDocDocumentId);
+        await db.updateSignedDocumentHelloDocId(
+          input.documentId,
+          input.helloDocDocumentId
+        );
         return { success: true };
       }),
-    
+
     // Legacy sendForSignature (kept for backward compatibility but not used in hybrid workflow)
     sendForSignature: protectedProcedure
-      .input(z.object({
-        workflowId: z.string().optional(), // Optional for standalone usage
-        documentName: z.string(),
-        documentUrl: z.string(),
-        signerEmail: z.string().email(),
-        signerName: z.string(),
-      }))
+      .input(
+        z.object({
+          workflowId: z.string().optional(), // Optional for standalone usage
+          documentName: z.string(),
+          documentUrl: z.string(),
+          signerEmail: z.string().email(),
+          signerName: z.string(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { sendDocumentForSignature } = await import("./hellodoc");
         const result = await sendDocumentForSignature({
@@ -2155,7 +2424,7 @@ export const appRouter = router({
           documentName: input.documentName,
           s3Key: null,
           s3Url: null,
-          uploadedS3Key: input.documentUrl.split('?')[0].split('/').pop() || '',
+          uploadedS3Key: input.documentUrl.split("?")[0].split("/").pop() || "",
           uploadedS3Url: input.documentUrl,
           helloDocDocumentId: result.documentId,
           signerId: ctx.user.id,
@@ -2168,59 +2437,84 @@ export const appRouter = router({
           helloDocDocumentId: result.documentId,
         };
       }),
-    
+
     checkStatus: protectedProcedure
       .input(z.object({ helloDocDocumentId: z.string() }))
       .query(async ({ input }) => {
         const { checkSignatureStatus } = await import("./hellodoc");
         return await checkSignatureStatus(input.helloDocDocumentId);
       }),
-    
+
     getByWorkflow: protectedProcedure
       .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
         return await db.getSignedDocumentsByWorkflow(input.workflowId);
       }),
-    
+
     // Get all signed documents (for standalone e-signature page)
     getAll: protectedProcedure
-      .input(z.object({
-        status: z.enum(["all", "pending", "signed", "rejected", "expired"]).optional(),
-        search: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          status: z
+            .enum(["all", "pending", "signed", "rejected", "expired"])
+            .optional(),
+          search: z.string().optional(),
+        })
+      )
       .query(async ({ ctx, input }) => {
-        return await db.getAllSignedDocuments(ctx.user.id, input.status, input.search);
+        return await db.getAllSignedDocuments(
+          ctx.user.id,
+          input.status,
+          input.search
+        );
       }),
-    
+
     // Get documents sent by current user
-    getBySender: protectedProcedure
-      .query(async ({ ctx }) => {
-        return await db.getSignedDocumentsBySender(ctx.user.id);
-      }),
-    
+    getBySender: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getSignedDocumentsBySender(ctx.user.id);
+    }),
+
     handleSignedDocument: protectedProcedure
       .input(z.object({ helloDocDocumentId: z.string() }))
       .mutation(async ({ input }) => {
-        const { checkSignatureStatus, downloadSignedDocument } = await import("./hellodoc");
+        const { checkSignatureStatus, downloadSignedDocument } = await import(
+          "./hellodoc"
+        );
         const status = await checkSignatureStatus(input.helloDocDocumentId);
         if (status.status !== "signed" || !status.signedDocumentUrl) {
-          throw new TRPCError({ 
-            code: "BAD_REQUEST", 
-            message: `Document not signed yet. Status: ${status.status}` 
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Document not signed yet. Status: ${status.status}`,
           });
         }
-        const signedPdfBuffer = await downloadSignedDocument(status.signedDocumentUrl);
-        const doc = await db.getSignedDocumentByHelloDocId(input.helloDocDocumentId);
+        const signedPdfBuffer = await downloadSignedDocument(
+          status.signedDocumentUrl
+        );
+        const doc = await db.getSignedDocumentByHelloDocId(
+          input.helloDocDocumentId
+        );
         if (!doc) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Document not found",
+          });
         }
         const s3Key = `signed-docs/${doc.workflowId}/${Date.now()}-${doc.documentName}`;
-        const { url: s3Url } = await storagePut(s3Key, signedPdfBuffer, "application/pdf");
-        await db.updateSignedDocumentStatus(doc.id, "signed", status.signedAt || undefined);
-        await db.db.update(schema.signedDocuments)
+        const { url: s3Url } = await storagePut(
+          s3Key,
+          signedPdfBuffer,
+          "application/pdf"
+        );
+        await db.updateSignedDocumentStatus(
+          doc.id,
+          "signed",
+          status.signedAt || undefined
+        );
+        await db.db
+          .update(schema.signedDocuments)
           .set({ s3Key, s3Url })
           .where(eq(schema.signedDocuments.id, doc.id));
-        
+
         // Send email with signed document
         const { sendSignedDocumentEmail } = await import("./email");
         await sendSignedDocumentEmail(
@@ -2230,7 +2524,7 @@ export const appRouter = router({
           s3Url,
           doc.workflowId
         );
-        
+
         return {
           success: true,
           s3Url,
@@ -2244,14 +2538,16 @@ export const appRouter = router({
   // ============================================
   cfoDocumentQueue: router({
     // Get all uploaded documents for CFO review
-    getAll: protectedProcedure
-      .query(async ({ ctx }) => {
-        // Only CFO can access
-        if (ctx.user.role !== 'cfo') {
-          throw new TRPCError({ code: 'FORBIDDEN', message: 'Only CFO can access document queue' });
-        }
-        return db.getAllSignedDocumentsForCFO();
-      }),
+    getAll: protectedProcedure.query(async ({ ctx }) => {
+      // Only CFO can access
+      if (ctx.user.role !== "cfo") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only CFO can access document queue",
+        });
+      }
+      return db.getAllSignedDocumentsForCFO();
+    }),
   }),
 
   // ============================================
@@ -2260,13 +2556,15 @@ export const appRouter = router({
   documentTemplates: router({
     // Create new template
     create: protectedProcedure
-      .input(z.object({
-        name: z.string(),
-        description: z.string().optional(),
-        category: z.string().optional(),
-        fileUrl: z.string(),
-        fileType: z.string(),
-      }))
+      .input(
+        z.object({
+          name: z.string(),
+          description: z.string().optional(),
+          category: z.string().optional(),
+          fileUrl: z.string(),
+          fileType: z.string(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const templateId = randomUUID();
         await db.createDocumentTemplate({
@@ -2274,35 +2572,36 @@ export const appRouter = router({
           name: input.name,
           description: input.description,
           category: input.category,
-          s3Key: input.fileUrl.split('?')[0].split('/').pop() || '',
+          s3Key: input.fileUrl.split("?")[0].split("/").pop() || "",
           s3Url: input.fileUrl,
           fileType: input.fileType,
           createdBy: ctx.user.id,
         });
         return { templateId };
       }),
-    
+
     // Get all templates
-    getAll: protectedProcedure
-      .query(async ({ ctx }) => {
-        return await db.getAllDocumentTemplates();
-      }),
-    
+    getAll: protectedProcedure.query(async ({ ctx }) => {
+      return await db.getAllDocumentTemplates();
+    }),
+
     // Get template by ID
     getById: protectedProcedure
       .input(z.object({ id: z.string() }))
       .query(async ({ input }) => {
         return await db.getDocumentTemplateById(input.id);
       }),
-    
+
     // Update template
     update: protectedProcedure
-      .input(z.object({
-        id: z.string(),
-        name: z.string().optional(),
-        description: z.string().optional(),
-        category: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.string(),
+          name: z.string().optional(),
+          description: z.string().optional(),
+          category: z.string().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
         await db.updateDocumentTemplate(input.id, {
           name: input.name,
@@ -2311,7 +2610,7 @@ export const appRouter = router({
         });
         return { success: true };
       }),
-    
+
     // Delete template (soft delete)
     delete: protectedProcedure
       .input(z.object({ id: z.string() }))
@@ -2336,7 +2635,8 @@ export const appRouter = router({
 // Helper Functions
 // ============================================
 
-async function createInitialStages(workflowId: string,
+async function createInitialStages(
+  workflowId: string,
   workflowType: "MAF" | "PR" | "CATTO",
   estimatedAmount?: number
 ): Promise<void> {
@@ -2344,17 +2644,37 @@ async function createInitialStages(workflowId: string,
     // MAF workflow stages
     const stages = [
       { order: 1, name: "PPIC Review", type: "approval", role: "PPIC" },
-      { order: 2, name: "Purchasing Review", type: "approval", role: "Purchasing" },
+      {
+        order: 2,
+        name: "Purchasing Review",
+        type: "approval",
+        role: "Purchasing",
+      },
     ];
-    
+
     // Add financial approval stages based on amount
     if (estimatedAmount && estimatedAmount > 5000000) {
-      stages.push({ order: 3, name: "CFO Approval", type: "approval", role: "CFO" });
-      stages.push({ order: 4, name: "CEO/COO Approval", type: "approval", role: "CEO" });
+      stages.push({
+        order: 3,
+        name: "CFO Approval",
+        type: "approval",
+        role: "CFO",
+      });
+      stages.push({
+        order: 4,
+        name: "CEO/COO Approval",
+        type: "approval",
+        role: "CEO",
+      });
     } else if (estimatedAmount && estimatedAmount > 1000000) {
-      stages.push({ order: 3, name: "CFO Approval", type: "approval", role: "CFO" });
+      stages.push({
+        order: 3,
+        name: "CFO Approval",
+        type: "approval",
+        role: "CFO",
+      });
     }
-    
+
     for (const stage of stages) {
       await db.createWorkflowStage({
         workflowId,
@@ -2367,11 +2687,16 @@ async function createInitialStages(workflowId: string,
   } else if (workflowType === "PR") {
     // PR workflow stages
     const stages = [
-      { order: 1, name: "Department Head Review", type: "approval", role: "admin" },
+      {
+        order: 1,
+        name: "Department Head Review",
+        type: "approval",
+        role: "admin",
+      },
       { order: 2, name: "Finance Review", type: "approval", role: "Finance" },
       { order: 3, name: "CFO Approval", type: "approval", role: "CFO" },
     ];
-    
+
     for (const stage of stages) {
       await db.createWorkflowStage({
         workflowId,
@@ -2388,7 +2713,7 @@ async function createInitialStages(workflowId: string,
       { order: 2, name: "CFO Approval", type: "approval", role: "CFO" },
       { order: 3, name: "CEO Approval", type: "approval", role: "CEO" },
     ];
-    
+
     for (const stage of stages) {
       await db.createWorkflowStage({
         workflowId,
@@ -2400,8 +2725,5 @@ async function createInitialStages(workflowId: string,
     }
   }
 }
-
-
-
 
 export type AppRouter = typeof appRouter;

@@ -1,35 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { storagePut, storageGet } from "./storage";
+import { storageGet, storagePut } from "./storage";
 
-describe("AWS S3 Storage", () => {
-  it("should successfully upload and retrieve a test file", async () => {
-    const testContent = "Test file content for AWS S3 validation";
-    const testKey = `test/${Date.now()}-test.txt`;
-    
-    // Upload test file
-    const uploadResult = await storagePut(
-      testKey,
-      Buffer.from(testContent),
-      "text/plain"
-    );
+const integrationTest = process.env.AZURE_STORAGE_CONNECTION_STRING
+  ? it
+  : it.skip;
 
-    expect(uploadResult).toBeDefined();
-    expect(uploadResult.key).toBe(testKey);
-    expect(uploadResult.url).toBeDefined();
-    expect(uploadResult.url).toContain("amazonaws.com"); // Check it's an AWS S3 URL
+describe("Azure Blob Storage", () => {
+  integrationTest(
+    "uploads and retrieves a private test file",
+    async () => {
+      const testContent = "Azure Blob Storage validation";
+      const testKey = `test/${Date.now()}-test.txt`;
 
-    // Retrieve the file URL
-    const getResult = await storageGet(testKey);
-    
-    expect(getResult).toBeDefined();
-    expect(getResult.key).toBe(testKey);
-    expect(getResult.url).toBeDefined();
+      const upload = await storagePut(
+        testKey,
+        Buffer.from(testContent),
+        "text/plain"
+      );
+      expect(upload.key).toBe(testKey);
+      expect(upload.url).toContain("blob.core.windows.net");
 
-    // Verify the file is accessible
-    const response = await fetch(getResult.url);
-    expect(response.ok).toBe(true);
-    
-    const retrievedContent = await response.text();
-    expect(retrievedContent).toBe(testContent);
-  }, 30000); // 30 second timeout for network operations
+      const stored = await storageGet(testKey);
+      const response = await fetch(stored.url);
+      expect(response.ok).toBe(true);
+      expect(await response.text()).toBe(testContent);
+    },
+    30_000
+  );
 });

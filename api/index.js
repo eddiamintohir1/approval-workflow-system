@@ -13,6 +13,8 @@ var schema_exports = {};
 __export(schema_exports, {
   auditLogs: () => auditLogs,
   departmentBudgets: () => departmentBudgets2,
+  documentSequenceCounters: () => documentSequenceCounters,
+  documentSequences: () => documentSequences,
   documentTemplates: () => documentTemplates,
   emailLogs: () => emailLogs,
   emailRecipients: () => emailRecipients,
@@ -38,14 +40,28 @@ __export(schema_exports, {
   workflowTemplates: () => workflowTemplates,
   workflows: () => workflows
 });
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint, index, date } from "drizzle-orm/mysql-core";
-var users, workflows, workflowStages, workflowApprovals, workflowFiles, workflowComments, auditLogs, emailRecipients, sequenceCounters, formTemplates, formSubmissions2, workflowTemplates, templateStages, departmentBudgets2, excelTemplates, taskAssignments, userPerformanceMetrics, salaryCache, emailLogs, recurringWorkflows, recurringWorkflowHistory, signedDocuments, documentTemplates, skuCategories, skuCounters, skus;
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  boolean,
+  json,
+  decimal,
+  bigint,
+  index,
+  date
+} from "drizzle-orm/mysql-core";
+var users, workflows, workflowStages, workflowApprovals, workflowFiles, workflowComments, auditLogs, emailRecipients, sequenceCounters, documentSequenceCounters, documentSequences, formTemplates, formSubmissions2, workflowTemplates, templateStages, departmentBudgets2, excelTemplates, taskAssignments, userPerformanceMetrics, salaryCache, emailLogs, recurringWorkflows, recurringWorkflowHistory, signedDocuments, documentTemplates, skuCategories, skuCounters, skus;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
     users = mysqlTable("users", {
       id: int("id").autoincrement().primaryKey(),
-      // Cognito integration
+      // Legacy identity column names retained for database compatibility. Values
+      // are populated from Microsoft Entra object identifiers and claims.
       cognitoSub: varchar("cognito_sub", { length: 255 }).notNull().unique(),
       openId: varchar("open_id", { length: 64 }).notNull().unique(),
       // For Manus compatibility
@@ -71,7 +87,7 @@ var init_schema = __esm({
         "Staff",
         "admin"
       ]).default("Staff").notNull(),
-      // Cognito groups stored as JSON array
+      // Microsoft Entra roles/groups stored as a JSON array
       cognitoGroups: json("cognito_groups").$type(),
       // Signature for CEO/CFO approval
       signatureUrl: text("signature_url"),
@@ -256,7 +272,13 @@ var init_schema = __esm({
     sequenceCounters = mysqlTable("sequence_counters", {
       id: varchar("id", { length: 36 }).primaryKey(),
       // Sequence identification
-      sequenceType: mysqlEnum("sequence_type", ["MAF", "PR", "CATTO", "SKU", "PAF"]).notNull(),
+      sequenceType: mysqlEnum("sequence_type", [
+        "MAF",
+        "PR",
+        "CATTO",
+        "SKU",
+        "PAF"
+      ]).notNull(),
       sequenceDate: varchar("sequence_date", { length: 10 }).notNull(),
       // YYYY-MM-DD format
       // Counter
@@ -265,6 +287,51 @@ var init_schema = __esm({
       createdAt: timestamp("created_at").defaultNow().notNull(),
       updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
     });
+    documentSequenceCounters = mysqlTable(
+      "document_sequence_counters",
+      {
+        id: varchar("id", { length: 100 }).primaryKey(),
+        prefix: varchar("prefix", { length: 100 }).notNull(),
+        department: varchar("department", { length: 20 }).notNull(),
+        documentType: varchar("document_type", { length: 20 }).notNull(),
+        currentValue: int("current_value").default(0).notNull(),
+        formatPattern: varchar("format_pattern", { length: 255 }),
+        resetPeriod: varchar("reset_period", { length: 20 }).default("monthly"),
+        lastResetAt: timestamp("last_reset_at"),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
+      }
+    );
+    documentSequences = mysqlTable(
+      "document_sequences",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        documentNumber: varchar("document_number", { length: 100 }).notNull().unique(),
+        sequenceCounter: int("sequence_counter").notNull(),
+        documentType: varchar("document_type", { length: 20 }).notNull(),
+        company: varchar("company", { length: 20 }).notNull(),
+        division: varchar("division", { length: 20 }).notNull(),
+        monthRoman: varchar("month_roman", { length: 10 }).notNull(),
+        monthNumeric: int("month_numeric").notNull(),
+        year: int("year").notNull(),
+        revisionNumber: int("revision_number").default(0).notNull(),
+        documentTitle: varchar("document_title", { length: 255 }).notNull(),
+        documentDescription: text("document_description"),
+        status: varchar("status", { length: 20 }).default("draft").notNull(),
+        createdBy: varchar("created_by", { length: 36 }).notNull(),
+        updatedBy: varchar("updated_by", { length: 36 }),
+        changeHistory: json("change_history").$type().default([]),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
+      },
+      (table) => ({
+        companyIdx: index("document_sequences_company_idx").on(table.company),
+        divisionIdx: index("document_sequences_division_idx").on(table.division),
+        typeIdx: index("document_sequences_type_idx").on(table.documentType),
+        statusIdx: index("document_sequences_status_idx").on(table.status),
+        yearIdx: index("document_sequences_year_idx").on(table.year)
+      })
+    );
     formTemplates = mysqlTable("form_templates", {
       id: varchar("id", { length: 36 }).primaryKey(),
       // Template information
@@ -367,7 +434,10 @@ var init_schema = __esm({
       month: int("month"),
       // 1-12, null for quarterly/annual budget
       // Budget amounts
-      allocatedBudget: decimal("allocated_budget", { precision: 15, scale: 2 }).notNull(),
+      allocatedBudget: decimal("allocated_budget", {
+        precision: 15,
+        scale: 2
+      }).notNull(),
       currency: varchar("currency", { length: 3 }).default("IDR"),
       // Metadata
       notes: text("notes"),
@@ -390,126 +460,167 @@ var init_schema = __esm({
       uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
       isActive: boolean("is_active").default(true).notNull()
     });
-    taskAssignments = mysqlTable("task_assignments", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      workflowId: varchar("workflow_id", { length: 36 }).notNull(),
-      assignedTo: int("assigned_to").notNull(),
-      // user.id (Staff)
-      assignedBy: int("assigned_by").notNull(),
-      // user.id (Manager/Dept Head)
-      assignedAt: timestamp("assigned_at").defaultNow().notNull()
-    }, (table) => ({
-      workflowIdx: index("idx_workflow_id").on(table.workflowId),
-      assignedToIdx: index("idx_assigned_to").on(table.assignedTo),
-      assignedByIdx: index("idx_assigned_by").on(table.assignedBy)
-    }));
-    userPerformanceMetrics = mysqlTable("user_performance_metrics", {
-      userId: int("user_id").primaryKey(),
-      avgCompletionHours: decimal("avg_completion_hours", { precision: 10, scale: 2 }),
-      tasksCompletedThisMonth: int("tasks_completed_this_month").default(0).notNull(),
-      longestStuckHours: decimal("longest_stuck_hours", { precision: 10, scale: 2 }),
-      longestStuckWorkflowId: varchar("longest_stuck_workflow_id", { length: 36 }),
-      rejectedCount: int("rejected_count").default(0).notNull(),
-      lastCalculated: timestamp("last_calculated").defaultNow().notNull()
-    }, (table) => ({
-      lastCalculatedIdx: index("idx_last_calculated").on(table.lastCalculated)
-    }));
+    taskAssignments = mysqlTable(
+      "task_assignments",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+        assignedTo: int("assigned_to").notNull(),
+        // user.id (Staff)
+        assignedBy: int("assigned_by").notNull(),
+        // user.id (Manager/Dept Head)
+        assignedAt: timestamp("assigned_at").defaultNow().notNull()
+      },
+      (table) => ({
+        workflowIdx: index("idx_workflow_id").on(table.workflowId),
+        assignedToIdx: index("idx_assigned_to").on(table.assignedTo),
+        assignedByIdx: index("idx_assigned_by").on(table.assignedBy)
+      })
+    );
+    userPerformanceMetrics = mysqlTable(
+      "user_performance_metrics",
+      {
+        userId: int("user_id").primaryKey(),
+        avgCompletionHours: decimal("avg_completion_hours", {
+          precision: 10,
+          scale: 2
+        }),
+        tasksCompletedThisMonth: int("tasks_completed_this_month").default(0).notNull(),
+        longestStuckHours: decimal("longest_stuck_hours", {
+          precision: 10,
+          scale: 2
+        }),
+        longestStuckWorkflowId: varchar("longest_stuck_workflow_id", {
+          length: 36
+        }),
+        rejectedCount: int("rejected_count").default(0).notNull(),
+        lastCalculated: timestamp("last_calculated").defaultNow().notNull()
+      },
+      (table) => ({
+        lastCalculatedIdx: index("idx_last_calculated").on(table.lastCalculated)
+      })
+    );
     salaryCache = mysqlTable("salary_cache", {
       userId: int("user_id").primaryKey(),
       salaryAmount: decimal("salary_amount", { precision: 12, scale: 2 }),
       currency: varchar("currency", { length: 3 }).default("IDR").notNull(),
       lastSynced: timestamp("last_synced").defaultNow().notNull()
     });
-    emailLogs = mysqlTable("email_logs", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      // Recipient
-      recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
-      // Email details
-      subject: text("subject").notNull(),
-      template: mysqlEnum("template", [
-        "milestone_completion",
-        "workflow_rejection",
-        "workflow_completion",
-        "deadline_reminder"
-      ]).notNull(),
-      // Related workflow
-      workflowId: varchar("workflow_id", { length: 36 }),
-      // Delivery status
-      status: mysqlEnum("status", ["sent", "failed"]).notNull(),
-      messageId: varchar("message_id", { length: 255 }),
-      // AWS SES Message ID
-      errorMessage: text("error_message"),
-      // Timestamps
-      sentAt: timestamp("sent_at").defaultNow().notNull()
-    }, (table) => ({
-      workflowIdx: index("idx_workflow_id").on(table.workflowId),
-      recipientIdx: index("idx_recipient_email").on(table.recipientEmail),
-      sentAtIdx: index("idx_sent_at").on(table.sentAt)
-    }));
-    recurringWorkflows = mysqlTable("recurring_workflows", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      // UUID
-      // Template reference
-      templateId: varchar("template_id", { length: 36 }).notNull(),
-      // Workflow details (pre-filled values)
-      title: varchar("title", { length: 500 }).notNull(),
-      description: text("description"),
-      department: varchar("department", { length: 100 }).notNull(),
-      // Recurrence configuration
-      frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly"]).notNull(),
-      dayOfMonth: int("day_of_month"),
-      // 1-31 for monthly recurrence
-      dayOfWeek: int("day_of_week"),
-      // 0-6 (0=Sunday) for weekly recurrence
-      // Schedule dates
-      startDate: date("start_date").notNull(),
-      endDate: date("end_date"),
-      // Optional end date
-      // Next scheduled generation
-      nextScheduledDate: date("next_scheduled_date").notNull(),
-      // Status
-      isActive: boolean("is_active").default(true).notNull(),
-      isPaused: boolean("is_paused").default(false).notNull(),
-      // Owner information
-      createdBy: int("created_by").notNull(),
-      assignedTo: json("assigned_to").$type(),
-      // User IDs who should be assigned
-      // Assignee presets for each approval stage
-      // Format: { "stage_name": [userId1, userId2, ...] }
-      assigneePresets: json("assignee_presets").$type(),
-      // Pre-filled form data (optional)
-      formTemplateId: varchar("form_template_id", { length: 36 }),
-      formData: json("form_data").$type(),
-      // Contingency workflows (optional)
-      contingencyWorkflowIds: json("contingency_workflow_ids").$type(),
-      // Timestamps
-      lastGeneratedAt: timestamp("last_generated_at"),
-      createdAt: timestamp("created_at").defaultNow().notNull(),
-      updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-      // Metadata
-      metadata: json("metadata").$type()
-    }, (table) => ({
-      createdByIdx: index("idx_created_by").on(table.createdBy),
-      nextScheduledIdx: index("idx_next_scheduled_date").on(table.nextScheduledDate),
-      isActiveIdx: index("idx_is_active").on(table.isActive)
-    }));
-    recurringWorkflowHistory = mysqlTable("recurring_workflow_history", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      // References
-      recurringWorkflowId: varchar("recurring_workflow_id", { length: 36 }).notNull(),
-      generatedWorkflowId: varchar("generated_workflow_id", { length: 36 }).notNull(),
-      // Generation details
-      scheduledDate: date("scheduled_date").notNull(),
-      generatedAt: timestamp("generated_at").defaultNow().notNull(),
-      generationStatus: mysqlEnum("generation_status", ["success", "failed"]).notNull(),
-      errorMessage: text("error_message"),
-      // Metadata
-      metadata: json("metadata").$type()
-    }, (table) => ({
-      recurringWorkflowIdx: index("idx_recurring_workflow_id").on(table.recurringWorkflowId),
-      generatedWorkflowIdx: index("idx_generated_workflow_id").on(table.generatedWorkflowId),
-      scheduledDateIdx: index("idx_scheduled_date").on(table.scheduledDate)
-    }));
+    emailLogs = mysqlTable(
+      "email_logs",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        // Recipient
+        recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
+        // Email details
+        subject: text("subject").notNull(),
+        template: mysqlEnum("template", [
+          "milestone_completion",
+          "workflow_rejection",
+          "workflow_completion",
+          "deadline_reminder"
+        ]).notNull(),
+        // Related workflow
+        workflowId: varchar("workflow_id", { length: 36 }),
+        // Delivery status
+        status: mysqlEnum("status", ["sent", "failed"]).notNull(),
+        messageId: varchar("message_id", { length: 255 }),
+        // AWS SES Message ID
+        errorMessage: text("error_message"),
+        // Timestamps
+        sentAt: timestamp("sent_at").defaultNow().notNull()
+      },
+      (table) => ({
+        workflowIdx: index("idx_workflow_id").on(table.workflowId),
+        recipientIdx: index("idx_recipient_email").on(table.recipientEmail),
+        sentAtIdx: index("idx_sent_at").on(table.sentAt)
+      })
+    );
+    recurringWorkflows = mysqlTable(
+      "recurring_workflows",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        // UUID
+        // Template reference
+        templateId: varchar("template_id", { length: 36 }).notNull(),
+        // Workflow details (pre-filled values)
+        title: varchar("title", { length: 500 }).notNull(),
+        description: text("description"),
+        department: varchar("department", { length: 100 }).notNull(),
+        // Recurrence configuration
+        frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly"]).notNull(),
+        dayOfMonth: int("day_of_month"),
+        // 1-31 for monthly recurrence
+        dayOfWeek: int("day_of_week"),
+        // 0-6 (0=Sunday) for weekly recurrence
+        // Schedule dates
+        startDate: date("start_date").notNull(),
+        endDate: date("end_date"),
+        // Optional end date
+        // Next scheduled generation
+        nextScheduledDate: date("next_scheduled_date").notNull(),
+        // Status
+        isActive: boolean("is_active").default(true).notNull(),
+        isPaused: boolean("is_paused").default(false).notNull(),
+        // Owner information
+        createdBy: int("created_by").notNull(),
+        assignedTo: json("assigned_to").$type(),
+        // User IDs who should be assigned
+        // Assignee presets for each approval stage
+        // Format: { "stage_name": [userId1, userId2, ...] }
+        assigneePresets: json("assignee_presets").$type(),
+        // Pre-filled form data (optional)
+        formTemplateId: varchar("form_template_id", { length: 36 }),
+        formData: json("form_data").$type(),
+        // Contingency workflows (optional)
+        contingencyWorkflowIds: json("contingency_workflow_ids").$type(),
+        // Timestamps
+        lastGeneratedAt: timestamp("last_generated_at"),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+        // Metadata
+        metadata: json("metadata").$type()
+      },
+      (table) => ({
+        createdByIdx: index("idx_created_by").on(table.createdBy),
+        nextScheduledIdx: index("idx_next_scheduled_date").on(
+          table.nextScheduledDate
+        ),
+        isActiveIdx: index("idx_is_active").on(table.isActive)
+      })
+    );
+    recurringWorkflowHistory = mysqlTable(
+      "recurring_workflow_history",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        // References
+        recurringWorkflowId: varchar("recurring_workflow_id", {
+          length: 36
+        }).notNull(),
+        generatedWorkflowId: varchar("generated_workflow_id", {
+          length: 36
+        }).notNull(),
+        // Generation details
+        scheduledDate: date("scheduled_date").notNull(),
+        generatedAt: timestamp("generated_at").defaultNow().notNull(),
+        generationStatus: mysqlEnum("generation_status", [
+          "success",
+          "failed"
+        ]).notNull(),
+        errorMessage: text("error_message"),
+        // Metadata
+        metadata: json("metadata").$type()
+      },
+      (table) => ({
+        recurringWorkflowIdx: index("idx_recurring_workflow_id").on(
+          table.recurringWorkflowId
+        ),
+        generatedWorkflowIdx: index("idx_generated_workflow_id").on(
+          table.generatedWorkflowId
+        ),
+        scheduledDateIdx: index("idx_scheduled_date").on(table.scheduledDate)
+      })
+    );
     signedDocuments = mysqlTable("signed_documents", {
       id: varchar("id", { length: 36 }).primaryKey(),
       workflowId: varchar("workflow_id", { length: 36 }).notNull(),
@@ -527,7 +638,13 @@ var init_schema = __esm({
       signerId: int("signer_id").notNull(),
       signerEmail: varchar("signer_email", { length: 255 }).notNull(),
       signerName: varchar("signer_name", { length: 255 }).notNull(),
-      status: mysqlEnum("status", ["pending", "awaiting_hellodoc_id", "signed", "rejected", "expired"]).notNull().default("awaiting_hellodoc_id"),
+      status: mysqlEnum("status", [
+        "pending",
+        "awaiting_hellodoc_id",
+        "signed",
+        "rejected",
+        "expired"
+      ]).notNull().default("awaiting_hellodoc_id"),
       signedAt: timestamp("signed_at"),
       sentAt: timestamp("sent_at"),
       // When sent from HelloDoc (nullable)
@@ -552,48 +669,62 @@ var init_schema = __esm({
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    skuCategories = mysqlTable("sku_categories", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      prefix: varchar("prefix", { length: 10 }).notNull().unique(),
-      name: varchar("name", { length: 100 }).notNull(),
-      description: text("description"),
-      isActive: boolean("is_active").default(true).notNull(),
-      createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
-    }, (table) => ({
-      prefixIdx: index("idx_prefix").on(table.prefix),
-      isActiveIdx: index("idx_is_active").on(table.isActive)
-    }));
-    skuCounters = mysqlTable("sku_counters", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      categoryId: varchar("category_id", { length: 36 }).notNull(),
-      currentCounter: int("current_counter").default(0).notNull(),
-      resetDate: date("reset_date"),
-      createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
-    }, (table) => ({
-      categoryIdIdx: index("idx_category_id").on(table.categoryId),
-      uniqueCategoryCounter: index("unique_category_counter").on(table.categoryId)
-    }));
-    skus = mysqlTable("skus", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      skuCode: varchar("sku_code", { length: 50 }).notNull().unique(),
-      categoryId: varchar("category_id", { length: 36 }).notNull(),
-      prefix: varchar("prefix", { length: 10 }).notNull(),
-      sequenceNumber: int("sequence_number").notNull(),
-      productName: varchar("product_name", { length: 500 }),
-      description: text("description"),
-      status: varchar("status", { length: 50 }).default("active").notNull(),
-      createdBy: int("created_by").notNull(),
-      createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
-    }, (table) => ({
-      skuCodeIdx: index("idx_sku_code").on(table.skuCode),
-      categoryIdIdx: index("idx_category_id").on(table.categoryId),
-      prefixIdx: index("idx_prefix").on(table.prefix),
-      statusIdx: index("idx_status").on(table.status),
-      createdAtIdx: index("idx_created_at").on(table.createdAt)
-    }));
+    skuCategories = mysqlTable(
+      "sku_categories",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        prefix: varchar("prefix", { length: 10 }).notNull().unique(),
+        name: varchar("name", { length: 100 }).notNull(),
+        description: text("description"),
+        isActive: boolean("is_active").default(true).notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
+      },
+      (table) => ({
+        prefixIdx: index("idx_prefix").on(table.prefix),
+        isActiveIdx: index("idx_is_active").on(table.isActive)
+      })
+    );
+    skuCounters = mysqlTable(
+      "sku_counters",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        categoryId: varchar("category_id", { length: 36 }).notNull(),
+        currentCounter: int("current_counter").default(0).notNull(),
+        resetDate: date("reset_date"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
+      },
+      (table) => ({
+        categoryIdIdx: index("idx_category_id").on(table.categoryId),
+        uniqueCategoryCounter: index("unique_category_counter").on(
+          table.categoryId
+        )
+      })
+    );
+    skus = mysqlTable(
+      "skus",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        skuCode: varchar("sku_code", { length: 50 }).notNull().unique(),
+        categoryId: varchar("category_id", { length: 36 }).notNull(),
+        prefix: varchar("prefix", { length: 10 }).notNull(),
+        sequenceNumber: int("sequence_number").notNull(),
+        productName: varchar("product_name", { length: 500 }),
+        description: text("description"),
+        status: varchar("status", { length: 50 }).default("active").notNull(),
+        createdBy: int("created_by").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
+      },
+      (table) => ({
+        skuCodeIdx: index("idx_sku_code").on(table.skuCode),
+        categoryIdIdx: index("idx_category_id").on(table.categoryId),
+        prefixIdx: index("idx_prefix").on(table.prefix),
+        statusIdx: index("idx_status").on(table.status),
+        createdAtIdx: index("idx_created_at").on(table.createdAt)
+      })
+    );
   }
 });
 
@@ -637,10 +768,6 @@ async function getUserByOpenId(openId) {
 }
 async function getUserById(id) {
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  return user;
-}
-async function getUserByEmail(email) {
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   return user;
 }
 async function getAllUsers() {
@@ -822,7 +949,10 @@ async function getFilesByWorkflow(workflowId) {
       fullName: users.fullName,
       email: users.email
     }
-  }).from(workflowFiles).leftJoin(users, eq(workflowFiles.uploadedBy, users.id)).where(eq(workflowFiles.workflowId, workflowId)).orderBy(desc(workflowFiles.uploadedAt));
+  }).from(workflowFiles).leftJoin(
+    users,
+    eq(workflowFiles.uploadedBy, users.id)
+  ).where(eq(workflowFiles.workflowId, workflowId)).orderBy(desc(workflowFiles.uploadedAt));
   return files.map(({ file, uploader }) => ({
     ...file,
     uploaderName: uploader?.fullName || uploader?.email || "Unknown",
@@ -994,11 +1124,19 @@ async function deleteFormSubmission(id) {
 async function getWorkflowAnalytics() {
   const workflows2 = await db.select().from(workflows);
   const total = workflows2.length;
-  const inProgress = workflows2.filter((w) => w.overallStatus === "in_progress").length;
-  const completed = workflows2.filter((w) => w.overallStatus === "completed").length;
-  const rejected = workflows2.filter((w) => ["rejected", "cancelled", "discontinued"].includes(w.overallStatus)).length;
+  const inProgress = workflows2.filter(
+    (w) => w.overallStatus === "in_progress"
+  ).length;
+  const completed = workflows2.filter(
+    (w) => w.overallStatus === "completed"
+  ).length;
+  const rejected = workflows2.filter(
+    (w) => ["rejected", "cancelled", "discontinued"].includes(w.overallStatus)
+  ).length;
   const draft = workflows2.filter((w) => w.overallStatus === "draft").length;
-  const completedWorkflows = workflows2.filter((w) => w.overallStatus === "completed");
+  const completedWorkflows = workflows2.filter(
+    (w) => w.overallStatus === "completed"
+  );
   let avgApprovalTime = 0;
   if (completedWorkflows.length > 0) {
     const totalTime = completedWorkflows.reduce((sum, w) => {
@@ -1006,7 +1144,9 @@ async function getWorkflowAnalytics() {
       const updated = new Date(w.updatedAt).getTime();
       return sum + (updated - created);
     }, 0);
-    avgApprovalTime = Math.round(totalTime / completedWorkflows.length / (1e3 * 60 * 60 * 24));
+    avgApprovalTime = Math.round(
+      totalTime / completedWorkflows.length / (1e3 * 60 * 60 * 24)
+    );
   }
   return {
     total,
@@ -1031,7 +1171,10 @@ async function getWorkflowsByDepartment() {
   workflows2.forEach((w) => {
     byDept[w.department] = (byDept[w.department] || 0) + 1;
   });
-  return Object.entries(byDept).map(([department, count]) => ({ department, count }));
+  return Object.entries(byDept).map(([department, count]) => ({
+    department,
+    count
+  }));
 }
 async function getWorkflowsByStatus() {
   const workflows2 = await db.select().from(workflows);
@@ -1043,7 +1186,9 @@ async function getWorkflowsByStatus() {
 }
 async function getAvgApprovalTimeByType() {
   const workflows2 = await db.select().from(workflows);
-  const completedWorkflows = workflows2.filter((w) => w.overallStatus === "completed");
+  const completedWorkflows = workflows2.filter(
+    (w) => w.overallStatus === "completed"
+  );
   const timeByType = {};
   completedWorkflows.forEach((w) => {
     const created = new Date(w.createdAt).getTime();
@@ -1064,7 +1209,9 @@ async function getWorkflowCompletionTrend(days = 30) {
   const workflows2 = await db.select().from(workflows);
   const cutoffDate = /* @__PURE__ */ new Date();
   cutoffDate.setDate(cutoffDate.getDate() - days);
-  const recentWorkflows = workflows2.filter((w) => new Date(w.createdAt) >= cutoffDate);
+  const recentWorkflows = workflows2.filter(
+    (w) => new Date(w.createdAt) >= cutoffDate
+  );
   const byDate = {};
   recentWorkflows.forEach((w) => {
     const date2 = new Date(w.createdAt).toISOString().split("T")[0];
@@ -1091,7 +1238,9 @@ async function getWorkflowTimeline() {
       const stageTimeline = stages.map((stage, index2) => {
         const startDate = stage.createdAt;
         const endDate = stage.completedAt || /* @__PURE__ */ new Date();
-        const duration = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1e3 * 60 * 60 * 24));
+        const duration = Math.round(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1e3 * 60 * 60 * 24)
+        );
         return {
           stageName: stage.stageName,
           status: stage.status,
@@ -1155,15 +1304,26 @@ async function createWorkflowTemplate(template) {
 async function getWorkflowTemplates(filters) {
   let query = db.select().from(workflowTemplates);
   if (filters?.workflowType) {
-    query = query.where(eq(workflowTemplates.workflowType, filters.workflowType));
+    query = query.where(
+      eq(workflowTemplates.workflowType, filters.workflowType)
+    );
   }
   if (filters?.isActive !== void 0) {
-    query = query.where(eq(workflowTemplates.isActive, filters.isActive));
+    query = query.where(
+      eq(workflowTemplates.isActive, filters.isActive)
+    );
   }
   if (filters?.isQuickAssignEnabled !== void 0) {
-    query = query.where(eq(workflowTemplates.isQuickAssignEnabled, filters.isQuickAssignEnabled));
+    query = query.where(
+      eq(
+        workflowTemplates.isQuickAssignEnabled,
+        filters.isQuickAssignEnabled
+      )
+    );
   }
-  const templates = await query.orderBy(desc(workflowTemplates.createdAt));
+  const templates = await query.orderBy(
+    desc(workflowTemplates.createdAt)
+  );
   const templatesWithStages = await Promise.all(
     templates.map(async (template) => {
       const stages = await db.select().from(templateStages).where(eq(templateStages.templateId, template.id));
@@ -1247,18 +1407,24 @@ async function getDepartmentMetrics(department) {
       inProgressCount: 0
     };
   }
-  const completedWorkflows = workflows2.filter((w) => w.overallStatus === "completed");
+  const completedWorkflows = workflows2.filter(
+    (w) => w.overallStatus === "completed"
+  );
   let avgCompletionDays = 0;
   if (completedWorkflows.length > 0) {
     const completionTimes = await Promise.all(
       completedWorkflows.map(async (workflow) => {
-        const logs = await db.select().from(auditLogs).where(and(
-          eq(auditLogs.entityType, "workflow"),
-          eq(auditLogs.entityId, workflow.id)
-        )).orderBy(auditLogs.timestamp);
+        const logs = await db.select().from(auditLogs).where(
+          and(
+            eq(auditLogs.entityType, "workflow"),
+            eq(auditLogs.entityId, workflow.id)
+          )
+        ).orderBy(auditLogs.timestamp);
         if (logs.length === 0) return 0;
         const createdLog = logs.find((log) => log.action === "created");
-        const completedLog = logs.find((log) => log.action === "completed" || log.actionDescription?.includes("completed"));
+        const completedLog = logs.find(
+          (log) => log.action === "completed" || log.actionDescription?.includes("completed")
+        );
         if (!createdLog) return 0;
         const startTime = new Date(createdLog.timestamp).getTime();
         const endTime = completedLog ? new Date(completedLog.timestamp).getTime() : new Date(workflow.updatedAt).getTime();
@@ -1282,14 +1448,26 @@ async function getDepartmentCostBreakdown(department, period) {
     return [];
   }
   const workflowIds = workflows2.map((w) => w.id);
-  const submissions = await db.select().from(formSubmissions2).where(sql`${formSubmissions2.workflowId} IN (${sql.join(workflowIds.map((id) => sql`${id}`), sql`, `)})`);
+  const submissions = await db.select().from(formSubmissions2).where(
+    sql`${formSubmissions2.workflowId} IN (${sql.join(
+      workflowIds.map((id) => sql`${id}`),
+      sql`, `
+    )})`
+  );
   const costData = [];
   const periodMap = /* @__PURE__ */ new Map();
   for (const submission of submissions) {
     const formData = submission.formData;
     let cost = 0;
     if (formData) {
-      const costFields = ["price", "amount", "cost", "total", "totalAmount", "totalCost"];
+      const costFields = [
+        "price",
+        "amount",
+        "cost",
+        "total",
+        "totalAmount",
+        "totalCost"
+      ];
       for (const field of costFields) {
         if (formData[field] && !isNaN(Number(formData[field]))) {
           cost = Number(formData[field]);
@@ -1335,10 +1513,12 @@ async function createBudget(data) {
   return budget;
 }
 async function getBudgetsByDepartment(department, year) {
-  return await db.select().from(departmentBudgets).where(and(
-    eq(departmentBudgets.department, department),
-    eq(departmentBudgets.year, year)
-  )).orderBy(departmentBudgets.period, departmentBudgets.month);
+  return await db.select().from(departmentBudgets).where(
+    and(
+      eq(departmentBudgets.department, department),
+      eq(departmentBudgets.year, year)
+    )
+  ).orderBy(departmentBudgets.period, departmentBudgets.month);
 }
 async function getAllBudgets(year) {
   return await db.select().from(departmentBudgets).where(eq(departmentBudgets.year, year)).orderBy(departmentBudgets.department, departmentBudgets.period);
@@ -1351,11 +1531,13 @@ async function deleteBudget(id) {
   await db.delete(departmentBudgets).where(eq(departmentBudgets.id, id));
 }
 async function getDepartmentBudgetAnalytics(department, year, period) {
-  const budgets = await db.select().from(departmentBudgets).where(and(
-    eq(departmentBudgets.department, department),
-    eq(departmentBudgets.year, year),
-    eq(departmentBudgets.period, period)
-  ));
+  const budgets = await db.select().from(departmentBudgets).where(
+    and(
+      eq(departmentBudgets.department, department),
+      eq(departmentBudgets.year, year),
+      eq(departmentBudgets.period, period)
+    )
+  );
   const workflows2 = await db.select().from(workflowsTable).where(eq(workflowsTable.department, department));
   const workflowIds = workflows2.map((w) => w.id);
   const submissions = workflowIds.length > 0 ? await db.select().from(formSubmissions).where(sql`${formSubmissions.workflowId} IN ${workflowIds}`) : [];
@@ -1364,7 +1546,15 @@ async function getDepartmentBudgetAnalytics(department, year, period) {
     const formData = submission.formData;
     let cost = 0;
     if (formData) {
-      const costFields = ["actualCost", "price", "amount", "cost", "total", "totalAmount", "totalCost"];
+      const costFields = [
+        "actualCost",
+        "price",
+        "amount",
+        "cost",
+        "total",
+        "totalAmount",
+        "totalCost"
+      ];
       for (const field of costFields) {
         if (formData[field] && !isNaN(Number(formData[field]))) {
           cost = Number(formData[field]);
@@ -1431,7 +1621,10 @@ async function getAllExcelTemplates() {
     isActive: excelTemplates.isActive,
     uploaderName: users.fullName,
     uploaderEmail: users.email
-  }).from(excelTemplates).leftJoin(users, eq(excelTemplates.uploadedBy, users.id)).orderBy(desc(excelTemplates.uploadedAt));
+  }).from(excelTemplates).leftJoin(
+    users,
+    eq(excelTemplates.uploadedBy, users.id)
+  ).orderBy(desc(excelTemplates.uploadedAt));
 }
 async function getActiveExcelTemplates() {
   return await db.select({
@@ -1447,10 +1640,12 @@ async function getActiveExcelTemplates() {
   }).from(excelTemplates).where(eq(excelTemplates.isActive, true)).orderBy(desc(excelTemplates.uploadedAt));
 }
 async function getExcelTemplateByWorkflowType(workflowType) {
-  const [template] = await db.select().from(excelTemplates).where(and(
-    eq(excelTemplates.workflowType, workflowType),
-    eq(excelTemplates.isActive, true)
-  )).orderBy(desc(excelTemplates.uploadedAt)).limit(1);
+  const [template] = await db.select().from(excelTemplates).where(
+    and(
+      eq(excelTemplates.workflowType, workflowType),
+      eq(excelTemplates.isActive, true)
+    )
+  ).orderBy(desc(excelTemplates.uploadedAt)).limit(1);
   return template || null;
 }
 async function getExcelTemplateById(id) {
@@ -1475,14 +1670,23 @@ async function getTaskAssignmentsByUser(userId) {
   return await db.select({
     assignment: taskAssignments,
     workflow: workflows
-  }).from(taskAssignments).leftJoin(workflows, eq(taskAssignments.workflowId, workflows.id)).where(eq(taskAssignments.assignedTo, userId)).orderBy(desc(taskAssignments.assignedAt));
+  }).from(taskAssignments).leftJoin(
+    workflows,
+    eq(taskAssignments.workflowId, workflows.id)
+  ).where(eq(taskAssignments.assignedTo, userId)).orderBy(desc(taskAssignments.assignedAt));
 }
 async function getTeamAssignments(managerId) {
   return await db.select({
     assignment: taskAssignments,
     workflow: workflows,
     assignedUser: users
-  }).from(taskAssignments).leftJoin(workflows, eq(taskAssignments.workflowId, workflows.id)).leftJoin(users, eq(taskAssignments.assignedTo, users.id)).where(eq(taskAssignments.assignedBy, managerId)).orderBy(desc(taskAssignments.assignedAt));
+  }).from(taskAssignments).leftJoin(
+    workflows,
+    eq(taskAssignments.workflowId, workflows.id)
+  ).leftJoin(
+    users,
+    eq(taskAssignments.assignedTo, users.id)
+  ).where(eq(taskAssignments.assignedBy, managerId)).orderBy(desc(taskAssignments.assignedAt));
 }
 async function calculateUserMetrics(userId) {
   const now = /* @__PURE__ */ new Date();
@@ -1520,10 +1724,13 @@ async function calculateUserMetrics(userId) {
   let longestStuckHours = null;
   let longestStuckWorkflowId = null;
   if (inProgressWorkflows.length > 0) {
-    const longestStuck = inProgressWorkflows.reduce((longest, w) => {
-      const hours = (now.getTime() - new Date(w.createdAt).getTime()) / (1e3 * 60 * 60);
-      return hours > (longest.hours || 0) ? { hours, id: w.id } : longest;
-    }, { hours: 0, id: "" });
+    const longestStuck = inProgressWorkflows.reduce(
+      (longest, w) => {
+        const hours = (now.getTime() - new Date(w.createdAt).getTime()) / (1e3 * 60 * 60);
+        return hours > (longest.hours || 0) ? { hours, id: w.id } : longest;
+      },
+      { hours: 0, id: "" }
+    );
     longestStuckHours = longestStuck.hours;
     longestStuckWorkflowId = longestStuck.id;
   }
@@ -1580,14 +1787,22 @@ async function getUserListPaginated(params) {
     user: users,
     metrics: userPerformanceMetrics,
     salary: salaryCache
-  }).from(users).leftJoin(userPerformanceMetrics, eq(users.id, userPerformanceMetrics.userId)).leftJoin(salaryCache, eq(users.id, salaryCache.userId)).where(eq(users.isActive, true));
+  }).from(users).leftJoin(
+    userPerformanceMetrics,
+    eq(users.id, userPerformanceMetrics.userId)
+  ).leftJoin(
+    salaryCache,
+    eq(users.id, salaryCache.userId)
+  ).where(eq(users.isActive, true));
   if (department && department !== "My Team") {
     query = query.where(eq(users.role, department));
   }
   if (department === "My Team" && managerId) {
     const assignedUserIds = await db.select({ userId: taskAssignments.assignedTo }).from(taskAssignments).where(eq(taskAssignments.assignedBy, managerId)).then((rows) => rows.map((r) => r.userId));
     if (assignedUserIds.length > 0) {
-      query = query.where(sql`${users.id} IN (${assignedUserIds.join(",")})`);
+      query = query.where(
+        sql`${users.id} IN (${assignedUserIds.join(",")})`
+      );
     } else {
       return { users: [], total: 0 };
     }
@@ -1620,7 +1835,9 @@ async function createRecurringWorkflow(data) {
     } else if (data.frequency === "weekly" && data.dayOfWeek !== void 0) {
       nextScheduledDate = new Date(today);
       const daysUntilTarget = (data.dayOfWeek - nextScheduledDate.getDay() + 7) % 7;
-      nextScheduledDate.setDate(nextScheduledDate.getDate() + (daysUntilTarget || 7));
+      nextScheduledDate.setDate(
+        nextScheduledDate.getDate() + (daysUntilTarget || 7)
+      );
     } else if (data.frequency === "monthly" && data.dayOfMonth !== void 0) {
       nextScheduledDate = new Date(today);
       nextScheduledDate.setDate(data.dayOfMonth);
@@ -1683,7 +1900,12 @@ async function deleteRecurringWorkflow(id) {
   await db.update(recurringWorkflows).set({ isActive: false, updatedAt: /* @__PURE__ */ new Date() }).where(eq(recurringWorkflows.id, id));
 }
 async function getRecurringWorkflowHistory(recurringWorkflowId) {
-  const history = await db.select().from(recurringWorkflowHistory).where(eq(recurringWorkflowHistory.recurringWorkflowId, recurringWorkflowId)).orderBy(desc(recurringWorkflowHistory.scheduledDate)).limit(50);
+  const history = await db.select().from(recurringWorkflowHistory).where(
+    eq(
+      recurringWorkflowHistory.recurringWorkflowId,
+      recurringWorkflowId
+    )
+  ).orderBy(desc(recurringWorkflowHistory.scheduledDate)).limit(50);
   return history;
 }
 async function createSignedDocument(doc) {
@@ -1791,7 +2013,10 @@ async function getAllSignedDocumentsForCFO() {
     createdAt: signedDocuments.createdAt,
     uploaderName: users.fullName,
     uploaderEmail: users.email
-  }).from(signedDocuments).leftJoin(users, eq(signedDocuments.signerId, users.id)).orderBy(desc(signedDocuments.createdAt));
+  }).from(signedDocuments).leftJoin(
+    users,
+    eq(signedDocuments.signerId, users.id)
+  ).orderBy(desc(signedDocuments.createdAt));
 }
 var mysqlPool, connection, db;
 var init_db = __esm({
@@ -1811,43 +2036,113 @@ var init_db = __esm({
   }
 });
 
-// server/secrets.ts
-import {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-  CreateSecretCommand,
-  UpdateSecretCommand,
-  ResourceNotFoundException
-} from "@aws-sdk/client-secrets-manager";
-async function getWorkmailPassword(email) {
-  const secretName = `workmail/user/${email}`;
-  try {
-    const command = new GetSecretValueCommand({ SecretId: secretName });
-    const response = await client.send(command);
-    if (!response.SecretString) {
-      throw new Error(`Secret ${secretName} has no value`);
-    }
-    return response.SecretString;
-  } catch (error) {
-    if (error instanceof ResourceNotFoundException) {
-      throw new Error(
-        `WorkMail password not found for ${email}. Please run the setup script to store the password in Secrets Manager.`
-      );
-    }
-    throw new Error(`Failed to retrieve WorkMail password for ${email}: ${error.message}`);
+// server/microsoft-graph.ts
+function graphConfiguration() {
+  const tenantId2 = process.env.GRAPH_TENANT_ID || process.env.ENTRA_TENANT_ID;
+  const clientId2 = process.env.GRAPH_CLIENT_ID || process.env.ENTRA_CLIENT_ID;
+  const clientSecret = process.env.GRAPH_CLIENT_SECRET;
+  const senderMailbox = process.env.GRAPH_SENDER_MAILBOX;
+  if (!tenantId2 || !clientId2 || !clientSecret) {
+    throw new Error(
+      "Microsoft Graph is not configured. Set GRAPH_TENANT_ID, GRAPH_CLIENT_ID and GRAPH_CLIENT_SECRET."
+    );
   }
+  return { tenantId: tenantId2, clientId: clientId2, clientSecret, senderMailbox };
 }
-var client;
-var init_secrets = __esm({
-  "server/secrets.ts"() {
+async function getGraphAccessToken() {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 6e4) {
+    return cachedToken.accessToken;
+  }
+  const { tenantId: tenantId2, clientId: clientId2, clientSecret } = graphConfiguration();
+  const response = await fetch(
+    `https://login.microsoftonline.com/${tenantId2}/oauth2/v2.0/token`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId2,
+        client_secret: clientSecret,
+        grant_type: "client_credentials",
+        scope: "https://graph.microsoft.com/.default"
+      })
+    }
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Microsoft Graph token request failed (${response.status}): ${await response.text()}`
+    );
+  }
+  const result = await response.json();
+  cachedToken = {
+    accessToken: result.access_token,
+    expiresAt: Date.now() + result.expires_in * 1e3
+  };
+  return cachedToken.accessToken;
+}
+async function graphRequest(pathOrUrl, init) {
+  const token = await getGraphAccessToken();
+  const url = pathOrUrl.startsWith("https://graph.microsoft.com/") ? pathOrUrl : `https://graph.microsoft.com/v1.0${pathOrUrl}`;
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      ...init?.headers
+    }
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Microsoft Graph request failed (${response.status}): ${await response.text()}`
+    );
+  }
+  if (response.status === 202 || response.status === 204) return void 0;
+  return await response.json();
+}
+function extractEmail(value) {
+  if (!value) return void 0;
+  return value.match(/<([^>]+)>/)?.[1] || value;
+}
+async function sendGraphEmail(options) {
+  const { senderMailbox } = graphConfiguration();
+  if (!senderMailbox) {
+    throw new Error(
+      "Set GRAPH_SENDER_MAILBOX before sending Microsoft 365 email."
+    );
+  }
+  const replyTo = extractEmail(options.replyTo);
+  await graphRequest(
+    `/users/${encodeURIComponent(senderMailbox)}/sendMail`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: {
+          subject: options.subject,
+          body: { contentType: "HTML", content: options.htmlBody },
+          toRecipients: options.to.map((address) => ({
+            emailAddress: { address }
+          })),
+          ...replyTo ? { replyTo: [{ emailAddress: { address: replyTo } }] } : {}
+        },
+        saveToSentItems: true
+      })
+    }
+  );
+}
+async function listMicrosoftDirectoryUsers() {
+  const users2 = [];
+  let nextUrl = "/users?$select=id,displayName,mail,userPrincipalName,accountEnabled&$top=100";
+  while (nextUrl) {
+    const page = await graphRequest(nextUrl);
+    users2.push(...page.value);
+    nextUrl = page["@odata.nextLink"];
+  }
+  return users2;
+}
+var cachedToken;
+var init_microsoft_graph = __esm({
+  "server/microsoft-graph.ts"() {
     "use strict";
-    client = new SecretsManagerClient({
-      region: process.env.AWS_REGION || "us-west-2",
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-      }
-    });
+    cachedToken = null;
   }
 });
 
@@ -1860,32 +2155,15 @@ __export(email_exports, {
   sendRejectionEmail: () => sendRejectionEmail,
   sendSignedDocumentEmail: () => sendSignedDocumentEmail
 });
-import nodemailer from "nodemailer";
 import { randomUUID as randomUUID2 } from "crypto";
-function createUserTransporter(userEmail, userPassword) {
-  return nodemailer.createTransport({
-    host: WORKMAIL_SMTP_HOST,
-    port: WORKMAIL_SMTP_PORT,
-    secure: WORKMAIL_SMTP_SECURE,
-    auth: {
-      user: userEmail,
-      pass: userPassword
-    },
-    // Connection timeout and retry settings
-    connectionTimeout: 1e4,
-    greetingTimeout: 1e4
-  });
-}
-async function sendEmail2(fromEmail, fromPassword, toEmail, subject, html, template, workflowId) {
+async function sendEmail2(fromEmail, toEmail, subject, html, template, workflowId) {
   const logId = randomUUID2();
   try {
-    const transporter = createUserTransporter(fromEmail, fromPassword);
-    const info = await transporter.sendMail({
-      from: fromEmail,
-      // Email sent from logged-in user's address
-      to: toEmail,
+    await sendGraphEmail({
+      replyTo: fromEmail,
+      to: [toEmail],
       subject,
-      html
+      htmlBody: html
     });
     await db.insert(emailLogs).values({
       id: logId,
@@ -1894,11 +2172,11 @@ async function sendEmail2(fromEmail, fromPassword, toEmail, subject, html, templ
       template,
       workflowId: workflowId || null,
       status: "sent",
-      messageId: info.messageId,
+      messageId: null,
       sentAt: /* @__PURE__ */ new Date()
     });
-    console.log(`\u2705 Email sent from ${fromEmail} to ${toEmail} (Message ID: ${info.messageId})`);
-    return { success: true, messageId: info.messageId };
+    console.log(`\u2705 Microsoft Graph email accepted for ${toEmail}`);
+    return { success: true };
   } catch (error) {
     await db.insert(emailLogs).values({
       id: logId,
@@ -1910,12 +2188,14 @@ async function sendEmail2(fromEmail, fromPassword, toEmail, subject, html, templ
       errorMessage: error.message,
       sentAt: /* @__PURE__ */ new Date()
     });
-    console.error(`\u274C Failed to send email from ${fromEmail} to ${toEmail}:`, error.message);
+    console.error(
+      `\u274C Failed to send email from ${fromEmail} to ${toEmail}:`,
+      error.message
+    );
     return { success: false, error: error.message };
   }
 }
 async function sendMilestoneCompletionEmail(data, workflowId, senderEmail) {
-  const senderPassword = await getWorkmailPassword(senderEmail);
   const subject = `[Action Required] ${data.workflowNumber}: ${data.milestoneName}`;
   const html = `
 <!DOCTYPE html>
@@ -1990,10 +2270,16 @@ async function sendMilestoneCompletionEmail(data, workflowId, senderEmail) {
 </body>
 </html>
   `;
-  await sendEmail2(senderEmail, senderPassword, data.approverEmail, subject, html, "milestone_completion", workflowId);
+  await sendEmail2(
+    senderEmail,
+    data.approverEmail,
+    subject,
+    html,
+    "milestone_completion",
+    workflowId
+  );
 }
 async function sendRejectionEmail(data, workflowId, senderEmail) {
-  const senderPassword = await getWorkmailPassword(senderEmail);
   const subject = `[Rejected] ${data.workflowNumber}: ${data.workflowTitle}`;
   const html = `
 <!DOCTYPE html>
@@ -2070,10 +2356,16 @@ async function sendRejectionEmail(data, workflowId, senderEmail) {
 </body>
 </html>
   `;
-  await sendEmail2(senderEmail, senderPassword, data.creatorEmail, subject, html, "workflow_rejection", workflowId);
+  await sendEmail2(
+    senderEmail,
+    data.creatorEmail,
+    subject,
+    html,
+    "workflow_rejection",
+    workflowId
+  );
 }
 async function sendCompletionEmail(data, workflowId, senderEmail) {
-  const senderPassword = await getWorkmailPassword(senderEmail);
   const subject = `[Completed] ${data.workflowNumber}: ${data.workflowTitle}`;
   const html = `
 <!DOCTYPE html>
@@ -2148,10 +2440,16 @@ async function sendCompletionEmail(data, workflowId, senderEmail) {
 </body>
 </html>
   `;
-  await sendEmail2(senderEmail, senderPassword, data.recipientEmail, subject, html, "workflow_completion", workflowId);
+  await sendEmail2(
+    senderEmail,
+    data.recipientEmail,
+    subject,
+    html,
+    "workflow_completion",
+    workflowId
+  );
 }
 async function sendDeadlineReminderEmail(data, workflowId, senderEmail) {
-  const senderPassword = await getWorkmailPassword(senderEmail);
   const subject = `[Reminder] ${data.workflowNumber}: Deadline Approaching (${data.hoursRemaining}h remaining)`;
   const html = `
 <!DOCTYPE html>
@@ -2228,11 +2526,17 @@ async function sendDeadlineReminderEmail(data, workflowId, senderEmail) {
 </body>
 </html>
   `;
-  await sendEmail2(senderEmail, senderPassword, data.approverEmail, subject, html, "deadline_reminder", workflowId);
+  await sendEmail2(
+    senderEmail,
+    data.approverEmail,
+    subject,
+    html,
+    "deadline_reminder",
+    workflowId
+  );
 }
-async function sendSignedDocumentEmail(toEmail, toName, documentName, s3Url, workflowId) {
+async function sendSignedDocumentEmail(toEmail, toName, documentName, documentUrl, workflowId) {
   const systemEmail = process.env.SYSTEM_EMAIL || "noreply@compawnion.co";
-  const systemPassword = await getWorkmailPassword(systemEmail);
   const subject = `Document Signed: ${documentName}`;
   const html = `
     <!DOCTYPE html>
@@ -2267,16 +2571,19 @@ async function sendSignedDocumentEmail(toEmail, toName, documentName, s3Url, wor
           
           <p><strong>Document Name:</strong> ${documentName}</p>
           <p><strong>Workflow ID:</strong> ${workflowId}</p>
-          <p><strong>Signed Date:</strong> ${(/* @__PURE__ */ new Date()).toLocaleString("en-US", {
-    timeZone: "Asia/Jakarta",
-    dateStyle: "long",
-    timeStyle: "short"
-  })}</p>
+          <p><strong>Signed Date:</strong> ${(/* @__PURE__ */ new Date()).toLocaleString(
+    "en-US",
+    {
+      timeZone: "Asia/Jakarta",
+      dateStyle: "long",
+      timeStyle: "short"
+    }
+  )}</p>
           
           <p>The signed document has been securely stored and is available for download:</p>
           
           <div style="text-align: center;">
-            <a href="${s3Url}" class="button">Download Signed Document</a>
+            <a href="${documentUrl}" class="button">Download Signed Document</a>
           </div>
           
           <p style="margin-top: 30px; font-size: 14px; color: #666;">
@@ -2295,24 +2602,19 @@ async function sendSignedDocumentEmail(toEmail, toName, documentName, s3Url, wor
   `;
   await sendEmail2(
     systemEmail,
-    systemPassword,
     toEmail,
     subject,
     html,
-    "signed_document",
+    "workflow_completion",
     workflowId
   );
 }
-var WORKMAIL_SMTP_HOST, WORKMAIL_SMTP_PORT, WORKMAIL_SMTP_SECURE;
 var init_email = __esm({
   "server/email.ts"() {
     "use strict";
     init_db();
     init_schema();
-    init_secrets();
-    WORKMAIL_SMTP_HOST = "smtp.mail.us-west-2.awsapps.com";
-    WORKMAIL_SMTP_PORT = 465;
-    WORKMAIL_SMTP_SECURE = true;
+    init_microsoft_graph();
   }
 });
 
@@ -2416,7 +2718,6 @@ import { TRPCError as TRPCError3 } from "@trpc/server";
 // shared/const.ts
 var COOKIE_NAME = "app_session_id";
 var ONE_YEAR_MS = 1e3 * 60 * 60 * 24 * 365;
-var AXIOS_TIMEOUT_MS = 3e4;
 var UNAUTHED_ERR_MSG = "Please login (10001)";
 var NOT_ADMIN_ERR_MSG = "You do not have required permission (10002)";
 
@@ -2464,20 +2765,16 @@ import { TRPCError as TRPCError2 } from "@trpc/server";
 
 // server/_core/env.ts
 var ENV = {
-  appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
-  oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
-  ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? ""
 };
 var env = {
   VITE_API_URL: process.env.VITE_API_URL,
-  VITE_COGNITO_USER_POOL_ID: process.env.VITE_COGNITO_USER_POOL_ID,
-  VITE_COGNITO_CLIENT_ID: process.env.VITE_COGNITO_CLIENT_ID,
-  VITE_COGNITO_REGION: process.env.VITE_COGNITO_REGION
+  VITE_ENTRA_TENANT_ID: process.env.VITE_ENTRA_TENANT_ID,
+  VITE_ENTRA_CLIENT_ID: process.env.VITE_ENTRA_CLIENT_ID
 };
 
 // server/_core/notification.ts
@@ -2586,56 +2883,57 @@ var systemRouter = router({
 // server/routers.ts
 init_db();
 init_schema();
-import { eq as eq3 } from "drizzle-orm";
+import { eq as eq4 } from "drizzle-orm";
 
 // server/storage.ts
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-var s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-west-2",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-  }
-});
-var BUCKET_NAME = process.env.AWS_S3_BUCKET || "compawnion-approval-forms";
+import { BlobSASPermissions, BlobServiceClient } from "@azure/storage-blob";
+var containerName = process.env.AZURE_STORAGE_CONTAINER || "finance-attachments";
 function normalizeKey(relKey) {
   return relKey.replace(/^\/+/, "");
+}
+function getContainerClient() {
+  const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+  if (!connectionString) {
+    throw new Error(
+      "Azure Blob Storage is not configured. Set AZURE_STORAGE_CONNECTION_STRING."
+    );
+  }
+  return BlobServiceClient.fromConnectionString(
+    connectionString
+  ).getContainerClient(containerName);
+}
+async function signedReadUrl(key, expiresIn) {
+  const blob = getContainerClient().getBlobClient(key);
+  return blob.generateSasUrl({
+    permissions: BlobSASPermissions.parse("r"),
+    expiresOn: new Date(Date.now() + expiresIn * 1e3)
+  });
 }
 async function storagePut(relKey, data, contentType = "application/octet-stream") {
   const key = normalizeKey(relKey);
   const buffer = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: buffer,
-    ContentType: contentType
-  });
   try {
-    await s3Client.send(command);
-    const getCommand = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key
+    const blob = getContainerClient().getBlockBlobClient(key);
+    await blob.uploadData(buffer, {
+      blobHTTPHeaders: { blobContentType: contentType }
     });
-    const url = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
-    return { key, url };
+    return { key, url: await signedReadUrl(key, 3600) };
   } catch (error) {
-    console.error("S3 upload error:", error);
-    throw new Error(`Failed to upload file to S3: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error("Azure Blob upload failed", error);
+    throw new Error(
+      `Failed to upload file to Azure Blob Storage: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 }
 async function storageGet(relKey, expiresIn = 3600) {
   const key = normalizeKey(relKey);
-  const command = new GetObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key
-  });
   try {
-    const url = await getSignedUrl(s3Client, command, { expiresIn });
-    return { key, url };
+    return { key, url: await signedReadUrl(key, expiresIn) };
   } catch (error) {
-    console.error("S3 get URL error:", error);
-    throw new Error(`Failed to generate S3 URL: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error("Azure Blob signed URL failed", error);
+    throw new Error(
+      `Failed to access Azure Blob Storage: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 }
 
@@ -2740,44 +3038,17 @@ init_db();
 import cron from "node-cron";
 
 // server/emailService.ts
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-var sesClient = new SESClient({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-  }
-});
+init_microsoft_graph();
 async function sendEmail(options) {
   try {
-    const command = new SendEmailCommand({
-      Source: options.from,
-      Destination: {
-        ToAddresses: options.to
-      },
-      Message: {
-        Subject: {
-          Data: options.subject,
-          Charset: "UTF-8"
-        },
-        Body: {
-          Html: {
-            Data: options.htmlBody,
-            Charset: "UTF-8"
-          },
-          ...options.textBody && {
-            Text: {
-              Data: options.textBody,
-              Charset: "UTF-8"
-            }
-          }
-        }
-      }
+    await sendGraphEmail({
+      to: options.to,
+      subject: options.subject,
+      htmlBody: options.htmlBody,
+      replyTo: options.from
     });
-    const response = await sesClient.send(command);
-    console.log(`\u2705 Email sent successfully:`, {
-      messageId: response.MessageId,
-      from: options.from,
+    console.log(`\u2705 Microsoft Graph email accepted:`, {
+      replyTo: options.from,
       to: options.to,
       subject: options.subject
     });
@@ -3040,41 +3311,89 @@ async function triggerRemindersNow() {
 init_email();
 
 // server/routers/documentSequence.ts
-import { z as z2 } from "zod";
-import { Pool } from "pg";
+init_schema();
+init_db();
+import { and as and2, desc as desc2, eq as eq2, like, or, sql as sql2 } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-var pgPool = new Pool({
-  connectionString: process.env.CUSTOM_DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 5
-});
-var DOCUMENT_TYPES = ["SOP", "IK", "FORM", "SC", "SPK", "NDA", "JPB", "BA", "SK", "RET", "SPG"];
+import { z as z2 } from "zod";
+var DOCUMENT_TYPES = [
+  "SOP",
+  "IK",
+  "FORM",
+  "SC",
+  "SPK",
+  "NDA",
+  "JPB",
+  "BA",
+  "SK",
+  "RET",
+  "SPG"
+];
 var COMPANIES = ["CJB", "CBB", "PJB"];
-var DIVISIONS = ["MKT", "SAL", "OPS", "PRO", "RND", "HRD", "COR", "LOG", "PUR", "FIN", "ACC", "ITS", "PRC"];
-var MONTHS_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+var DIVISIONS = [
+  "MKT",
+  "SAL",
+  "OPS",
+  "PRO",
+  "RND",
+  "HRD",
+  "COR",
+  "LOG",
+  "PUR",
+  "FIN",
+  "ACC",
+  "ITS",
+  "PRC"
+];
+var DOCUMENT_STATUSES = [
+  "draft",
+  "review",
+  "approved",
+  "effective",
+  "superseded",
+  "obsolete"
+];
+var MONTHS_ROMAN = [
+  "I",
+  "II",
+  "III",
+  "IV",
+  "V",
+  "VI",
+  "VII",
+  "VIII",
+  "IX",
+  "X",
+  "XI",
+  "XII"
+];
 function getMonthRoman(monthNum) {
   if (monthNum < 1 || monthNum > 12) throw new Error("Invalid month number");
   return MONTHS_ROMAN[monthNum - 1];
 }
 async function getNextSequenceNumber(documentType, company, division, year, monthNumeric) {
   const counterId = `${documentType}-${company}-${division}-${year}-${monthNumeric}`;
-  const client2 = await pgPool.connect();
+  const connection2 = await mysqlPool.getConnection();
   try {
-    const existing = await client2.query(
-      "SELECT current_value FROM sequence_counters WHERE id = $1",
+    await connection2.beginTransaction();
+    const [rows] = await connection2.execute(
+      "SELECT current_value FROM document_sequence_counters WHERE id = ? FOR UPDATE",
       [counterId]
     );
-    if (existing.rows.length > 0) {
-      const nextValue = (existing.rows[0].current_value || 0) + 1;
-      await client2.query(
-        "UPDATE sequence_counters SET current_value = $1, updated_at = NOW() WHERE id = $2",
+    let nextValue;
+    if (rows.length > 0) {
+      nextValue = Number(rows[0].current_value) + 1;
+      await connection2.execute(
+        "UPDATE document_sequence_counters SET current_value = ?, updated_at = NOW() WHERE id = ?",
         [nextValue, counterId]
       );
-      return nextValue;
     } else {
-      await client2.query(
-        `INSERT INTO sequence_counters (id, prefix, department, document_type, current_value, format_pattern, reset_period, last_reset_at, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 1, $5, 'monthly', NOW(), NOW(), NOW())`,
+      nextValue = 1;
+      await connection2.execute(
+        `INSERT INTO document_sequence_counters
+          (id, prefix, department, document_type, current_value, format_pattern,
+           reset_period, last_reset_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, 'monthly', NOW(), NOW(), NOW())`,
         [
           counterId,
           `${company}-${division}`,
@@ -3083,18 +3402,20 @@ async function getNextSequenceNumber(documentType, company, division, year, mont
           `XXXX.${documentType}/${company}/${division}/MM/YYYY`
         ]
       );
-      return 1;
     }
+    await connection2.commit();
+    return nextValue;
+  } catch (error) {
+    await connection2.rollback();
+    throw error;
   } finally {
-    client2.release();
+    connection2.release();
   }
 }
 function formatDocumentNumber(sequenceNum, documentType, company, division, monthRoman, year) {
-  const paddedSeq = String(sequenceNum).padStart(4, "0");
-  return `${paddedSeq}.${documentType}/${company}/${division}/${monthRoman}/${year}`;
+  return `${String(sequenceNum).padStart(4, "0")}.${documentType}/${company}/${division}/${monthRoman}/${year}`;
 }
 var documentSequenceRouter = router({
-  // Generate a new document sequence number
   generateDocumentNumber: protectedProcedure.input(
     z2.object({
       documentType: z2.enum(DOCUMENT_TYPES),
@@ -3108,7 +3429,7 @@ var documentSequenceRouter = router({
     const year = now.getFullYear();
     const monthNumeric = now.getMonth() + 1;
     const monthRoman = getMonthRoman(monthNumeric);
-    const sequenceNum = await getNextSequenceNumber(
+    const sequenceCounter = await getNextSequenceNumber(
       input.documentType,
       input.company,
       input.division,
@@ -3116,7 +3437,7 @@ var documentSequenceRouter = router({
       monthNumeric
     );
     const documentNumber = formatDocumentNumber(
-      sequenceNum,
+      sequenceCounter,
       input.documentType,
       input.company,
       input.division,
@@ -3125,46 +3446,34 @@ var documentSequenceRouter = router({
     );
     const id = uuidv4();
     const userId = ctx.user.id.toString();
-    const changeHistory = JSON.stringify([
-      {
-        action: "created",
-        timestamp: now.toISOString(),
-        userId,
-        changes: "Document sequence generated"
-      }
-    ]);
-    const client2 = await pgPool.connect();
-    try {
-      await client2.query(
-        `INSERT INTO document_sequences
-            (id, document_number, sequence_counter, document_type, company, division,
-             month_roman, month_numeric, year, revision_number, document_title,
-             document_description, status, created_by, created_at, change_history)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,'draft',$12,$13,$14::jsonb)`,
-        [
-          id,
-          documentNumber,
-          sequenceNum,
-          input.documentType,
-          input.company,
-          input.division,
-          monthRoman,
-          monthNumeric,
-          year,
-          input.documentTitle,
-          input.documentDescription || null,
+    await db.insert(documentSequences).values({
+      id,
+      documentNumber,
+      sequenceCounter,
+      documentType: input.documentType,
+      company: input.company,
+      division: input.division,
+      monthRoman,
+      monthNumeric,
+      year,
+      revisionNumber: 0,
+      documentTitle: input.documentTitle,
+      documentDescription: input.documentDescription || null,
+      status: "draft",
+      createdBy: userId,
+      changeHistory: [
+        {
+          action: "created",
+          timestamp: now.toISOString(),
           userId,
-          now,
-          changeHistory
-        ]
-      );
-    } finally {
-      client2.release();
-    }
+          changes: "Document sequence generated"
+        }
+      ]
+    });
     return {
       id,
       documentNumber,
-      sequenceCounter: sequenceNum,
+      sequenceCounter,
       documentType: input.documentType,
       company: input.company,
       division: input.division,
@@ -3176,132 +3485,85 @@ var documentSequenceRouter = router({
       createdAt: now
     };
   }),
-  // List all document sequences with filters
   listDocumentSequences: protectedProcedure.input(
     z2.object({
       company: z2.enum(COMPANIES).optional(),
       division: z2.enum(DIVISIONS).optional(),
       documentType: z2.enum(DOCUMENT_TYPES).optional(),
-      status: z2.enum(["draft", "review", "approved", "effective", "superseded", "obsolete"]).optional(),
+      status: z2.enum(DOCUMENT_STATUSES).optional(),
       year: z2.number().optional(),
-      limit: z2.number().default(50),
-      offset: z2.number().default(0)
+      limit: z2.number().min(1).max(100).default(50),
+      offset: z2.number().min(0).default(0)
     })
   ).query(async ({ input }) => {
-    const conditions = [];
-    const params = [];
-    let paramIdx = 1;
-    if (input.company) {
-      conditions.push(`company = $${paramIdx++}`);
-      params.push(input.company);
-    }
-    if (input.division) {
-      conditions.push(`division = $${paramIdx++}`);
-      params.push(input.division);
-    }
-    if (input.documentType) {
-      conditions.push(`document_type = $${paramIdx++}`);
-      params.push(input.documentType);
-    }
-    if (input.status) {
-      conditions.push(`status = $${paramIdx++}`);
-      params.push(input.status);
-    }
-    if (input.year) {
-      conditions.push(`year = $${paramIdx++}`);
-      params.push(input.year);
-    }
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const client2 = await pgPool.connect();
-    try {
-      const countResult = await client2.query(
-        `SELECT COUNT(*) as total FROM document_sequences ${whereClause}`,
-        params
-      );
-      const total = parseInt(countResult.rows[0].total, 10);
-      const dataParams = [...params, input.limit, input.offset];
-      const results = await client2.query(
-        `SELECT * FROM document_sequences ${whereClause}
-           ORDER BY created_at DESC
-           LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-        dataParams
-      );
-      return { data: results.rows, total, limit: input.limit, offset: input.offset };
-    } finally {
-      client2.release();
-    }
+    const conditions = [
+      input.company ? eq2(documentSequences.company, input.company) : void 0,
+      input.division ? eq2(documentSequences.division, input.division) : void 0,
+      input.documentType ? eq2(documentSequences.documentType, input.documentType) : void 0,
+      input.status ? eq2(documentSequences.status, input.status) : void 0,
+      input.year ? eq2(documentSequences.year, input.year) : void 0
+    ].filter(
+      (condition) => Boolean(condition)
+    );
+    const where = conditions.length > 0 ? and2(...conditions) : void 0;
+    const [countRows, data] = await Promise.all([
+      db.select({ total: sql2`count(*)` }).from(documentSequences).where(where),
+      db.select().from(documentSequences).where(where).orderBy(desc2(documentSequences.createdAt)).limit(input.limit).offset(input.offset)
+    ]);
+    return {
+      data,
+      total: Number(countRows[0]?.total ?? 0),
+      limit: input.limit,
+      offset: input.offset
+    };
   }),
-  // Search document sequences
-  searchDocumentSequences: protectedProcedure.input(z2.object({ query: z2.string().min(1), limit: z2.number().default(20) })).query(async ({ input }) => {
-    const client2 = await pgPool.connect();
-    try {
-      const results = await client2.query(
-        `SELECT * FROM document_sequences
-           WHERE document_number ILIKE $1 OR document_title ILIKE $1
-           ORDER BY created_at DESC
-           LIMIT $2`,
-        [`%${input.query}%`, input.limit]
-      );
-      return results.rows;
-    } finally {
-      client2.release();
-    }
+  searchDocumentSequences: protectedProcedure.input(
+    z2.object({
+      query: z2.string().min(1),
+      limit: z2.number().min(1).max(100).default(20)
+    })
+  ).query(async ({ input }) => {
+    const pattern = `%${input.query}%`;
+    return db.select().from(documentSequences).where(
+      or(
+        like(documentSequences.documentNumber, pattern),
+        like(documentSequences.documentTitle, pattern)
+      )
+    ).orderBy(desc2(documentSequences.createdAt)).limit(input.limit);
   }),
-  // Get document sequence by ID
   getDocumentSequence: protectedProcedure.input(z2.object({ id: z2.string() })).query(async ({ input }) => {
-    const client2 = await pgPool.connect();
-    try {
-      const result = await client2.query(
-        "SELECT * FROM document_sequences WHERE id = $1",
-        [input.id]
-      );
-      if (result.rows.length === 0) throw new Error("Document sequence not found");
-      return result.rows[0];
-    } finally {
-      client2.release();
-    }
+    const [document] = await db.select().from(documentSequences).where(eq2(documentSequences.id, input.id)).limit(1);
+    if (!document) throw new Error("Document sequence not found");
+    return document;
   }),
-  // Update document sequence status
   updateDocumentStatus: protectedProcedure.input(
     z2.object({
       id: z2.string(),
-      status: z2.enum(["draft", "review", "approved", "effective", "superseded", "obsolete"]),
+      status: z2.enum(DOCUMENT_STATUSES),
       notes: z2.string().optional()
     })
   ).mutation(async ({ input, ctx }) => {
+    const [existing] = await db.select().from(documentSequences).where(eq2(documentSequences.id, input.id)).limit(1);
+    if (!existing) throw new Error("Document sequence not found");
     const now = /* @__PURE__ */ new Date();
     const userId = ctx.user.id.toString();
-    const client2 = await pgPool.connect();
-    try {
-      const existing = await client2.query(
-        "SELECT * FROM document_sequences WHERE id = $1",
-        [input.id]
-      );
-      if (existing.rows.length === 0) throw new Error("Document sequence not found");
-      const oldHistory = existing.rows[0].change_history || [];
-      const newHistory = JSON.stringify([
-        ...oldHistory,
+    await db.update(documentSequences).set({
+      status: input.status,
+      updatedBy: userId,
+      changeHistory: [
+        ...existing.changeHistory ?? [],
         {
           action: "status_updated",
           timestamp: now.toISOString(),
           userId,
-          oldStatus: existing.rows[0].status,
+          oldStatus: existing.status,
           newStatus: input.status,
           notes: input.notes
         }
-      ]);
-      await client2.query(
-        `UPDATE document_sequences
-           SET status = $1, updated_by = $2, updated_at = $3, change_history = $4::jsonb
-           WHERE id = $5`,
-        [input.status, userId, now, newHistory, input.id]
-      );
-      return { success: true };
-    } finally {
-      client2.release();
-    }
+      ]
+    }).where(eq2(documentSequences.id, input.id));
+    return { success: true };
   }),
-  // Get sequence counter statistics
   getCounterStats: protectedProcedure.input(
     z2.object({
       company: z2.enum(COMPANIES).optional(),
@@ -3309,31 +3571,28 @@ var documentSequenceRouter = router({
       year: z2.number().optional()
     })
   ).query(async ({ input }) => {
-    const client2 = await pgPool.connect();
-    try {
-      const result = await client2.query("SELECT * FROM sequence_counters ORDER BY created_at DESC");
-      const filtered = result.rows.filter((counter) => {
-        if (input.company && !counter.prefix?.includes(input.company)) return false;
-        if (input.division && !counter.prefix?.includes(input.division)) return false;
-        return true;
-      });
-      return filtered.map((c) => ({
-        id: c.id,
-        prefix: c.prefix,
-        documentType: c.document_type,
-        currentValue: c.current_value,
-        lastReset: c.last_reset_at
-      }));
-    } finally {
-      client2.release();
-    }
+    const counters = await db.select().from(documentSequenceCounters).orderBy(desc2(documentSequenceCounters.createdAt));
+    return counters.filter((counter) => {
+      if (input.company && !counter.prefix.includes(input.company))
+        return false;
+      if (input.division && !counter.prefix.includes(input.division))
+        return false;
+      if (input.year && !counter.id.includes(`-${input.year}-`))
+        return false;
+      return true;
+    }).map((counter) => ({
+      id: counter.id,
+      prefix: counter.prefix,
+      documentType: counter.documentType,
+      currentValue: counter.currentValue,
+      lastReset: counter.lastResetAt
+    }));
   }),
-  // Get constants for UI
   getConstants: protectedProcedure.query(() => ({
     documentTypes: DOCUMENT_TYPES,
     companies: COMPANIES,
     divisions: DIVISIONS,
-    documentStatuses: ["draft", "review", "approved", "effective", "superseded", "obsolete"],
+    documentStatuses: DOCUMENT_STATUSES,
     monthsRoman: MONTHS_ROMAN
   }))
 });
@@ -3343,14 +3602,14 @@ init_db();
 init_schema();
 import { z as z3 } from "zod";
 import { v4 as uuidv42 } from "uuid";
-import { eq as eq2, and as and2, like, desc as desc2 } from "drizzle-orm";
+import { eq as eq3, and as and3, like as like2, desc as desc3 } from "drizzle-orm";
 var skuGeneratorRouter = router({
   /**
    * Get all SKU categories
    */
   getCategories: publicProcedure.query(async () => {
     try {
-      const categories = await db.select().from(skuCategories).where(eq2(skuCategories.isActive, true)).orderBy(skuCategories.prefix);
+      const categories = await db.select().from(skuCategories).where(eq3(skuCategories.isActive, true)).orderBy(skuCategories.prefix);
       return categories;
     } catch (error) {
       console.error("Error fetching SKU categories:", error);
@@ -3369,12 +3628,12 @@ var skuGeneratorRouter = router({
     })
   ).mutation(async ({ input }) => {
     try {
-      const category = await db.select().from(skuCategories).where(eq2(skuCategories.id, input.categoryId)).limit(1);
+      const category = await db.select().from(skuCategories).where(eq3(skuCategories.id, input.categoryId)).limit(1);
       if (!category || category.length === 0) {
         throw new Error("Category not found");
       }
       const categoryData = category[0];
-      const counterResult = await db.select().from(skuCounters).where(eq2(skuCounters.categoryId, input.categoryId)).limit(1);
+      const counterResult = await db.select().from(skuCounters).where(eq3(skuCounters.categoryId, input.categoryId)).limit(1);
       if (!counterResult || counterResult.length === 0) {
         throw new Error("Counter not initialized for this category");
       }
@@ -3400,7 +3659,7 @@ var skuGeneratorRouter = router({
       await db.update(skuCounters).set({
         currentCounter: nextSequence,
         updatedAt: now
-      }).where(eq2(skuCounters.id, counter.id));
+      }).where(eq3(skuCounters.id, counter.id));
       return {
         success: true,
         skuId,
@@ -3433,21 +3692,21 @@ var skuGeneratorRouter = router({
       const conditions = [];
       if (input.query) {
         conditions.push(
-          like(skus.skuCode, `%${input.query}%`)
+          like2(skus.skuCode, `%${input.query}%`)
         );
       }
       if (input.categoryId) {
-        conditions.push(eq2(skus.categoryId, input.categoryId));
+        conditions.push(eq3(skus.categoryId, input.categoryId));
       }
       if (input.status) {
-        conditions.push(eq2(skus.status, input.status));
+        conditions.push(eq3(skus.status, input.status));
       }
       if (conditions.length > 0) {
-        query = query.where(and2(...conditions));
+        query = query.where(and3(...conditions));
       }
-      const countResult = await db.select({ count: skus.id }).from(skus).where(conditions.length > 0 ? and2(...conditions) : void 0);
+      const countResult = await db.select({ count: skus.id }).from(skus).where(conditions.length > 0 ? and3(...conditions) : void 0);
       const total = countResult.length > 0 ? 1 : 0;
-      const results = await query.orderBy(desc2(skus.createdAt)).limit(input.limit).offset(input.offset);
+      const results = await query.orderBy(desc3(skus.createdAt)).limit(input.limit).offset(input.offset);
       return {
         data: results,
         total: results.length,
@@ -3464,11 +3723,11 @@ var skuGeneratorRouter = router({
    */
   getSkuDetails: publicProcedure.input(z3.object({ skuId: z3.string() })).query(async ({ input }) => {
     try {
-      const sku = await db.select().from(skus).where(eq2(skus.id, input.skuId)).limit(1);
+      const sku = await db.select().from(skus).where(eq3(skus.id, input.skuId)).limit(1);
       if (!sku || sku.length === 0) {
         throw new Error("SKU not found");
       }
-      const category = await db.select().from(skuCategories).where(eq2(skuCategories.id, sku[0].categoryId)).limit(1);
+      const category = await db.select().from(skuCategories).where(eq3(skuCategories.id, sku[0].categoryId)).limit(1);
       return {
         sku: sku[0],
         category: category?.[0] || null
@@ -3489,7 +3748,7 @@ var skuGeneratorRouter = router({
     })
   ).query(async ({ input }) => {
     try {
-      const results = await db.select().from(skus).where(eq2(skus.categoryId, input.categoryId)).orderBy(desc2(skus.sequenceNumber)).limit(input.limit).offset(input.offset);
+      const results = await db.select().from(skus).where(eq3(skus.categoryId, input.categoryId)).orderBy(desc3(skus.sequenceNumber)).limit(input.limit).offset(input.offset);
       return {
         data: results,
         total: results.length,
@@ -3506,7 +3765,7 @@ var skuGeneratorRouter = router({
    */
   getCategoryCounter: publicProcedure.input(z3.object({ categoryId: z3.string() })).query(async ({ input }) => {
     try {
-      const counter = await db.select().from(skuCounters).where(eq2(skuCounters.categoryId, input.categoryId)).limit(1);
+      const counter = await db.select().from(skuCounters).where(eq3(skuCounters.categoryId, input.categoryId)).limit(1);
       if (!counter || counter.length === 0) {
         throw new Error("Counter not found");
       }
@@ -3529,15 +3788,15 @@ var skuGeneratorRouter = router({
       let query = db.select().from(skus);
       const conditions = [];
       if (input.categoryId) {
-        conditions.push(eq2(skus.categoryId, input.categoryId));
+        conditions.push(eq3(skus.categoryId, input.categoryId));
       }
       if (input.status) {
-        conditions.push(eq2(skus.status, input.status));
+        conditions.push(eq3(skus.status, input.status));
       }
       if (conditions.length > 0) {
-        query = query.where(and2(...conditions));
+        query = query.where(and3(...conditions));
       }
-      const results = await query.orderBy(desc2(skus.createdAt));
+      const results = await query.orderBy(desc3(skus.createdAt));
       const csvData = results.map((sku) => ({
         "SKU Code": sku.skuCode,
         "Product Name": sku.productName || "-",
@@ -3573,20 +3832,37 @@ function getSessionCookieOptions(req) {
 }
 
 // server/routers.ts
+init_microsoft_graph();
 var adminProcedure2 = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin") {
-    throw new TRPCError3({ code: "FORBIDDEN", message: "Admin access required" });
+    throw new TRPCError3({
+      code: "FORBIDDEN",
+      message: "Admin access required"
+    });
   }
   return next({ ctx });
 });
 var assignmentsRouter = router({
-  create: protectedProcedure.input(z4.object({
-    workflowId: z4.string(),
-    assignedTo: z4.number()
-  })).mutation(async ({ ctx, input }) => {
-    const deptHeadRoles = ["PPIC", "Purchasing", "Finance", "Sales", "GA", "Brand Manager", "PR Manager"];
+  create: protectedProcedure.input(
+    z4.object({
+      workflowId: z4.string(),
+      assignedTo: z4.number()
+    })
+  ).mutation(async ({ ctx, input }) => {
+    const deptHeadRoles = [
+      "PPIC",
+      "Purchasing",
+      "Finance",
+      "Sales",
+      "GA",
+      "Brand Manager",
+      "PR Manager"
+    ];
     if (!deptHeadRoles.includes(ctx.user.role)) {
-      throw new TRPCError3({ code: "FORBIDDEN", message: "Only department heads can assign tasks" });
+      throw new TRPCError3({
+        code: "FORBIDDEN",
+        message: "Only department heads can assign tasks"
+      });
     }
     return await createTaskAssignment({
       workflowId: input.workflowId,
@@ -3613,17 +3889,22 @@ var metricsRouter = router({
   })
 });
 var salaryRouter = router({
-  syncFromQapita: adminProcedure2.input(z4.object({
-    userId: z4.number(),
-    salaryAmount: z4.number(),
-    currency: z4.string().optional()
-  })).mutation(async ({ input }) => {
+  syncFromQapita: adminProcedure2.input(
+    z4.object({
+      userId: z4.number(),
+      salaryAmount: z4.number(),
+      currency: z4.string().optional()
+    })
+  ).mutation(async ({ input }) => {
     return await upsertSalaryCache(input);
   }),
   getUserSalary: protectedProcedure.input(z4.object({ userId: z4.number() })).query(async ({ ctx, input }) => {
     const allowedRoles = ["admin", "CEO", "CFO", "COO"];
     if (!allowedRoles.includes(ctx.user.role)) {
-      throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized to view salary data" });
+      throw new TRPCError3({
+        code: "FORBIDDEN",
+        message: "Not authorized to view salary data"
+      });
     }
     return await getUserSalary(input.userId);
   }),
@@ -3632,14 +3913,19 @@ var salaryRouter = router({
   })
 });
 var capacityRouter = router({
-  getUserList: protectedProcedure.input(z4.object({
-    page: z4.number().default(1),
-    pageSize: z4.number().default(20),
-    department: z4.string().optional()
-  })).query(async ({ ctx, input }) => {
+  getUserList: protectedProcedure.input(
+    z4.object({
+      page: z4.number().default(1),
+      pageSize: z4.number().default(20),
+      department: z4.string().optional()
+    })
+  ).query(async ({ ctx, input }) => {
     const allowedRoles = ["admin", "CEO", "CFO", "COO", "Exec Asst"];
     if (!allowedRoles.includes(ctx.user.role)) {
-      throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized to access capacity management" });
+      throw new TRPCError3({
+        code: "FORBIDDEN",
+        message: "Not authorized to access capacity management"
+      });
     }
     return await getUserListPaginated({
       ...input,
@@ -3658,42 +3944,51 @@ var capacityRouter = router({
 });
 var templatesRouter = router({
   // Create new template
-  create: protectedProcedure.input(z4.object({
-    name: z4.string(),
-    description: z4.string().optional(),
-    workflowType: z4.string(),
-    isDefault: z4.boolean().optional(),
-    stages: z4.array(z4.object({
-      stageOrder: z4.number(),
-      stageName: z4.string(),
-      stageDescription: z4.string().optional(),
-      department: z4.string().optional(),
-      requiredRole: z4.string().optional(),
-      requiresOneOf: z4.array(z4.string()).optional(),
-      approvalRequired: z4.boolean(),
-      fileUploadRequired: z4.boolean(),
-      notificationEmails: z4.array(z4.string()).optional(),
-      visibleToDepartments: z4.array(z4.string()).optional(),
-      approvalThreshold: z4.number().optional()
-    }))
-  })).mutation(async ({ ctx, input }) => {
+  create: protectedProcedure.input(
+    z4.object({
+      name: z4.string(),
+      description: z4.string().optional(),
+      workflowType: z4.string(),
+      isDefault: z4.boolean().optional(),
+      stages: z4.array(
+        z4.object({
+          stageOrder: z4.number(),
+          stageName: z4.string(),
+          stageDescription: z4.string().optional(),
+          department: z4.string().optional(),
+          requiredRole: z4.string().optional(),
+          requiresOneOf: z4.array(z4.string()).optional(),
+          approvalRequired: z4.boolean(),
+          fileUploadRequired: z4.boolean(),
+          notificationEmails: z4.array(z4.string()).optional(),
+          visibleToDepartments: z4.array(z4.string()).optional(),
+          approvalThreshold: z4.number().optional()
+        })
+      )
+    })
+  ).mutation(async ({ ctx, input }) => {
     return await createWorkflowTemplate({
       ...input,
       createdBy: ctx.user.id
     });
   }),
   // Get all templates
-  getAll: protectedProcedure.input(z4.object({
-    workflowType: z4.string().optional(),
-    isActive: z4.boolean().optional()
-  }).optional()).query(async ({ input }) => {
+  getAll: protectedProcedure.input(
+    z4.object({
+      workflowType: z4.string().optional(),
+      isActive: z4.boolean().optional()
+    }).optional()
+  ).query(async ({ input }) => {
     return await getWorkflowTemplates(input || {});
   }),
   // Get template by ID with stages
   getById: protectedProcedure.input(z4.object({ id: z4.string() })).query(async ({ input }) => {
     const template = await getWorkflowTemplateById(input.id);
     if (!template) {
-      throw new TRPCError3({ code: "NOT_FOUND", message: "Template not found" });
+      throw new TRPCError3({
+        code: "NOT_FOUND",
+        message: "Template not found"
+      });
     }
     return template;
   }),
@@ -3702,27 +3997,31 @@ var templatesRouter = router({
     return await getDefaultTemplate(input.workflowType);
   }),
   // Update template
-  update: protectedProcedure.input(z4.object({
-    id: z4.string(),
-    name: z4.string().optional(),
-    description: z4.string().optional(),
-    isDefault: z4.boolean().optional(),
-    isActive: z4.boolean().optional(),
-    stages: z4.array(z4.object({
-      id: z4.string().optional(),
-      stageOrder: z4.number(),
-      stageName: z4.string(),
-      stageDescription: z4.string().optional(),
-      department: z4.string().optional(),
-      requiredRole: z4.string().optional(),
-      requiresOneOf: z4.array(z4.string()).optional(),
-      approvalRequired: z4.boolean(),
-      fileUploadRequired: z4.boolean(),
-      notificationEmails: z4.array(z4.string()).optional(),
-      visibleToDepartments: z4.array(z4.string()).optional(),
-      approvalThreshold: z4.number().optional()
-    })).optional()
-  })).mutation(async ({ input }) => {
+  update: protectedProcedure.input(
+    z4.object({
+      id: z4.string(),
+      name: z4.string().optional(),
+      description: z4.string().optional(),
+      isDefault: z4.boolean().optional(),
+      isActive: z4.boolean().optional(),
+      stages: z4.array(
+        z4.object({
+          id: z4.string().optional(),
+          stageOrder: z4.number(),
+          stageName: z4.string(),
+          stageDescription: z4.string().optional(),
+          department: z4.string().optional(),
+          requiredRole: z4.string().optional(),
+          requiresOneOf: z4.array(z4.string()).optional(),
+          approvalRequired: z4.boolean(),
+          fileUploadRequired: z4.boolean(),
+          notificationEmails: z4.array(z4.string()).optional(),
+          visibleToDepartments: z4.array(z4.string()).optional(),
+          approvalThreshold: z4.number().optional()
+        })
+      ).optional()
+    })
+  ).mutation(async ({ input }) => {
     const { id, ...updates } = input;
     return await updateWorkflowTemplate(id, updates);
   }),
@@ -3731,10 +4030,12 @@ var templatesRouter = router({
     return await deleteWorkflowTemplate(input.id);
   }),
   // Toggle quick assign for template
-  toggleQuickAssign: protectedProcedure.input(z4.object({
-    id: z4.string(),
-    isQuickAssignEnabled: z4.boolean()
-  })).mutation(async ({ input }) => {
+  toggleQuickAssign: protectedProcedure.input(
+    z4.object({
+      id: z4.string(),
+      isQuickAssignEnabled: z4.boolean()
+    })
+  ).mutation(async ({ input }) => {
     return await updateWorkflowTemplate(input.id, {
       isQuickAssignEnabled: input.isQuickAssignEnabled
     });
@@ -3760,13 +4061,6 @@ var appRouter = router({
         maxAge: -1
       });
       return { success: true };
-    }),
-    getUsernameByEmail: publicProcedure.input(z4.object({ email: z4.string().email() })).query(async ({ input }) => {
-      const user = await getUserByEmail(input.email);
-      if (!user) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "User not found" });
-      }
-      return { username: user.cognitoUsername };
     })
   }),
   // ============================================
@@ -3786,7 +4080,24 @@ var appRouter = router({
     updateRole: adminProcedure2.input(
       z4.object({
         userId: z4.number(),
-        role: z4.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "R&D", "Sales", "Marketing", "Operations", "Staff", "admin"])
+        role: z4.enum([
+          "CEO",
+          "COO",
+          "CFO",
+          "Exec Asst",
+          "PPIC",
+          "Purchasing",
+          "GA",
+          "Finance",
+          "Production",
+          "Logistics",
+          "R&D",
+          "Sales",
+          "Marketing",
+          "Operations",
+          "Staff",
+          "admin"
+        ])
       })
     ).mutation(async ({ input, ctx }) => {
       await updateUserRole(input.userId, input.role);
@@ -3825,7 +4136,10 @@ var appRouter = router({
       if (currentPinned.includes(input.workflowId)) {
         return { success: true, message: "Already pinned" };
       }
-      await updateUserPinnedWorkflows(ctx.user.id, [...currentPinned, input.workflowId]);
+      await updateUserPinnedWorkflows(ctx.user.id, [
+        ...currentPinned,
+        input.workflowId
+      ]);
       return { success: true };
     }),
     // Unpin workflow
@@ -3838,11 +4152,31 @@ var appRouter = router({
     // Switch role for test user only
     switchRole: protectedProcedure.input(
       z4.object({
-        role: z4.enum(["CEO", "COO", "CFO", "Exec Asst", "PPIC", "Purchasing", "GA", "Finance", "Production", "Logistics", "R&D", "Sales", "Marketing", "Operations", "Staff", "admin"])
+        role: z4.enum([
+          "CEO",
+          "COO",
+          "CFO",
+          "Exec Asst",
+          "PPIC",
+          "Purchasing",
+          "GA",
+          "Finance",
+          "Production",
+          "Logistics",
+          "R&D",
+          "Sales",
+          "Marketing",
+          "Operations",
+          "Staff",
+          "admin"
+        ])
       })
     ).mutation(async ({ input, ctx }) => {
       if (ctx.user.email !== "test@compawnion.co") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Role switching is only available for test user" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Role switching is only available for test user"
+        });
       }
       await updateUserRole(ctx.user.id, input.role);
       await createAuditLog({
@@ -3856,59 +4190,41 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    // Bulk sync users from Cognito to database
-    syncFromCognito: adminProcedure2.mutation(async ({ ctx }) => {
-      const { CognitoIdentityProviderClient, ListUsersCommand } = await import("@aws-sdk/client-cognito-identity-provider");
-      const client2 = new CognitoIdentityProviderClient({
-        region: process.env.VITE_COGNITO_REGION
-      });
-      const userPoolId = process.env.VITE_COGNITO_USER_POOL_ID;
+    // Bulk sync active @compawnion.co users from Microsoft Entra ID.
+    syncFromMicrosoft: adminProcedure2.mutation(async ({ ctx }) => {
       let syncedCount = 0;
-      let paginationToken;
       try {
-        do {
-          const command = new ListUsersCommand({
-            UserPoolId: userPoolId,
-            Limit: 60,
-            PaginationToken: paginationToken
-          });
-          const response = await client2.send(command);
-          if (response.Users) {
-            for (const cognitoUser of response.Users) {
-              const email = cognitoUser.Attributes?.find((attr) => attr.Name === "email")?.Value;
-              const sub = cognitoUser.Attributes?.find((attr) => attr.Name === "sub")?.Value;
-              const name = cognitoUser.Attributes?.find((attr) => attr.Name === "name")?.Value;
-              if (email && sub && email.endsWith("@compawnion.co")) {
-                await upsertUser({
-                  cognitoSub: sub,
-                  openId: sub,
-                  // Use sub as openId for Cognito users
-                  email,
-                  fullName: name || email.split("@")[0],
-                  role: email === "eddie.amintohir@compawnion.co" ? "admin" : "PPIC"
-                  // Default role
-                });
-                syncedCount++;
-              }
-            }
+        const directoryUsers = await listMicrosoftDirectoryUsers();
+        for (const directoryUser of directoryUsers) {
+          const email = (directoryUser.mail || directoryUser.userPrincipalName || "").toLowerCase();
+          if (!directoryUser.id || directoryUser.accountEnabled === false || !email.endsWith("@compawnion.co")) {
+            continue;
           }
-          paginationToken = response.PaginationToken;
-        } while (paginationToken);
+          await upsertUser({
+            // Retained for database compatibility until the column is renamed.
+            cognitoSub: directoryUser.id,
+            openId: directoryUser.id,
+            email,
+            fullName: directoryUser.displayName || email.split("@")[0],
+            role: email === "eddie.amintohir@compawnion.co" ? "admin" : "PPIC"
+          });
+          syncedCount++;
+        }
         await createAuditLog({
           entityType: "user",
           entityId: "bulk",
           action: "bulk_sync",
-          actionDescription: `Synced ${syncedCount} users from Cognito`,
+          actionDescription: `Synced ${syncedCount} users from Microsoft Entra ID`,
           actorId: ctx.user.id,
           actorEmail: ctx.user.email,
           actorRole: ctx.user.role
         });
         return { success: true, syncedCount };
       } catch (error) {
-        console.error("Cognito sync error:", error);
+        console.error("Microsoft Entra sync error:", error);
         throw new TRPCError3({
           code: "INTERNAL_SERVER_ERROR",
-          message: `Failed to sync users from Cognito: ${error.message}`
+          message: `Failed to sync users from Microsoft Entra ID: ${error.message}`
         });
       }
     })
@@ -3954,7 +4270,11 @@ var appRouter = router({
           }
         }
       } else {
-        await createInitialStages(workflow.id, input.workflowType, input.estimatedAmount);
+        await createInitialStages(
+          workflow.id,
+          input.workflowType,
+          input.estimatedAmount
+        );
       }
       await createAuditLog({
         entityType: "workflow",
@@ -3968,13 +4288,18 @@ var appRouter = router({
       invalidateAnalyticsCache();
       return workflow;
     }),
-    createFromTemplate: protectedProcedure.input(z4.object({
-      templateId: z4.string(),
-      assignToUserId: z4.number().optional()
-    })).mutation(async ({ input, ctx }) => {
+    createFromTemplate: protectedProcedure.input(
+      z4.object({
+        templateId: z4.string(),
+        assignToUserId: z4.number().optional()
+      })
+    ).mutation(async ({ input, ctx }) => {
       const template = await getWorkflowTemplateById(input.templateId);
       if (!template) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Template not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Template not found"
+        });
       }
       const workflow = await createWorkflow({
         workflowType: template.workflowType,
@@ -4000,10 +4325,12 @@ var appRouter = router({
       }
       return workflow;
     }),
-    search: protectedProcedure.input(z4.object({
-      query: z4.string(),
-      limit: z4.number().optional()
-    })).query(async ({ input, ctx }) => {
+    search: protectedProcedure.input(
+      z4.object({
+        query: z4.string(),
+        limit: z4.number().optional()
+      })
+    ).query(async ({ input, ctx }) => {
       const limit = input.limit || 20;
       const workflows2 = ctx.user.role === "admin" ? await getAllWorkflows() : await getWorkflowsByRequester(ctx.user.id);
       const filtered = workflows2.filter(
@@ -4024,7 +4351,10 @@ var appRouter = router({
     getById: protectedProcedure.input(z4.object({ id: z4.string() })).query(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Workflow not found"
+        });
       }
       const accessCheck = await checkWorkflowAccess(
         input.id,
@@ -4043,7 +4373,10 @@ var appRouter = router({
     getWithDetails: protectedProcedure.input(z4.object({ id: z4.string() })).query(async ({ input }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Workflow not found"
+        });
       }
       const stages = await getStagesByWorkflow(input.id);
       const approvals = await getApprovalsByWorkflow(input.id);
@@ -4060,7 +4393,10 @@ var appRouter = router({
     submit: protectedProcedure.input(z4.object({ id: z4.string() })).mutation(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Workflow not found"
+        });
       }
       if (workflow.requesterId !== ctx.user.id && ctx.user.role !== "admin") {
         throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized" });
@@ -4081,19 +4417,32 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    discontinue: protectedProcedure.input(z4.object({
-      id: z4.string(),
-      reason: z4.string().optional()
-    })).mutation(async ({ input, ctx }) => {
+    discontinue: protectedProcedure.input(
+      z4.object({
+        id: z4.string(),
+        reason: z4.string().optional()
+      })
+    ).mutation(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Workflow not found"
+        });
       }
       if (workflow.requesterId !== ctx.user.id && ctx.user.role !== "admin") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized to discontinue this workflow" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Not authorized to discontinue this workflow"
+        });
       }
-      if (["completed", "discontinued", "archived"].includes(workflow.overallStatus)) {
-        throw new TRPCError3({ code: "BAD_REQUEST", message: `Cannot discontinue ${workflow.overallStatus} workflow` });
+      if (["completed", "discontinued", "archived"].includes(
+        workflow.overallStatus
+      )) {
+        throw new TRPCError3({
+          code: "BAD_REQUEST",
+          message: `Cannot discontinue ${workflow.overallStatus} workflow`
+        });
       }
       await discontinueWorkflow(input.id, input.reason);
       await createAuditLog({
@@ -4110,10 +4459,16 @@ var appRouter = router({
     archive: protectedProcedure.input(z4.object({ id: z4.string() })).mutation(async ({ input, ctx }) => {
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Workflow not found"
+        });
       }
       if (ctx.user.role !== "admin") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Only admins can archive workflows" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Only admins can archive workflows"
+        });
       }
       await archiveWorkflow(input.id);
       await createAuditLog({
@@ -4129,11 +4484,17 @@ var appRouter = router({
     }),
     delete: protectedProcedure.input(z4.object({ id: z4.string() })).mutation(async ({ input, ctx }) => {
       if (ctx.user.role !== "admin") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Only admins can delete workflows" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Only admins can delete workflows"
+        });
       }
       const workflow = await getWorkflowById(input.id);
       if (!workflow) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Workflow not found"
+        });
       }
       await deleteWorkflow(input.id);
       await createAuditLog({
@@ -4151,7 +4512,13 @@ var appRouter = router({
     updateStatus: protectedProcedure.input(
       z4.object({
         id: z4.string(),
-        status: z4.enum(["draft", "in_progress", "completed", "rejected", "cancelled"])
+        status: z4.enum([
+          "draft",
+          "in_progress",
+          "completed",
+          "rejected",
+          "cancelled"
+        ])
       })
     ).mutation(async ({ input, ctx }) => {
       await updateWorkflowStatus(input.id, input.status);
@@ -4241,14 +4608,22 @@ var appRouter = router({
     ).mutation(async ({ input, ctx }) => {
       const stage = await getStageById(input.stageId);
       if (!stage) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Stage not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Stage not found"
+        });
       }
       if (stage.requiredRole && ctx.user.role !== stage.requiredRole && ctx.user.role !== "admin") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized to approve this stage" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Not authorized to approve this stage"
+        });
       }
       if (ctx.user.role !== "CEO" && ctx.user.role !== "CFO" && ctx.user.role !== "admin") {
         const stageFiles = await getFilesByStage(input.stageId);
-        const userUploadedFile = stageFiles.find((f) => f.uploadedBy === ctx.user.id);
+        const userUploadedFile = stageFiles.find(
+          (f) => f.uploadedBy === ctx.user.id
+        );
         if (!userUploadedFile) {
           throw new TRPCError3({
             code: "PRECONDITION_FAILED",
@@ -4267,7 +4642,10 @@ var appRouter = router({
       await updateStageStatus(input.stageId, "completed");
       const workflow = await getWorkflowById(input.workflowId);
       if (!workflow) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Workflow not found"
+        });
       }
       const stages = await getStagesByWorkflow(input.workflowId);
       const currentStageIndex = stages.findIndex((s) => s.id === input.stageId);
@@ -4275,20 +4653,29 @@ var appRouter = router({
         const nextStage = stages[currentStageIndex + 1];
         await updateStageStatus(nextStage.id, "in_progress");
         if (nextStage.requiredRole) {
-          const nextApprovers = await getUsersByRole(nextStage.requiredRole);
+          const nextApprovers = await getUsersByRole(
+            nextStage.requiredRole
+          );
           for (const approver of nextApprovers) {
             try {
-              await sendMilestoneCompletionEmail({
-                workflowNumber: workflow.workflowNumber,
-                workflowTitle: workflow.title,
-                milestoneName: nextStage.stageName,
-                approverName: approver.fullName,
-                approverEmail: approver.email,
-                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
-                completedBy: ctx.user.fullName
-              }, workflow.id, ctx.user.email);
+              await sendMilestoneCompletionEmail(
+                {
+                  workflowNumber: workflow.workflowNumber,
+                  workflowTitle: workflow.title,
+                  milestoneName: nextStage.stageName,
+                  approverName: approver.fullName,
+                  approverEmail: approver.email,
+                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                  completedBy: ctx.user.fullName
+                },
+                workflow.id,
+                ctx.user.email
+              );
             } catch (emailError) {
-              console.error(`Failed to send email to ${approver.email}:`, emailError);
+              console.error(
+                `Failed to send email to ${approver.email}:`,
+                emailError
+              );
             }
           }
         }
@@ -4313,20 +4700,27 @@ var appRouter = router({
         const creator = await getUserById(workflow2.requesterId);
         if (creator) {
           try {
-            await sendCompletionEmail({
-              workflowNumber: workflow2.workflowNumber,
-              workflowTitle: workflow2.title,
-              completedAt: (/* @__PURE__ */ new Date()).toLocaleString("en-US", {
-                dateStyle: "medium",
-                timeStyle: "short",
-                timeZone: "Asia/Jakarta"
-              }),
-              recipientName: creator.fullName,
-              recipientEmail: creator.email,
-              workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow2.id}`
-            }, workflow2.id, ctx.user.email);
+            await sendCompletionEmail(
+              {
+                workflowNumber: workflow2.workflowNumber,
+                workflowTitle: workflow2.title,
+                completedAt: (/* @__PURE__ */ new Date()).toLocaleString("en-US", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                  timeZone: "Asia/Jakarta"
+                }),
+                recipientName: creator.fullName,
+                recipientEmail: creator.email,
+                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow2.id}`
+              },
+              workflow2.id,
+              ctx.user.email
+            );
           } catch (emailError) {
-            console.error(`Failed to send completion email to ${creator.email}:`, emailError);
+            console.error(
+              `Failed to send completion email to ${creator.email}:`,
+              emailError
+            );
           }
         }
       }
@@ -4350,10 +4744,16 @@ var appRouter = router({
     ).mutation(async ({ input, ctx }) => {
       const stage = await getStageById(input.stageId);
       if (!stage) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Stage not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Stage not found"
+        });
       }
       if (stage.requiredRole && ctx.user.role !== stage.requiredRole && ctx.user.role !== "admin") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized to reject this stage" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Not authorized to reject this stage"
+        });
       }
       await createApproval({
         workflowId: input.workflowId,
@@ -4370,18 +4770,25 @@ var appRouter = router({
         const creator = await getUserById(workflow.requesterId);
         if (creator) {
           try {
-            await sendRejectionEmail({
-              workflowNumber: workflow.workflowNumber,
-              workflowTitle: workflow.title,
-              milestoneName: stage.stageName,
-              rejectedBy: ctx.user.fullName,
-              rejectionReason: input.comments,
-              creatorName: creator.fullName,
-              creatorEmail: creator.email,
-              workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`
-            }, workflow.id, ctx.user.email);
+            await sendRejectionEmail(
+              {
+                workflowNumber: workflow.workflowNumber,
+                workflowTitle: workflow.title,
+                milestoneName: stage.stageName,
+                rejectedBy: ctx.user.fullName,
+                rejectionReason: input.comments,
+                creatorName: creator.fullName,
+                creatorEmail: creator.email,
+                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`
+              },
+              workflow.id,
+              ctx.user.email
+            );
           } catch (emailError) {
-            console.error(`Failed to send rejection email to ${creator.email}:`, emailError);
+            console.error(
+              `Failed to send rejection email to ${creator.email}:`,
+              emailError
+            );
           }
         }
       }
@@ -4414,16 +4821,21 @@ var appRouter = router({
       })
     ).mutation(async ({ input, ctx }) => {
       const fileBuffer = Buffer.from(input.fileData, "base64");
-      const s3Key = `workflows/${input.workflowId}/${randomUUID3()}-${input.fileName}`;
-      const { url } = await storagePut(s3Key, fileBuffer, input.mimeType);
+      const storageKey = `workflows/${input.workflowId}/${randomUUID3()}-${input.fileName}`;
+      const { url } = await storagePut(
+        storageKey,
+        fileBuffer,
+        input.mimeType
+      );
       const file = await createWorkflowFile({
         workflowId: input.workflowId,
         stageId: input.stageId,
         fileName: input.fileName,
         fileType: input.fileType,
         fileCategory: input.fileCategory,
-        s3Bucket: process.env.AWS_S3_BUCKET,
-        s3Key,
+        // Legacy database column names retained until the storage schema migration.
+        s3Bucket: process.env.AZURE_STORAGE_CONTAINER || "finance-attachments",
+        s3Key: storageKey,
         s3Url: url,
         fileSize: fileBuffer.length,
         mimeType: input.mimeType,
@@ -4518,7 +4930,16 @@ var appRouter = router({
         fields: z4.array(
           z4.object({
             id: z4.string(),
-            type: z4.enum(["text", "number", "date", "dropdown", "textarea", "file", "checkbox", "email"]),
+            type: z4.enum([
+              "text",
+              "number",
+              "date",
+              "dropdown",
+              "textarea",
+              "file",
+              "checkbox",
+              "email"
+            ]),
             label: z4.string(),
             placeholder: z4.string().optional(),
             required: z4.boolean(),
@@ -4561,7 +4982,10 @@ var appRouter = router({
     getById: protectedProcedure.input(z4.object({ id: z4.string() })).query(async ({ input }) => {
       const template = await getFormTemplateById(input.id);
       if (!template) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Form template not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Form template not found"
+        });
       }
       return template;
     }),
@@ -4573,7 +4997,16 @@ var appRouter = router({
         fields: z4.array(
           z4.object({
             id: z4.string(),
-            type: z4.enum(["text", "number", "date", "dropdown", "textarea", "file", "checkbox", "email"]),
+            type: z4.enum([
+              "text",
+              "number",
+              "date",
+              "dropdown",
+              "textarea",
+              "file",
+              "checkbox",
+              "email"
+            ]),
             label: z4.string(),
             placeholder: z4.string().optional(),
             required: z4.boolean(),
@@ -4657,15 +5090,22 @@ var appRouter = router({
     getById: protectedProcedure.input(z4.object({ id: z4.string() })).query(async ({ input }) => {
       const submission = await getFormSubmissionById(input.id);
       if (!submission) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Form submission not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Form submission not found"
+        });
       }
       return submission;
     }),
     getByWorkflow: protectedProcedure.input(z4.object({ workflowId: z4.string() })).query(async ({ input }) => {
-      const submissions = await getFormSubmissionsByWorkflow(input.workflowId);
+      const submissions = await getFormSubmissionsByWorkflow(
+        input.workflowId
+      );
       const submissionsWithTemplates = await Promise.all(
         submissions.map(async (submission) => {
-          const template = await getFormTemplateById(submission.templateId);
+          const template = await getFormTemplateById(
+            submission.templateId
+          );
           return {
             ...submission,
             template
@@ -4814,10 +5254,12 @@ var appRouter = router({
         () => getDepartmentMetrics(input.department)
       );
     }),
-    departmentCostBreakdown: protectedProcedure.input(z4.object({
-      department: z4.string(),
-      period: z4.enum(["monthly", "yearly"]).default("monthly")
-    })).query(async ({ input }) => {
+    departmentCostBreakdown: protectedProcedure.input(
+      z4.object({
+        department: z4.string(),
+        period: z4.enum(["monthly", "yearly"]).default("monthly")
+      })
+    ).query(async ({ input }) => {
       return await withCache(
         `analytics:costBreakdown:${input.department}:${input.period}`,
         CACHE_TTL.COST_BREAKDOWN,
@@ -4829,41 +5271,53 @@ var appRouter = router({
   // Budget Management
   // ============================================
   budgets: router({
-    create: protectedProcedure.input(z4.object({
-      department: z4.string(),
-      year: z4.number(),
-      month: z4.number().optional(),
-      quarter: z4.number().optional(),
-      allocatedAmount: z4.number(),
-      period: z4.enum(["monthly", "quarterly", "yearly"])
-    })).mutation(async ({ input }) => {
+    create: protectedProcedure.input(
+      z4.object({
+        department: z4.string(),
+        year: z4.number(),
+        month: z4.number().optional(),
+        quarter: z4.number().optional(),
+        allocatedAmount: z4.number(),
+        period: z4.enum(["monthly", "quarterly", "yearly"])
+      })
+    ).mutation(async ({ input }) => {
       return await createBudget(input);
     }),
-    getByDepartment: protectedProcedure.input(z4.object({
-      department: z4.string(),
-      year: z4.number()
-    })).query(async ({ input }) => {
+    getByDepartment: protectedProcedure.input(
+      z4.object({
+        department: z4.string(),
+        year: z4.number()
+      })
+    ).query(async ({ input }) => {
       return await getBudgetsByDepartment(input.department, input.year);
     }),
     getAll: protectedProcedure.input(z4.object({ year: z4.number() })).query(async ({ input }) => {
       return await getAllBudgets(input.year);
     }),
-    update: protectedProcedure.input(z4.object({
-      id: z4.string(),
-      allocatedAmount: z4.number()
-    })).mutation(async ({ input }) => {
+    update: protectedProcedure.input(
+      z4.object({
+        id: z4.string(),
+        allocatedAmount: z4.number()
+      })
+    ).mutation(async ({ input }) => {
       return await updateBudget(input.id, input.allocatedAmount);
     }),
     delete: protectedProcedure.input(z4.object({ id: z4.string() })).mutation(async ({ input }) => {
       await deleteBudget(input.id);
       return { success: true };
     }),
-    analytics: protectedProcedure.input(z4.object({
-      department: z4.string(),
-      year: z4.number(),
-      period: z4.enum(["monthly", "quarterly", "yearly"])
-    })).query(async ({ input }) => {
-      return await getDepartmentBudgetAnalytics(input.department, input.year, input.period);
+    analytics: protectedProcedure.input(
+      z4.object({
+        department: z4.string(),
+        year: z4.number(),
+        period: z4.enum(["monthly", "quarterly", "yearly"])
+      })
+    ).query(async ({ input }) => {
+      return await getDepartmentBudgetAnalytics(
+        input.department,
+        input.year,
+        input.period
+      );
     })
   }),
   // ============================================
@@ -4884,15 +5338,17 @@ var appRouter = router({
   // Excel Template Management
   // ============================================
   excelTemplates: router({
-    create: protectedProcedure.input(z4.object({
-      workflowType: z4.string(),
-      templateName: z4.string(),
-      description: z4.string().optional(),
-      fileUrl: z4.string(),
-      fileKey: z4.string(),
-      fileName: z4.string(),
-      fileSize: z4.number().optional()
-    })).mutation(async ({ input, ctx }) => {
+    create: protectedProcedure.input(
+      z4.object({
+        workflowType: z4.string(),
+        templateName: z4.string(),
+        description: z4.string().optional(),
+        fileUrl: z4.string(),
+        fileKey: z4.string(),
+        fileName: z4.string(),
+        fileSize: z4.number().optional()
+      })
+    ).mutation(async ({ input, ctx }) => {
       if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
       const result = await createExcelTemplate({
         ...input,
@@ -4921,17 +5377,22 @@ var appRouter = router({
     getDownloadUrl: protectedProcedure.input(z4.object({ id: z4.number() })).query(async ({ input }) => {
       const template = await getExcelTemplateById(input.id);
       if (!template) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Template not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Template not found"
+        });
       }
       const { url } = await storageGet(template.fileKey, 3600);
       return { url, fileName: template.fileName };
     }),
-    update: protectedProcedure.input(z4.object({
-      id: z4.number(),
-      templateName: z4.string().optional(),
-      description: z4.string().optional(),
-      isActive: z4.boolean().optional()
-    })).mutation(async ({ input, ctx }) => {
+    update: protectedProcedure.input(
+      z4.object({
+        id: z4.number(),
+        templateName: z4.string().optional(),
+        description: z4.string().optional(),
+        isActive: z4.boolean().optional()
+      })
+    ).mutation(async ({ input, ctx }) => {
       const { id, ...updates } = input;
       await updateExcelTemplate(id, updates);
       await createAuditLog({
@@ -4958,19 +5419,25 @@ var appRouter = router({
       });
       return { success: true };
     }),
-    uploadFile: protectedProcedure.input(z4.object({
-      workflowType: z4.string(),
-      templateName: z4.string(),
-      description: z4.string().optional(),
-      filename: z4.string(),
-      fileData: z4.string(),
-      // base64 encoded
-      fileSize: z4.number()
-    })).mutation(async ({ input, ctx }) => {
+    uploadFile: protectedProcedure.input(
+      z4.object({
+        workflowType: z4.string(),
+        templateName: z4.string(),
+        description: z4.string().optional(),
+        filename: z4.string(),
+        fileData: z4.string(),
+        // base64 encoded
+        fileSize: z4.number()
+      })
+    ).mutation(async ({ input, ctx }) => {
       if (!ctx.user) throw new TRPCError3({ code: "UNAUTHORIZED" });
       const fileBuffer = Buffer.from(input.fileData, "base64");
       const fileKey = `excel-templates/${input.workflowType}/${Date.now()}-${input.filename}`;
-      const { url } = await storagePut(fileKey, fileBuffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      const { url } = await storagePut(
+        fileKey,
+        fileBuffer,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
       const result = await createExcelTemplate({
         workflowType: input.workflowType,
         templateName: input.templateName,
@@ -5014,23 +5481,25 @@ var appRouter = router({
   // ============================================
   recurringWorkflows: router({
     // Create new recurring workflow
-    create: protectedProcedure.input(z4.object({
-      templateId: z4.string(),
-      title: z4.string(),
-      description: z4.string().optional(),
-      department: z4.string(),
-      frequency: z4.enum(["daily", "weekly", "monthly"]),
-      dayOfMonth: z4.number().min(1).max(31).optional(),
-      dayOfWeek: z4.number().min(0).max(6).optional(),
-      startDate: z4.date(),
-      endDate: z4.date().optional(),
-      assignedTo: z4.array(z4.number()).optional(),
-      assigneePresets: z4.record(z4.array(z4.number())).optional(),
-      // { "stage_name": [userId1, userId2] }
-      formTemplateId: z4.string().optional(),
-      formData: z4.record(z4.any()).optional(),
-      contingencyWorkflowIds: z4.array(z4.string()).optional()
-    })).mutation(async ({ ctx, input }) => {
+    create: protectedProcedure.input(
+      z4.object({
+        templateId: z4.string(),
+        title: z4.string(),
+        description: z4.string().optional(),
+        department: z4.string(),
+        frequency: z4.enum(["daily", "weekly", "monthly"]),
+        dayOfMonth: z4.number().min(1).max(31).optional(),
+        dayOfWeek: z4.number().min(0).max(6).optional(),
+        startDate: z4.date(),
+        endDate: z4.date().optional(),
+        assignedTo: z4.array(z4.number()).optional(),
+        assigneePresets: z4.record(z4.array(z4.number())).optional(),
+        // { "stage_name": [userId1, userId2] }
+        formTemplateId: z4.string().optional(),
+        formData: z4.record(z4.any()).optional(),
+        contingencyWorkflowIds: z4.array(z4.string()).optional()
+      })
+    ).mutation(async ({ ctx, input }) => {
       const recurring = await createRecurringWorkflow({
         ...input,
         createdBy: ctx.user.id
@@ -5055,27 +5524,35 @@ var appRouter = router({
       return await getRecurringWorkflowById(input.id);
     }),
     // Update recurring workflow
-    update: protectedProcedure.input(z4.object({
-      id: z4.string(),
-      title: z4.string().optional(),
-      description: z4.string().optional(),
-      department: z4.string().optional(),
-      frequency: z4.enum(["daily", "weekly", "monthly"]).optional(),
-      dayOfMonth: z4.number().min(1).max(31).optional(),
-      dayOfWeek: z4.number().min(0).max(6).optional(),
-      startDate: z4.date().optional(),
-      endDate: z4.date().optional(),
-      assignedTo: z4.array(z4.number()).optional(),
-      assigneePresets: z4.record(z4.array(z4.number())).optional(),
-      formData: z4.record(z4.any()).optional()
-    })).mutation(async ({ ctx, input }) => {
+    update: protectedProcedure.input(
+      z4.object({
+        id: z4.string(),
+        title: z4.string().optional(),
+        description: z4.string().optional(),
+        department: z4.string().optional(),
+        frequency: z4.enum(["daily", "weekly", "monthly"]).optional(),
+        dayOfMonth: z4.number().min(1).max(31).optional(),
+        dayOfWeek: z4.number().min(0).max(6).optional(),
+        startDate: z4.date().optional(),
+        endDate: z4.date().optional(),
+        assignedTo: z4.array(z4.number()).optional(),
+        assigneePresets: z4.record(z4.array(z4.number())).optional(),
+        formData: z4.record(z4.any()).optional()
+      })
+    ).mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
       const existing = await getRecurringWorkflowById(id);
       if (!existing) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Recurring workflow not found"
+        });
       }
       if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized to update this recurring workflow" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Not authorized to update this recurring workflow"
+        });
       }
       const updated = await updateRecurringWorkflow(id, updateData);
       await createAuditLog({
@@ -5093,7 +5570,10 @@ var appRouter = router({
     pause: protectedProcedure.input(z4.object({ id: z4.string() })).mutation(async ({ ctx, input }) => {
       const existing = await getRecurringWorkflowById(input.id);
       if (!existing) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Recurring workflow not found"
+        });
       }
       if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
         throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized" });
@@ -5114,7 +5594,10 @@ var appRouter = router({
     resume: protectedProcedure.input(z4.object({ id: z4.string() })).mutation(async ({ ctx, input }) => {
       const existing = await getRecurringWorkflowById(input.id);
       if (!existing) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Recurring workflow not found"
+        });
       }
       if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
         throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized" });
@@ -5135,7 +5618,10 @@ var appRouter = router({
     delete: protectedProcedure.input(z4.object({ id: z4.string() })).mutation(async ({ ctx, input }) => {
       const existing = await getRecurringWorkflowById(input.id);
       if (!existing) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Recurring workflow not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Recurring workflow not found"
+        });
       }
       if (existing.createdBy !== ctx.user.id && ctx.user.role !== "admin") {
         throw new TRPCError3({ code: "FORBIDDEN", message: "Not authorized" });
@@ -5162,13 +5648,15 @@ var appRouter = router({
   // ============================================
   eSignature: router({
     // Create document record (upload only, no API send)
-    createDocument: protectedProcedure.input(z4.object({
-      workflowId: z4.string().optional(),
-      documentName: z4.string(),
-      documentUrl: z4.string(),
-      signerEmail: z4.string().email(),
-      signerName: z4.string()
-    })).mutation(async ({ ctx, input }) => {
+    createDocument: protectedProcedure.input(
+      z4.object({
+        workflowId: z4.string().optional(),
+        documentName: z4.string(),
+        documentUrl: z4.string(),
+        signerEmail: z4.string().email(),
+        signerName: z4.string()
+      })
+    ).mutation(async ({ ctx, input }) => {
       const docId = await createSignedDocument({
         workflowId: input.workflowId || "standalone",
         documentName: input.documentName,
@@ -5184,22 +5672,29 @@ var appRouter = router({
       return { documentId: docId };
     }),
     // Update document with HelloDoc ID (entered manually after sending from HelloDoc)
-    updateHelloDocId: protectedProcedure.input(z4.object({
-      documentId: z4.string(),
-      helloDocDocumentId: z4.string()
-    })).mutation(async ({ input }) => {
-      await updateSignedDocumentHelloDocId(input.documentId, input.helloDocDocumentId);
+    updateHelloDocId: protectedProcedure.input(
+      z4.object({
+        documentId: z4.string(),
+        helloDocDocumentId: z4.string()
+      })
+    ).mutation(async ({ input }) => {
+      await updateSignedDocumentHelloDocId(
+        input.documentId,
+        input.helloDocDocumentId
+      );
       return { success: true };
     }),
     // Legacy sendForSignature (kept for backward compatibility but not used in hybrid workflow)
-    sendForSignature: protectedProcedure.input(z4.object({
-      workflowId: z4.string().optional(),
-      // Optional for standalone usage
-      documentName: z4.string(),
-      documentUrl: z4.string(),
-      signerEmail: z4.string().email(),
-      signerName: z4.string()
-    })).mutation(async ({ ctx, input }) => {
+    sendForSignature: protectedProcedure.input(
+      z4.object({
+        workflowId: z4.string().optional(),
+        // Optional for standalone usage
+        documentName: z4.string(),
+        documentUrl: z4.string(),
+        signerEmail: z4.string().email(),
+        signerName: z4.string()
+      })
+    ).mutation(async ({ ctx, input }) => {
       const { sendDocumentForSignature } = await Promise.resolve().then(() => (init_hellodoc(), hellodoc_exports));
       const result = await sendDocumentForSignature({
         documentUrl: input.documentUrl,
@@ -5234,11 +5729,17 @@ var appRouter = router({
       return await getSignedDocumentsByWorkflow(input.workflowId);
     }),
     // Get all signed documents (for standalone e-signature page)
-    getAll: protectedProcedure.input(z4.object({
-      status: z4.enum(["all", "pending", "signed", "rejected", "expired"]).optional(),
-      search: z4.string().optional()
-    })).query(async ({ ctx, input }) => {
-      return await getAllSignedDocuments(ctx.user.id, input.status, input.search);
+    getAll: protectedProcedure.input(
+      z4.object({
+        status: z4.enum(["all", "pending", "signed", "rejected", "expired"]).optional(),
+        search: z4.string().optional()
+      })
+    ).query(async ({ ctx, input }) => {
+      return await getAllSignedDocuments(
+        ctx.user.id,
+        input.status,
+        input.search
+      );
     }),
     // Get documents sent by current user
     getBySender: protectedProcedure.query(async ({ ctx }) => {
@@ -5253,15 +5754,30 @@ var appRouter = router({
           message: `Document not signed yet. Status: ${status.status}`
         });
       }
-      const signedPdfBuffer = await downloadSignedDocument2(status.signedDocumentUrl);
-      const doc = await getSignedDocumentByHelloDocId(input.helloDocDocumentId);
+      const signedPdfBuffer = await downloadSignedDocument2(
+        status.signedDocumentUrl
+      );
+      const doc = await getSignedDocumentByHelloDocId(
+        input.helloDocDocumentId
+      );
       if (!doc) {
-        throw new TRPCError3({ code: "NOT_FOUND", message: "Document not found" });
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Document not found"
+        });
       }
       const s3Key = `signed-docs/${doc.workflowId}/${Date.now()}-${doc.documentName}`;
-      const { url: s3Url } = await storagePut(s3Key, signedPdfBuffer, "application/pdf");
-      await updateSignedDocumentStatus(doc.id, "signed", status.signedAt || void 0);
-      await db.update(signedDocuments).set({ s3Key, s3Url }).where(eq3(signedDocuments.id, doc.id));
+      const { url: s3Url } = await storagePut(
+        s3Key,
+        signedPdfBuffer,
+        "application/pdf"
+      );
+      await updateSignedDocumentStatus(
+        doc.id,
+        "signed",
+        status.signedAt || void 0
+      );
+      await db.update(signedDocuments).set({ s3Key, s3Url }).where(eq4(signedDocuments.id, doc.id));
       const { sendSignedDocumentEmail: sendSignedDocumentEmail2 } = await Promise.resolve().then(() => (init_email(), email_exports));
       await sendSignedDocumentEmail2(
         doc.signerEmail,
@@ -5284,7 +5800,10 @@ var appRouter = router({
     // Get all uploaded documents for CFO review
     getAll: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "cfo") {
-        throw new TRPCError3({ code: "FORBIDDEN", message: "Only CFO can access document queue" });
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "Only CFO can access document queue"
+        });
       }
       return getAllSignedDocumentsForCFO();
     })
@@ -5294,13 +5813,15 @@ var appRouter = router({
   // ============================================
   documentTemplates: router({
     // Create new template
-    create: protectedProcedure.input(z4.object({
-      name: z4.string(),
-      description: z4.string().optional(),
-      category: z4.string().optional(),
-      fileUrl: z4.string(),
-      fileType: z4.string()
-    })).mutation(async ({ ctx, input }) => {
+    create: protectedProcedure.input(
+      z4.object({
+        name: z4.string(),
+        description: z4.string().optional(),
+        category: z4.string().optional(),
+        fileUrl: z4.string(),
+        fileType: z4.string()
+      })
+    ).mutation(async ({ ctx, input }) => {
       const templateId = randomUUID3();
       await createDocumentTemplate({
         id: templateId,
@@ -5323,12 +5844,14 @@ var appRouter = router({
       return await getDocumentTemplateById(input.id);
     }),
     // Update template
-    update: protectedProcedure.input(z4.object({
-      id: z4.string(),
-      name: z4.string().optional(),
-      description: z4.string().optional(),
-      category: z4.string().optional()
-    })).mutation(async ({ input }) => {
+    update: protectedProcedure.input(
+      z4.object({
+        id: z4.string(),
+        name: z4.string().optional(),
+        description: z4.string().optional(),
+        category: z4.string().optional()
+      })
+    ).mutation(async ({ input }) => {
       await updateDocumentTemplate(input.id, {
         name: input.name,
         description: input.description,
@@ -5355,13 +5878,33 @@ async function createInitialStages(workflowId, workflowType, estimatedAmount) {
   if (workflowType === "MAF") {
     const stages = [
       { order: 1, name: "PPIC Review", type: "approval", role: "PPIC" },
-      { order: 2, name: "Purchasing Review", type: "approval", role: "Purchasing" }
+      {
+        order: 2,
+        name: "Purchasing Review",
+        type: "approval",
+        role: "Purchasing"
+      }
     ];
     if (estimatedAmount && estimatedAmount > 5e6) {
-      stages.push({ order: 3, name: "CFO Approval", type: "approval", role: "CFO" });
-      stages.push({ order: 4, name: "CEO/COO Approval", type: "approval", role: "CEO" });
+      stages.push({
+        order: 3,
+        name: "CFO Approval",
+        type: "approval",
+        role: "CFO"
+      });
+      stages.push({
+        order: 4,
+        name: "CEO/COO Approval",
+        type: "approval",
+        role: "CEO"
+      });
     } else if (estimatedAmount && estimatedAmount > 1e6) {
-      stages.push({ order: 3, name: "CFO Approval", type: "approval", role: "CFO" });
+      stages.push({
+        order: 3,
+        name: "CFO Approval",
+        type: "approval",
+        role: "CFO"
+      });
     }
     for (const stage of stages) {
       await createWorkflowStage({
@@ -5374,7 +5917,12 @@ async function createInitialStages(workflowId, workflowType, estimatedAmount) {
     }
   } else if (workflowType === "PR") {
     const stages = [
-      { order: 1, name: "Department Head Review", type: "approval", role: "admin" },
+      {
+        order: 1,
+        name: "Department Head Review",
+        type: "approval",
+        role: "admin"
+      },
       { order: 2, name: "Finance Review", type: "approval", role: "Finance" },
       { order: 3, name: "CFO Approval", type: "approval", role: "CFO" }
     ];
@@ -5405,55 +5953,102 @@ async function createInitialStages(workflowId, workflowType, estimatedAmount) {
   }
 }
 
-// server/cognito-auth.ts
-import { CognitoJwtVerifier } from "aws-jwt-verify";
-var verifier = CognitoJwtVerifier.create({
-  userPoolId: process.env.VITE_COGNITO_USER_POOL_ID || "ap-southeast-1_spVxra543",
-  tokenUse: "id",
-  clientId: process.env.VITE_COGNITO_CLIENT_ID || "1ipgf1ad3mdft7mdott6c60230"
-});
-async function verifyCognitoToken(token) {
+// server/entra-auth.ts
+import { createRemoteJWKSet, jwtVerify } from "jose";
+
+// shared/microsoft.ts
+var MICROSOFT_ENTRA = {
+  tenantId: "5de33f3d-7a65-45f5-980d-5ccea9e9f19e",
+  clientId: "c55858ed-a55c-44f7-95c5-7c0e882c73df",
+  allowedDomain: "compawnion.co"
+};
+
+// server/entra-auth.ts
+var tenantId = process.env.ENTRA_TENANT_ID || process.env.VITE_ENTRA_TENANT_ID || MICROSOFT_ENTRA.tenantId;
+var clientId = process.env.ENTRA_CLIENT_ID || process.env.VITE_ENTRA_CLIENT_ID || MICROSOFT_ENTRA.clientId;
+var allowedEmailSuffix = `@${MICROSOFT_ENTRA.allowedDomain}`;
+var jwks = null;
+var entraServerConfiguration = {
+  tenantId,
+  clientId,
+  configured: Boolean(tenantId && clientId)
+};
+async function verifyEntraToken(token) {
+  if (!tenantId || !clientId) {
+    console.error("[Auth] Microsoft Entra server configuration is missing");
+    return null;
+  }
   try {
-    const payload = await verifier.verify(token);
-    const email = payload.email || payload["cognito:username"];
-    console.log("\u2705 Cognito token verified for:", email);
+    jwks ||= createRemoteJWKSet(
+      new URL(
+        `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`
+      )
+    );
+    const { payload } = await jwtVerify(token, jwks, {
+      algorithms: ["RS256"],
+      audience: [clientId, `api://${clientId}`],
+      issuer: [
+        `https://login.microsoftonline.com/${tenantId}/v2.0`,
+        `https://sts.windows.net/${tenantId}/`
+      ]
+    });
+    if (payload.tid !== tenantId) {
+      throw new Error("Token was issued by a different Microsoft tenant");
+    }
+    const scopes = typeof payload.scp === "string" ? payload.scp.split(" ") : [];
+    if (!scopes.includes("access_as_user")) {
+      throw new Error("Token is missing the access_as_user API scope");
+    }
+    const email = String(
+      payload.email || payload.preferred_username || payload.upn || ""
+    ).toLowerCase();
+    if (!email.endsWith(allowedEmailSuffix)) {
+      throw new Error("Only @compawnion.co Microsoft accounts are allowed");
+    }
     return {
-      sub: payload.sub,
+      sub: String(payload.sub),
+      oid: String(payload.oid || payload.sub),
+      tenantId: String(payload.tid),
       email,
-      email_verified: payload.email_verified || false,
-      "cognito:username": payload["cognito:username"]
+      name: String(payload.name || email)
     };
   } catch (error) {
-    console.error("\u274C Cognito token verification failed:", error);
+    console.error(
+      "[Auth] Microsoft Entra token verification failed",
+      error instanceof Error ? error.message : String(error)
+    );
     return null;
   }
 }
 
 // server/_core/context.ts
 init_db();
-async function authenticateCognitoRequest(req) {
+async function authenticateEntraRequest(req) {
   const authHeader = req.headers.authorization;
-  console.log("\u{1F510} Auth header:", authHeader ? "Bearer token present" : "No auth header");
+  console.log(
+    "\u{1F510} Auth header:",
+    authHeader ? "Bearer token present" : "No auth header"
+  );
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
   }
   const token = authHeader.substring(7);
   try {
-    console.log("\u{1F50D} Verifying Cognito token...");
-    const payload = await verifyCognitoToken(token);
+    console.log("\u{1F50D} Verifying Microsoft Entra token...");
+    const payload = await verifyEntraToken(token);
     if (!payload) {
       console.log("\u274C Token verification failed");
       return null;
     }
     console.log("\u2705 Token verified for user:", payload.email);
-    console.log("\u{1F50E} Looking up user by open_id:", payload.sub);
-    const existingUser = await getUserByOpenId(payload.sub);
+    console.log("\u{1F50E} Looking up user by Microsoft object ID:", payload.oid);
+    const existingUser = await getUserByOpenId(payload.oid);
     if (existingUser) {
       await upsertUser({
-        cognitoSub: payload.sub,
+        cognitoSub: payload.oid,
         openId: existingUser.openId,
         email: payload.email,
-        fullName: existingUser.fullName,
+        fullName: existingUser.fullName || payload.name,
         department: existingUser.department || void 0,
         role: existingUser.role,
         cognitoGroups: void 0
@@ -5461,27 +6056,27 @@ async function authenticateCognitoRequest(req) {
       return existingUser;
     }
     await upsertUser({
-      cognitoSub: payload.sub,
-      openId: payload.sub,
+      cognitoSub: payload.oid,
+      openId: payload.oid,
       email: payload.email,
-      fullName: payload.email.split("@")[0],
+      fullName: payload.name,
       department: void 0,
       role: "PPIC",
       // Default role
       cognitoGroups: void 0
     });
-    const newUser = await getUserByOpenId(payload.sub);
+    const newUser = await getUserByOpenId(payload.oid);
     console.log("\u2705 New user created:", newUser?.email);
     return newUser || null;
   } catch (error) {
-    console.error("\u274C Error authenticating Cognito request:", error);
+    console.error("\u274C Error authenticating Microsoft request:", error);
     return null;
   }
 }
 async function createContext(opts) {
   let user = null;
   try {
-    user = await authenticateCognitoRequest(opts.req);
+    user = await authenticateEntraRequest(opts.req);
   } catch (error) {
     user = null;
   }
@@ -5490,280 +6085,6 @@ async function createContext(opts) {
     res: opts.res,
     user
   };
-}
-
-// server/_core/oauth.ts
-init_db();
-
-// shared/_core/errors.ts
-var HttpError = class extends Error {
-  constructor(statusCode, message) {
-    super(message);
-    this.statusCode = statusCode;
-    this.name = "HttpError";
-  }
-};
-var ForbiddenError = (msg) => new HttpError(403, msg);
-
-// server/_core/sdk.ts
-init_db();
-import axios from "axios";
-import { parse as parseCookieHeader } from "cookie";
-import { SignJWT, jwtVerify } from "jose";
-var isNonEmptyString2 = (value) => typeof value === "string" && value.length > 0;
-var EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
-var GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
-var GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
-var OAuthService = class {
-  constructor(client2) {
-    this.client = client2;
-    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
-    if (!ENV.oAuthServerUrl) {
-      console.error(
-        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
-      );
-    }
-  }
-  decodeState(state) {
-    const redirectUri = atob(state);
-    return redirectUri;
-  }
-  async getTokenByCode(code, state) {
-    const payload = {
-      clientId: ENV.appId,
-      grantType: "authorization_code",
-      code,
-      redirectUri: this.decodeState(state)
-    };
-    const { data } = await this.client.post(
-      EXCHANGE_TOKEN_PATH,
-      payload
-    );
-    return data;
-  }
-  async getUserInfoByToken(token) {
-    const { data } = await this.client.post(
-      GET_USER_INFO_PATH,
-      {
-        accessToken: token.accessToken
-      }
-    );
-    return data;
-  }
-};
-var createOAuthHttpClient = () => axios.create({
-  baseURL: ENV.oAuthServerUrl,
-  timeout: AXIOS_TIMEOUT_MS
-});
-var SDKServer = class {
-  client;
-  oauthService;
-  constructor(client2 = createOAuthHttpClient()) {
-    this.client = client2;
-    this.oauthService = new OAuthService(this.client);
-  }
-  deriveLoginMethod(platforms, fallback) {
-    if (fallback && fallback.length > 0) return fallback;
-    if (!Array.isArray(platforms) || platforms.length === 0) return null;
-    const set = new Set(
-      platforms.filter((p) => typeof p === "string")
-    );
-    if (set.has("REGISTERED_PLATFORM_EMAIL")) return "email";
-    if (set.has("REGISTERED_PLATFORM_GOOGLE")) return "google";
-    if (set.has("REGISTERED_PLATFORM_APPLE")) return "apple";
-    if (set.has("REGISTERED_PLATFORM_MICROSOFT") || set.has("REGISTERED_PLATFORM_AZURE"))
-      return "microsoft";
-    if (set.has("REGISTERED_PLATFORM_GITHUB")) return "github";
-    const first = Array.from(set)[0];
-    return first ? first.toLowerCase() : null;
-  }
-  /**
-   * Exchange OAuth authorization code for access token
-   * @example
-   * const tokenResponse = await sdk.exchangeCodeForToken(code, state);
-   */
-  async exchangeCodeForToken(code, state) {
-    return this.oauthService.getTokenByCode(code, state);
-  }
-  /**
-   * Get user information using access token
-   * @example
-   * const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
-   */
-  async getUserInfo(accessToken) {
-    const data = await this.oauthService.getUserInfoByToken({
-      accessToken
-    });
-    const loginMethod = this.deriveLoginMethod(
-      data?.platforms,
-      data?.platform ?? data.platform ?? null
-    );
-    return {
-      ...data,
-      platform: loginMethod,
-      loginMethod
-    };
-  }
-  parseCookies(cookieHeader) {
-    if (!cookieHeader) {
-      return /* @__PURE__ */ new Map();
-    }
-    const parsed = parseCookieHeader(cookieHeader);
-    return new Map(Object.entries(parsed));
-  }
-  getSessionSecret() {
-    const secret = ENV.cookieSecret;
-    return new TextEncoder().encode(secret);
-  }
-  /**
-   * Create a session token for a Manus user openId
-   * @example
-   * const sessionToken = await sdk.createSessionToken(userInfo.openId);
-   */
-  async createSessionToken(openId, options = {}) {
-    return this.signSession(
-      {
-        openId,
-        appId: ENV.appId,
-        name: options.name || ""
-      },
-      options
-    );
-  }
-  async signSession(payload, options = {}) {
-    const issuedAt = Date.now();
-    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
-    const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1e3);
-    const secretKey = this.getSessionSecret();
-    return new SignJWT({
-      openId: payload.openId,
-      appId: payload.appId,
-      name: payload.name
-    }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setExpirationTime(expirationSeconds).sign(secretKey);
-  }
-  async verifySession(cookieValue) {
-    if (!cookieValue) {
-      console.warn("[Auth] Missing session cookie");
-      return null;
-    }
-    try {
-      const secretKey = this.getSessionSecret();
-      const { payload } = await jwtVerify(cookieValue, secretKey, {
-        algorithms: ["HS256"]
-      });
-      const { openId, appId, name } = payload;
-      if (!isNonEmptyString2(openId) || !isNonEmptyString2(appId) || !isNonEmptyString2(name)) {
-        console.warn("[Auth] Session payload missing required fields");
-        return null;
-      }
-      return {
-        openId,
-        appId,
-        name
-      };
-    } catch (error) {
-      console.warn("[Auth] Session verification failed", String(error));
-      return null;
-    }
-  }
-  async getUserInfoWithJwt(jwtToken) {
-    const payload = {
-      jwtToken,
-      projectId: ENV.appId
-    };
-    const { data } = await this.client.post(
-      GET_USER_INFO_WITH_JWT_PATH,
-      payload
-    );
-    const loginMethod = this.deriveLoginMethod(
-      data?.platforms,
-      data?.platform ?? data.platform ?? null
-    );
-    return {
-      ...data,
-      platform: loginMethod,
-      loginMethod
-    };
-  }
-  async authenticateRequest(req) {
-    const cookies = this.parseCookies(req.headers.cookie);
-    const sessionCookie = cookies.get(COOKIE_NAME);
-    const session = await this.verifySession(sessionCookie);
-    if (!session) {
-      throw ForbiddenError("Invalid session cookie");
-    }
-    const sessionUserId = session.openId;
-    const signedInAt = /* @__PURE__ */ new Date();
-    let user = await getUserByOpenId(sessionUserId);
-    if (!user) {
-      try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
-        await upsertUser({
-          cognitoSub: userInfo.openId,
-          // Using openId as cognitoSub for Manus OAuth
-          openId: userInfo.openId,
-          email: userInfo.email ?? "",
-          fullName: userInfo.name || userInfo.email || "User",
-          department: void 0,
-          role: void 0,
-          cognitoGroups: void 0
-        });
-        user = await getUserByOpenId(userInfo.openId);
-      } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
-      }
-    }
-    if (!user) {
-      throw ForbiddenError("User not found");
-    }
-    return user;
-  }
-};
-var sdk = new SDKServer();
-
-// server/_core/oauth.ts
-function getQueryParam(req, key) {
-  const value = req.query[key];
-  return typeof value === "string" ? value : void 0;
-}
-function registerOAuthRoutes(app) {
-  app.get("/api/oauth/callback", async (req, res) => {
-    const code = getQueryParam(req, "code");
-    const state = getQueryParam(req, "state");
-    if (!code || !state) {
-      res.status(400).json({ error: "code and state are required" });
-      return;
-    }
-    try {
-      const tokenResponse = await sdk.exchangeCodeForToken(code, state);
-      const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
-      if (!userInfo.openId) {
-        res.status(400).json({ error: "openId missing from user info" });
-        return;
-      }
-      await upsertUser({
-        cognitoSub: userInfo.openId,
-        // Using openId as cognitoSub for Manus OAuth
-        openId: userInfo.openId,
-        email: userInfo.email ?? "",
-        fullName: userInfo.name || userInfo.email || "User",
-        department: void 0,
-        role: void 0,
-        cognitoGroups: void 0
-      });
-      const sessionToken = await sdk.createSessionToken(userInfo.openId, {
-        name: userInfo.name || "",
-        expiresInMs: ONE_YEAR_MS
-      });
-      const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-      res.redirect(302, "/");
-    } catch (error) {
-      console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
-    }
-  });
 }
 
 // server/_core/app.ts
@@ -5779,19 +6100,20 @@ function createApiApp() {
   app.get("/api/health", (_req, res) => {
     const requiredConfiguration = {
       database: Boolean(process.env.DATABASE_URL),
-      cognito: Boolean(
-        process.env.VITE_COGNITO_USER_POOL_ID && process.env.VITE_COGNITO_CLIENT_ID
+      microsoftEntra: Boolean(
+        (process.env.ENTRA_TENANT_ID || process.env.VITE_ENTRA_TENANT_ID) && (process.env.ENTRA_CLIENT_ID || process.env.VITE_ENTRA_CLIENT_ID)
       ),
-      objectStorage: Boolean(
-        process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_S3_BUCKET
+      azureBlobStorage: Boolean(process.env.AZURE_STORAGE_CONNECTION_STRING),
+      microsoftGraphEmail: Boolean(
+        process.env.GRAPH_TENANT_ID && process.env.GRAPH_CLIENT_ID && process.env.GRAPH_CLIENT_SECRET && process.env.GRAPH_SENDER_MAILBOX
       )
     };
     res.json({
       status: "ok",
+      platform: "microsoft-365",
       configured: requiredConfiguration
     });
   });
-  registerOAuthRoutes(app);
   app.post("/api/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {

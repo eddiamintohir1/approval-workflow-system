@@ -1,8 +1,19 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { Loader2, ArrowLeft, UserCheck, UserX, RefreshCw } from "lucide-react";
@@ -21,7 +32,7 @@ export default function UserManagement() {
       toast.success("User role updated successfully");
       refetch();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -31,17 +42,19 @@ export default function UserManagement() {
       toast.success("User status updated successfully");
       refetch();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
 
-  const syncFromCognito = trpc.users.syncFromCognito.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Successfully synced ${data.syncedCount} users from Cognito`);
+  const syncFromMicrosoft = trpc.users.syncFromMicrosoft.useMutation({
+    onSuccess: data => {
+      toast.success(
+        `Successfully synced ${data.syncedCount} users from Microsoft Entra ID`
+      );
       refetch();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -52,7 +65,9 @@ export default function UserManagement() {
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You don't have permission to access this page.</CardDescription>
+            <CardDescription>
+              You don't have permission to access this page.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/">
@@ -95,14 +110,16 @@ export default function UserManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Users</CardTitle>
-                <CardDescription>Manage user roles and activation status</CardDescription>
+                <CardDescription>
+                  Manage user roles and activation status
+                </CardDescription>
               </div>
               <Button
-                onClick={() => syncFromCognito.mutate()}
-                disabled={syncFromCognito.isPending}
+                onClick={() => syncFromMicrosoft.mutate()}
+                disabled={syncFromMicrosoft.isPending}
                 variant="outline"
               >
-                {syncFromCognito.isPending ? (
+                {syncFromMicrosoft.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Syncing...
@@ -110,7 +127,7 @@ export default function UserManagement() {
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Sync from Cognito
+                    Sync from Microsoft
                   </>
                 )}
               </Button>
@@ -119,13 +136,18 @@ export default function UserManagement() {
           <CardContent>
             {users && users.length > 0 ? (
               <div className="space-y-4">
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between p-4 border rounded-lg">
+                {users.map(u => (
+                  <div
+                    key={u.id}
+                    className="flex items-center justify-between p-4 border rounded-lg"
+                  >
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-medium">{u.fullName || u.email}</p>
                         {u.isActive ? (
-                          <Badge variant="outline" className="text-green-600">Active</Badge>
+                          <Badge variant="outline" className="text-green-600">
+                            Active
+                          </Badge>
                         ) : (
                           <Badge variant="destructive">Inactive</Badge>
                         )}
@@ -135,15 +157,18 @@ export default function UserManagement() {
                     <div className="flex items-center gap-3">
                       <Select
                         value={u.role}
-                        onValueChange={(value) => {
-                          updateRole.mutate({ userId: u.id, role: value as any });
+                        onValueChange={value => {
+                          updateRole.mutate({
+                            userId: u.id,
+                            role: value as any,
+                          });
                         }}
                       >
                         <SelectTrigger className="w-48">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {roleOptions.map((role) => (
+                          {roleOptions.map(role => (
                             <SelectItem key={role.value} value={role.value}>
                               {role.label}
                             </SelectItem>
@@ -154,7 +179,10 @@ export default function UserManagement() {
                         size="sm"
                         variant={u.isActive ? "destructive" : "default"}
                         onClick={() => {
-                          updateStatus.mutate({ userId: u.id, isActive: !u.isActive });
+                          updateStatus.mutate({
+                            userId: u.id,
+                            isActive: !u.isActive,
+                          });
                         }}
                       >
                         {u.isActive ? (
@@ -174,7 +202,9 @@ export default function UserManagement() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">No users found</p>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No users found
+              </p>
             )}
           </CardContent>
         </Card>

@@ -2,13 +2,35 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { trpc } from "@/lib/trpc";
-import { useCognitoAuth } from "@/hooks/useCognitoAuth";
+import { useEntraAuth } from "@/hooks/useEntraAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Search, FileText, CheckCircle2, Clock, XCircle, LogOut, Users, BarChart3, FileEdit, Trash2, FileSpreadsheet, Star, HelpCircle } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Search,
+  FileText,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  LogOut,
+  Users,
+  BarChart3,
+  FileEdit,
+  Trash2,
+  FileSpreadsheet,
+  Star,
+  HelpCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -26,10 +48,9 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import DashboardLayout from "@/components/DashboardLayout";
 import { QuickAssignModal } from "@/components/QuickAssignModal";
 
-
 export default function Dashboard() {
   const { t } = useTranslation();
-  const { signOut } = useCognitoAuth();
+  const { signOut } = useEntraAuth();
   const { user, loading: authLoading } = useUserRole();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -83,7 +104,14 @@ export default function Dashboard() {
       dateTo,
     };
     localStorage.setItem("workflowFilters", JSON.stringify(filters));
-  }, [debouncedSearch, statusFilter, typeFilter, departmentFilter, dateFrom, dateTo]);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    typeFilter,
+    departmentFilter,
+    dateFrom,
+    dateTo,
+  ]);
 
   // Clear all filters
   const clearFilters = () => {
@@ -107,16 +135,14 @@ export default function Dashboard() {
   ].filter(Boolean).length;
 
   // Fetch workflows with caching
-  const { data: workflows, isLoading: workflowsLoading } = trpc.workflows.getAll.useQuery(
-    undefined,
-    { 
+  const { data: workflows, isLoading: workflowsLoading } =
+    trpc.workflows.getAll.useQuery(undefined, {
       enabled: !!user,
       staleTime: 1000 * 60 * 5, // 5 minutes cache - faster loading
       cacheTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
       refetchOnWindowFocus: false, // Don't refetch when window regains focus
       refetchInterval: false, // Disable auto-refetch to reduce server load
-    }
-  );
+    });
 
   // Pin/unpin workflow mutations
   const pinWorkflow = trpc.users.pinWorkflow.useMutation({
@@ -124,7 +150,7 @@ export default function Dashboard() {
       toast.success("Workflow pinned");
       utils.users.me.invalidate();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error("Error", { description: error.message });
     },
   });
@@ -134,7 +160,7 @@ export default function Dashboard() {
       toast.success("Workflow unpinned");
       utils.users.me.invalidate();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error("Error", { description: error.message });
     },
   });
@@ -160,7 +186,7 @@ export default function Dashboard() {
       setDeleteDialogOpen(false);
       setWorkflowToDelete(null);
     },
-    onError: (error) => {
+    onError: error => {
       toast.error("Error", {
         description: error.message,
       });
@@ -197,7 +223,9 @@ export default function Dashboard() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please sign in to access the dashboard</CardDescription>
+            <CardDescription>
+              Please sign in to access the dashboard
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/login">
@@ -210,44 +238,66 @@ export default function Dashboard() {
   }
 
   // Filter and sort workflows (pinned first, then by date)
-  const filteredWorkflows = workflows?.filter((w) => {
-    // Search filter (ID or title) - uses debounced search
-    const matchesSearch = !debouncedSearch ||
-      w.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      w.workflowNumber.toLowerCase().includes(debouncedSearch.toLowerCase());
+  const filteredWorkflows =
+    workflows
+      ?.filter(w => {
+        // Search filter (ID or title) - uses debounced search
+        const matchesSearch =
+          !debouncedSearch ||
+          w.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          w.workflowNumber
+            .toLowerCase()
+            .includes(debouncedSearch.toLowerCase());
 
-    // Status filter
-    const matchesStatus = statusFilter === "all" || w.overallStatus === statusFilter;
+        // Status filter
+        const matchesStatus =
+          statusFilter === "all" || w.overallStatus === statusFilter;
 
-    // Type filter
-    const matchesType = typeFilter === "all" || w.workflowType === typeFilter;
+        // Type filter
+        const matchesType =
+          typeFilter === "all" || w.workflowType === typeFilter;
 
-    // Department filter
-    const matchesDepartment = departmentFilter === "all" || w.department === departmentFilter;
+        // Department filter
+        const matchesDepartment =
+          departmentFilter === "all" || w.department === departmentFilter;
 
-    // Date range filter
-    const workflowDate = new Date(w.createdAt);
-    const matchesDateFrom = !dateFrom || workflowDate >= new Date(dateFrom);
-    const matchesDateTo = !dateTo || workflowDate <= new Date(dateTo + "T23:59:59");
+        // Date range filter
+        const workflowDate = new Date(w.createdAt);
+        const matchesDateFrom = !dateFrom || workflowDate >= new Date(dateFrom);
+        const matchesDateTo =
+          !dateTo || workflowDate <= new Date(dateTo + "T23:59:59");
 
-    return matchesSearch && matchesStatus && matchesType && matchesDepartment && matchesDateFrom && matchesDateTo;
-  }).sort((a, b) => {
-    // Sort pinned workflows first
-    const aIsPinned = user?.pinnedWorkflows?.includes(a.id) || false;
-    const bIsPinned = user?.pinnedWorkflows?.includes(b.id) || false;
-    if (aIsPinned && !bIsPinned) return -1;
-    if (!aIsPinned && bIsPinned) return 1;
-    // Then sort by creation date (newest first)
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  }) || [];
+        return (
+          matchesSearch &&
+          matchesStatus &&
+          matchesType &&
+          matchesDepartment &&
+          matchesDateFrom &&
+          matchesDateTo
+        );
+      })
+      .sort((a, b) => {
+        // Sort pinned workflows first
+        const aIsPinned = user?.pinnedWorkflows?.includes(a.id) || false;
+        const bIsPinned = user?.pinnedWorkflows?.includes(b.id) || false;
+        if (aIsPinned && !bIsPinned) return -1;
+        if (!aIsPinned && bIsPinned) return 1;
+        // Then sort by creation date (newest first)
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      }) || [];
 
   // Calculate statistics
   const stats = {
     total: workflows?.length || 0,
-    draft: workflows?.filter((w) => w.overallStatus === "draft").length || 0,
-    inProgress: workflows?.filter((w) => w.overallStatus === "in_progress").length || 0,
-    completed: workflows?.filter((w) => w.overallStatus === "completed").length || 0,
-    rejected: workflows?.filter((w) => w.overallStatus === "rejected").length || 0,
+    draft: workflows?.filter(w => w.overallStatus === "draft").length || 0,
+    inProgress:
+      workflows?.filter(w => w.overallStatus === "in_progress").length || 0,
+    completed:
+      workflows?.filter(w => w.overallStatus === "completed").length || 0,
+    rejected:
+      workflows?.filter(w => w.overallStatus === "rejected").length || 0,
   };
 
   return (
@@ -259,7 +309,9 @@ export default function Dashboard() {
         <div className="grid gap-4 md:grid-cols-5" data-guide="stats-cards">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.totalWorkflows')}</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {t("dashboard.totalWorkflows")}
+              </CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -269,7 +321,9 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.draft')}</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {t("dashboard.draft")}
+              </CardTitle>
               <FileText className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
@@ -279,7 +333,9 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.inProgress')}</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {t("dashboard.inProgress")}
+              </CardTitle>
               <Clock className="h-4 w-4 text-blue-400" />
             </CardHeader>
             <CardContent>
@@ -289,7 +345,9 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.completed')}</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {t("dashboard.completed")}
+              </CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-400" />
             </CardHeader>
             <CardContent>
@@ -299,7 +357,9 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.rejected')}</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {t("dashboard.rejected")}
+              </CardTitle>
               <XCircle className="h-4 w-4 text-red-400" />
             </CardHeader>
             <CardContent>
@@ -313,21 +373,37 @@ export default function Dashboard() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{t('dashboard.title')}</CardTitle>
-                <CardDescription>{t('dashboard.subtitle')}</CardDescription>
+                <CardTitle>{t("dashboard.title")}</CardTitle>
+                <CardDescription>{t("dashboard.subtitle")}</CardDescription>
               </div>
               <div className="flex gap-2">
                 <Link href="/workflows/create">
                   <Button data-guide="new-workflow-btn">
                     <Plus className="h-4 w-4 mr-2" />
-                    {t('common.newWorkflow')}
+                    {t("common.newWorkflow")}
                   </Button>
                 </Link>
                 {/* Quick Assign button - for admin, executives, and dept heads */}
-                {['admin', 'CEO', 'CFO', 'COO', 'PPIC', 'Purchasing', 'Finance', 'Sales', 'GA', 'Brand Manager', 'PR Manager'].includes(user?.role || '') && (
-                  <Button variant="outline" onClick={() => setQuickAssignOpen(true)} data-guide="quick-assign-btn">
+                {[
+                  "admin",
+                  "CEO",
+                  "CFO",
+                  "COO",
+                  "PPIC",
+                  "Purchasing",
+                  "Finance",
+                  "Sales",
+                  "GA",
+                  "Brand Manager",
+                  "PR Manager",
+                ].includes(user?.role || "") && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setQuickAssignOpen(true)}
+                    data-guide="quick-assign-btn"
+                  >
                     <Users className="h-4 w-4 mr-2" />
-                    {t('common.quickAssign')}
+                    {t("common.quickAssign")}
                   </Button>
                 )}
               </div>
@@ -338,9 +414,9 @@ export default function Dashboard() {
             <div className="relative" data-guide="search-input">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder={t('common.search')}
+                placeholder={t("common.search")}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={e => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -349,13 +425,15 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               {/* Status Filter */}
               <div data-guide="status-filter">
-                <label className="text-sm font-medium mb-1.5 block">Status</label>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Status
+                </label>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={e => setStatusFilter(e.target.value)}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="all">{t('common.allStatus')}</option>
+                  <option value="all">{t("common.allStatus")}</option>
                   <option value="draft">Draft</option>
                   <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
@@ -368,10 +446,10 @@ export default function Dashboard() {
                 <label className="text-sm font-medium mb-1.5 block">Type</label>
                 <select
                   value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
+                  onChange={e => setTypeFilter(e.target.value)}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="all">{t('common.allTypes')}</option>
+                  <option value="all">{t("common.allTypes")}</option>
                   <option value="MAF">MAF</option>
                   <option value="PR">PR</option>
                   <option value="Reimbursement">Reimbursement</option>
@@ -381,13 +459,15 @@ export default function Dashboard() {
 
               {/* Department Filter */}
               <div data-guide="department-filter">
-                <label className="text-sm font-medium mb-1.5 block">{t('common.department')}</label>
+                <label className="text-sm font-medium mb-1.5 block">
+                  {t("common.department")}
+                </label>
                 <select
                   value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  onChange={e => setDepartmentFilter(e.target.value)}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="all">{t('common.allDepartments')}</option>
+                  <option value="all">{t("common.allDepartments")}</option>
                   <option value="PPIC">PPIC</option>
                   <option value="Purchasing">Purchasing</option>
                   <option value="GA">GA</option>
@@ -405,7 +485,7 @@ export default function Dashboard() {
                   disabled={activeFilterCount === 0}
                   className="w-full"
                 >
-                  {t('common.clearFilters')}
+                  {t("common.clearFilters")}
                   {activeFilterCount > 0 && (
                     <Badge variant="secondary" className="ml-2">
                       {activeFilterCount}
@@ -416,22 +496,29 @@ export default function Dashboard() {
             </div>
 
             {/* Date Range Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-guide="date-filters">
+            <div
+              className="grid grid-cols-1 md:grid-cols-2 gap-3"
+              data-guide="date-filters"
+            >
               <div>
-                <label className="text-sm font-medium mb-1.5 block">{t('common.fromDate')}</label>
+                <label className="text-sm font-medium mb-1.5 block">
+                  {t("common.fromDate")}
+                </label>
                 <Input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={e => setDateFrom(e.target.value)}
                   className="w-full"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">{t('common.toDate')}</label>
+                <label className="text-sm font-medium mb-1.5 block">
+                  {t("common.toDate")}
+                </label>
                 <Input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={e => setDateTo(e.target.value)}
                   className="w-full"
                 />
               </div>
@@ -440,7 +527,8 @@ export default function Dashboard() {
             {/* Results Count */}
             {activeFilterCount > 0 && (
               <div className="text-sm text-muted-foreground">
-                Showing {filteredWorkflows.length} of {workflows?.length || 0} workflows
+                Showing {filteredWorkflows.length} of {workflows?.length || 0}{" "}
+                workflows
               </div>
             )}
 
@@ -464,9 +552,13 @@ export default function Dashboard() {
             ) : filteredWorkflows.length === 0 ? (
               <div className="text-center py-12">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No workflows found</h3>
+                <h3 className="text-lg font-semibold mb-2">
+                  No workflows found
+                </h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchQuery ? "Try adjusting your search" : "Create your first workflow to get started"}
+                  {searchQuery
+                    ? "Try adjusting your search"
+                    : "Create your first workflow to get started"}
                 </p>
                 {!searchQuery && (
                   <Link href="/workflows/create">
@@ -479,67 +571,96 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-3" data-guide="workflow-list">
-                {filteredWorkflows.map((workflow) => {
-                  const isPinned = user?.pinnedWorkflows?.includes(workflow.id) || false;
+                {filteredWorkflows.map(workflow => {
+                  const isPinned =
+                    user?.pinnedWorkflows?.includes(workflow.id) || false;
                   return (
-                  <Card key={workflow.id} className={`hover:bg-accent/50 transition-colors ${isPinned ? 'border-yellow-500 border-2 bg-yellow-50/50 dark:bg-yellow-950/20' : ''}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <Link href={`/workflows/${workflow.id}`} className="flex-1 cursor-pointer">
-                          <div>
-                            <div className="flex items-center gap-3 mb-2">
-                              <Badge variant={workflow.workflowType === "MAF" ? "default" : "secondary"}>
-                                {workflow.workflowType}
-                              </Badge>
-                              <span className="font-mono text-sm text-muted-foreground">
-                                {workflow.workflowNumber}
-                              </span>
-                              <StatusBadge status={workflow.overallStatus} />
-                            </div>
-                            <h3 className="font-semibold text-lg">{workflow.title}</h3>
-                            {workflow.description && (
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
-                                {workflow.description}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                              <span>Department: {workflow.department}</span>
-                              {workflow.estimatedAmount && (
-                                <span>
-                                  Amount: {workflow.currency} {parseFloat(workflow.estimatedAmount).toLocaleString()}
-                                </span>
-                              )}
-                              <span>
-                                Created: {new Date(workflow.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        </Link>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => handlePinToggle(e, workflow.id)}
-                            className={isPinned ? 'text-yellow-500 hover:text-yellow-600' : 'text-muted-foreground hover:text-foreground'}
-                            title={isPinned ? 'Unpin workflow' : 'Pin workflow'}
-                            data-guide="pin-btn"
+                    <Card
+                      key={workflow.id}
+                      className={`hover:bg-accent/50 transition-colors ${isPinned ? "border-yellow-500 border-2 bg-yellow-50/50 dark:bg-yellow-950/20" : ""}`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <Link
+                            href={`/workflows/${workflow.id}`}
+                            className="flex-1 cursor-pointer"
                           >
-                            <Star className={`h-4 w-4 ${isPinned ? 'fill-current' : ''}`} />
-                          </Button>
-                          {user.role === "admin" && (
+                            <div>
+                              <div className="flex items-center gap-3 mb-2">
+                                <Badge
+                                  variant={
+                                    workflow.workflowType === "MAF"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {workflow.workflowType}
+                                </Badge>
+                                <span className="font-mono text-sm text-muted-foreground">
+                                  {workflow.workflowNumber}
+                                </span>
+                                <StatusBadge status={workflow.overallStatus} />
+                              </div>
+                              <h3 className="font-semibold text-lg">
+                                {workflow.title}
+                              </h3>
+                              {workflow.description && (
+                                <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                                  {workflow.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                <span>Department: {workflow.department}</span>
+                                {workflow.estimatedAmount && (
+                                  <span>
+                                    Amount: {workflow.currency}{" "}
+                                    {parseFloat(
+                                      workflow.estimatedAmount
+                                    ).toLocaleString()}
+                                  </span>
+                                )}
+                                <span>
+                                  Created:{" "}
+                                  {new Date(
+                                    workflow.createdAt
+                                  ).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                          <div className="flex items-center gap-2">
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={(e) => handleDeleteClick(e, workflow.id)}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={e => handlePinToggle(e, workflow.id)}
+                              className={
+                                isPinned
+                                  ? "text-yellow-500 hover:text-yellow-600"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }
+                              title={
+                                isPinned ? "Unpin workflow" : "Pin workflow"
+                              }
+                              data-guide="pin-btn"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Star
+                                className={`h-4 w-4 ${isPinned ? "fill-current" : ""}`}
+                              />
                             </Button>
-                          )}
+                            {user.role === "admin" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={e => handleDeleteClick(e, workflow.id)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
@@ -547,84 +668,105 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-      {/* Copyright Footer */}
-      {/* IP Owner: Eddie Amintohir */}
-      <footer className="border-t bg-card mt-8">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            {/* Logo and Copyright */}
-            <div className="flex items-center gap-3">
-              <img src="/compawnion-logo.png" alt="Compawnion" className="h-8 w-auto" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-              <span className="text-sm text-muted-foreground">
-                © Compawnion Jadi Berkat. All rights reserved.
-              </span>
-            </div>
-            
-            {/* Links */}
-            <div className="flex items-center gap-4 text-sm">
-              <Link href="/privacy-policy" className="text-muted-foreground hover:text-foreground transition-colors">
-                Privacy Policy
-              </Link>
-              <Link href="/terms-of-service" className="text-muted-foreground hover:text-foreground transition-colors">
-                Terms of Service
-              </Link>
-              <a href="https://www.compawnion.co/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
-                Contact Us
-              </a>
-              <span className="text-muted-foreground">v1.03</span>
+        {/* Copyright Footer */}
+        {/* IP Owner: Eddie Amintohir */}
+        <footer className="border-t bg-card mt-8">
+          <div className="container mx-auto px-4 py-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* Logo and Copyright */}
+              <div className="flex items-center gap-3">
+                <img
+                  src="/compawnion-logo.png"
+                  alt="Compawnion"
+                  className="h-8 w-auto"
+                  onError={e => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+                <span className="text-sm text-muted-foreground">
+                  © Compawnion Jadi Berkat. All rights reserved.
+                </span>
+              </div>
+
+              {/* Links */}
+              <div className="flex items-center gap-4 text-sm">
+                <Link
+                  href="/privacy-policy"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Privacy Policy
+                </Link>
+                <Link
+                  href="/terms-of-service"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Terms of Service
+                </Link>
+                <a
+                  href="https://www.compawnion.co/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Contact Us
+                </a>
+                <span className="text-muted-foreground">v1.03</span>
+              </div>
             </div>
           </div>
-        </div>
-      </footer>
+        </footer>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Workflow?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the workflow and all related data (stages, files, approvals, comments).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteWorkflow.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Workflow?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the
+                workflow and all related data (stages, files, approvals,
+                comments).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteWorkflow.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      {/* Help Button */}
-      <HelpButton />
-      {/* Quick Assign Modal */}
-      <QuickAssignModal
-        open={quickAssignOpen}
-        onOpenChange={setQuickAssignOpen}
-        onSuccess={() => {
-          utils.workflows.list.invalidate();
-          toast.success('Workflow assigned successfully');
-        }}
-      />
-
-
+        {/* Help Button */}
+        <HelpButton />
+        {/* Quick Assign Modal */}
+        <QuickAssignModal
+          open={quickAssignOpen}
+          onOpenChange={setQuickAssignOpen}
+          onSuccess={() => {
+            utils.workflows.list.invalidate();
+            toast.success("Workflow assigned successfully");
+          }}
+        />
       </div>
     </DashboardLayout>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
+  const variants: Record<
+    string,
+    { variant: "default" | "secondary" | "destructive" | "outline"; icon: any }
+  > = {
     draft: { variant: "outline", icon: FileText },
     in_progress: { variant: "default", icon: Clock },
     completed: { variant: "secondary", icon: CheckCircle2 },

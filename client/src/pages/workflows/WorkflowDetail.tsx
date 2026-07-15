@@ -1,16 +1,37 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ArrowLeft, CheckCircle2, XCircle, Upload, Download, FileText } from "lucide-react";
+import {
+  Loader2,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  Upload,
+  Download,
+  FileText,
+} from "lucide-react";
 import { WorkflowDetailSkeleton } from "@/components/WorkflowDetailSkeleton";
 import { ContingencyWorkflowsDisplay } from "@/components/ContingencyWorkflowsDisplay";
 import { useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import { toast } from "sonner";
-import { useCognitoAuth } from "@/hooks/useCognitoAuth";
+import { useEntraAuth } from "@/hooks/useEntraAuth";
 import { AuditTrail } from "@/components/AuditTrail";
 import { HelpButton } from "@/components/HelpButton";
 import { WorkflowProgressTrail } from "@/components/WorkflowProgressTrail";
@@ -19,9 +40,9 @@ import { format } from "date-fns";
 export default function WorkflowDetail() {
   const { id } = useParams();
   const workflowId = id || "";
-  const { user: cognitoUser } = useCognitoAuth();
+  const { user: entraUser } = useEntraAuth();
   const { data: user } = trpc.users.me.useQuery(undefined, {
-    enabled: !!cognitoUser, // Only fetch when Cognito user is available
+    enabled: !!entraUser, // Only fetch when a Microsoft user is available
   });
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -30,23 +51,41 @@ export default function WorkflowDetail() {
   const [uploadingStageId, setUploadingStageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: workflow, isLoading: workflowLoading, error: workflowError } = trpc.workflows.getById.useQuery({ id: workflowId });
-  const { data: stages, isLoading: stagesLoading, refetch: refetchStages } = trpc.stages.getByWorkflow.useQuery({ workflowId });
+  const {
+    data: workflow,
+    isLoading: workflowLoading,
+    error: workflowError,
+  } = trpc.workflows.getById.useQuery({ id: workflowId });
+  const {
+    data: stages,
+    isLoading: stagesLoading,
+    refetch: refetchStages,
+  } = trpc.stages.getByWorkflow.useQuery({ workflowId });
   const { data: files } = trpc.files.getByWorkflow.useQuery({ workflowId });
 
   // Filter stages based on user's department visibility
-  const visibleStages = stages?.filter(stage => {
-    // C-level, admin, and requester see all stages
-    if (!user || ["CEO", "CFO", "COO", "admin"].includes(user.role) || workflow?.requesterId === user.id) {
-      return true;
-    }
-    // If no visibility restrictions, stage is NOT visible to regular users
-    if (!stage.visibleToDepartments || stage.visibleToDepartments.length === 0) {
-      return false;
-    }
-    // Check if user's department is in visible departments
-    return user.department && stage.visibleToDepartments.includes(user.department);
-  }) || [];
+  const visibleStages =
+    stages?.filter(stage => {
+      // C-level, admin, and requester see all stages
+      if (
+        !user ||
+        ["CEO", "CFO", "COO", "admin"].includes(user.role) ||
+        workflow?.requesterId === user.id
+      ) {
+        return true;
+      }
+      // If no visibility restrictions, stage is NOT visible to regular users
+      if (
+        !stage.visibleToDepartments ||
+        stage.visibleToDepartments.length === 0
+      ) {
+        return false;
+      }
+      // Check if user's department is in visible departments
+      return (
+        user.department && stage.visibleToDepartments.includes(user.department)
+      );
+    }) || [];
 
   const approveStage = trpc.stages.approve.useMutation({
     onSuccess: () => {
@@ -56,7 +95,7 @@ export default function WorkflowDetail() {
       setSelectedStageId(null);
       refetchStages();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -69,7 +108,7 @@ export default function WorkflowDetail() {
       setSelectedStageId(null);
       refetchStages();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -80,17 +119,18 @@ export default function WorkflowDetail() {
       setUploadingStageId(null);
       refetchStages();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Upload failed: ${error.message}`);
       setUploadingStageId(null);
     },
   });
 
   // Query to get Excel template for this workflow type
-  const { data: excelTemplate } = trpc.excelTemplates.getByWorkflowType.useQuery(
-    { workflowType: workflow?.workflowType || "" },
-    { enabled: !!workflow?.workflowType }
-  );
+  const { data: excelTemplate } =
+    trpc.excelTemplates.getByWorkflowType.useQuery(
+      { workflowType: workflow?.workflowType || "" },
+      { enabled: !!workflow?.workflowType }
+    );
 
   const handleDownloadTemplate = () => {
     if (excelTemplate?.fileUrl) {
@@ -103,19 +143,19 @@ export default function WorkflowDetail() {
 
   const handleFileUpload = async (stageId: string, file: File) => {
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = async e => {
       const base64 = e.target?.result as string;
-      
+
       // Determine file type category based on MIME type
-      let fileType = 'document';
-      if (file.type.includes('spreadsheet') || file.type.includes('excel')) {
-        fileType = 'excel';
-      } else if (file.type.includes('pdf')) {
-        fileType = 'pdf';
-      } else if (file.type.includes('word')) {
-        fileType = 'word';
+      let fileType = "document";
+      if (file.type.includes("spreadsheet") || file.type.includes("excel")) {
+        fileType = "excel";
+      } else if (file.type.includes("pdf")) {
+        fileType = "pdf";
+      } else if (file.type.includes("word")) {
+        fileType = "word";
       }
-      
+
       uploadFile.mutate({
         workflowId,
         stageId,
@@ -161,11 +201,22 @@ export default function WorkflowDetail() {
   const canUserApproveStage = (stage: any) => {
     if (!user) return false;
     // Allow approval for pending or in_progress stages
-    if (stage.status !== "pending" && stage.status !== "in_progress") return false;
+    if (stage.status !== "pending" && stage.status !== "in_progress")
+      return false;
     // Check if workflow is in a state that allows approvals
-    if (workflow?.overallStatus === "completed" || workflow?.overallStatus === "rejected" || workflow?.overallStatus === "discontinued") return false;
+    if (
+      workflow?.overallStatus === "completed" ||
+      workflow?.overallStatus === "rejected" ||
+      workflow?.overallStatus === "discontinued"
+    )
+      return false;
     // Check role permission
-    if (stage.requiredRole && user.role !== stage.requiredRole && user.role !== "admin") return false;
+    if (
+      stage.requiredRole &&
+      user.role !== stage.requiredRole &&
+      user.role !== "admin"
+    )
+      return false;
     return true;
   };
 
@@ -188,9 +239,7 @@ export default function WorkflowDetail() {
             <p className="text-sm text-muted-foreground">
               {workflowError.message}
             </p>
-            <p className="text-sm">
-              This workflow is only visible to:
-            </p>
+            <p className="text-sm">This workflow is only visible to:</p>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
               <li>The person who created the workflow</li>
               <li>CEO, CFO, COO, and admin roles</li>
@@ -213,7 +262,9 @@ export default function WorkflowDetail() {
       <div className="container mx-auto px-4 py-8">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">Workflow not found</p>
+            <p className="text-center text-muted-foreground">
+              Workflow not found
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -244,7 +295,9 @@ export default function WorkflowDetail() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Badge>{workflow.workflowType}</Badge>
-                      <span className="text-sm text-muted-foreground">{workflow.workflowNumber}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {workflow.workflowNumber}
+                      </span>
                       {getStatusBadge(workflow.overallStatus)}
                     </div>
                     <CardTitle className="text-2xl">{workflow.title}</CardTitle>
@@ -272,40 +325,54 @@ export default function WorkflowDetail() {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Created</span>
-                    <p className="font-medium">{format(new Date(workflow.createdAt), "MM/dd/yyyy")}</p>
+                    <p className="font-medium">
+                      {format(new Date(workflow.createdAt), "MM/dd/yyyy")}
+                    </p>
                   </div>
                   {workflow.estimatedAmount && (
                     <div>
                       <span className="text-muted-foreground">Amount</span>
                       <p className="font-medium">
-                        {workflow.currency} {workflow.estimatedAmount.toLocaleString()}
+                        {workflow.currency}{" "}
+                        {workflow.estimatedAmount.toLocaleString()}
                       </p>
                     </div>
                   )}
                   <div>
                     <span className="text-muted-foreground">Last Updated</span>
-                    <p className="font-medium">{format(new Date(workflow.updatedAt), "MM/dd/yyyy")}</p>
+                    <p className="font-medium">
+                      {format(new Date(workflow.updatedAt), "MM/dd/yyyy")}
+                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Contingency Workflows */}
-            {workflow.contingencyWorkflowIds && workflow.contingencyWorkflowIds.length > 0 && (
-              <ContingencyWorkflowsDisplay workflowIds={workflow.contingencyWorkflowIds} />
-            )}
+            {workflow.contingencyWorkflowIds &&
+              workflow.contingencyWorkflowIds.length > 0 && (
+                <ContingencyWorkflowsDisplay
+                  workflowIds={workflow.contingencyWorkflowIds}
+                />
+              )}
 
             {/* Initial Submission Details */}
             <Card>
               <CardHeader>
                 <CardTitle>Initial Submission Details</CardTitle>
-                <CardDescription>Information provided when this workflow was created</CardDescription>
+                <CardDescription>
+                  Information provided when this workflow was created
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Requester Info */}
                 <div>
-                  <span className="text-sm text-muted-foreground">Requested By</span>
-                  <p className="font-medium">{workflow.requesterName || "Unknown"}</p>
+                  <span className="text-sm text-muted-foreground">
+                    Requested By
+                  </span>
+                  <p className="font-medium">
+                    {workflow.requesterName || "Unknown"}
+                  </p>
                 </div>
 
                 {/* Workflow Details Grid */}
@@ -321,9 +388,12 @@ export default function WorkflowDetail() {
                   {workflow.estimatedAmount && (
                     <>
                       <div>
-                        <span className="text-muted-foreground">Estimated Amount</span>
+                        <span className="text-muted-foreground">
+                          Estimated Amount
+                        </span>
                         <p className="font-medium">
-                          {workflow.currency} {workflow.estimatedAmount.toLocaleString()}
+                          {workflow.currency}{" "}
+                          {workflow.estimatedAmount.toLocaleString()}
                         </p>
                       </div>
                       <div>
@@ -334,43 +404,67 @@ export default function WorkflowDetail() {
                   )}
                   <div>
                     <span className="text-muted-foreground">Submitted On</span>
-                    <p className="font-medium">{format(new Date(workflow.createdAt), "MMM dd, yyyy 'at' HH:mm")}</p>
+                    <p className="font-medium">
+                      {format(
+                        new Date(workflow.createdAt),
+                        "MMM dd, yyyy 'at' HH:mm"
+                      )}
+                    </p>
                   </div>
                 </div>
 
                 {/* Description */}
                 {workflow.description && (
                   <div>
-                    <span className="text-sm text-muted-foreground">Description</span>
-                    <p className="mt-1 text-sm bg-muted p-3 rounded-md">{workflow.description}</p>
+                    <span className="text-sm text-muted-foreground">
+                      Description
+                    </span>
+                    <p className="mt-1 text-sm bg-muted p-3 rounded-md">
+                      {workflow.description}
+                    </p>
                   </div>
                 )}
 
                 {/* Initial Files */}
                 {files && files.filter(f => !f.stageId).length > 0 && (
                   <div>
-                    <span className="text-sm text-muted-foreground mb-2 block">Attached Files</span>
+                    <span className="text-sm text-muted-foreground mb-2 block">
+                      Attached Files
+                    </span>
                     <div className="space-y-2">
-                      {files.filter(f => !f.stageId).map((file) => (
-                        <div key={file.id} className="flex items-center justify-between p-3 bg-muted rounded-md">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <p className="text-sm font-medium">{file.fileName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Uploaded by {file.uploaderName} on {format(new Date(file.uploadedAt), "MMM dd, yyyy 'at' HH:mm")}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(file.fileUrl, "_blank")}
+                      {files
+                        .filter(f => !f.stageId)
+                        .map(file => (
+                          <div
+                            key={file.id}
+                            className="flex items-center justify-between p-3 bg-muted rounded-md"
                           >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {file.fileName}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Uploaded by {file.uploaderName} on{" "}
+                                  {format(
+                                    new Date(file.uploadedAt),
+                                    "MMM dd, yyyy 'at' HH:mm"
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                window.open(file.fileUrl, "_blank")
+                              }
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -388,7 +482,9 @@ export default function WorkflowDetail() {
               <Card>
                 <CardHeader>
                   <CardTitle>Approval Progress</CardTitle>
-                  <CardDescription>Track the workflow through each approval stage</CardDescription>
+                  <CardDescription>
+                    Track the workflow through each approval stage
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <WorkflowProgressTrail stages={visibleStages} />
@@ -400,7 +496,9 @@ export default function WorkflowDetail() {
             <Card>
               <CardHeader>
                 <CardTitle>Approval Stages</CardTitle>
-                <CardDescription>Track the progress of approval stages</CardDescription>
+                <CardDescription>
+                  Track the progress of approval stages
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {visibleStages && visibleStages.length > 0 ? (
@@ -410,7 +508,9 @@ export default function WorkflowDetail() {
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="font-semibold">Stage {index + 1}</span>
+                              <span className="font-semibold">
+                                Stage {index + 1}
+                              </span>
                               <span className="text-sm">{stage.stageName}</span>
                               {getStatusBadge(stage.status)}
                             </div>
@@ -425,46 +525,67 @@ export default function WorkflowDetail() {
                         {/* Stage Files - Always show for all stages */}
                         <div className="mt-3 space-y-2">
                           <p className="text-sm font-medium">Uploaded Files:</p>
-                          {files && files.filter(f => f.stageId === stage.id).length > 0 ? (
-                            files.filter(f => f.stageId === stage.id).map((file) => (
-                              <div key={file.id} className="p-3 bg-muted/50 rounded border">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2 flex-1">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <div className="flex-1">
-                                      <p className="text-sm font-medium">{file.fileName}</p>
-                                      <div className="flex items-center gap-3 mt-1">
-                                        <span className="text-xs text-muted-foreground">
-                                          Uploaded by {(file as any).uploaderName || 'Unknown'}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {format(new Date(file.uploadedAt), "MMM dd, yyyy h:mm a")}
-                                        </span>
+                          {files &&
+                          files.filter(f => f.stageId === stage.id).length >
+                            0 ? (
+                            files
+                              .filter(f => f.stageId === stage.id)
+                              .map(file => (
+                                <div
+                                  key={file.id}
+                                  className="p-3 bg-muted/50 rounded border"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 flex-1">
+                                      <FileText className="h-4 w-4 text-blue-600" />
+                                      <div className="flex-1">
+                                        <p className="text-sm font-medium">
+                                          {file.fileName}
+                                        </p>
+                                        <div className="flex items-center gap-3 mt-1">
+                                          <span className="text-xs text-muted-foreground">
+                                            Uploaded by{" "}
+                                            {(file as any).uploaderName ||
+                                              "Unknown"}
+                                          </span>
+                                          <span className="text-xs text-muted-foreground">
+                                            {format(
+                                              new Date(file.uploadedAt),
+                                              "MMM dd, yyyy h:mm a"
+                                            )}
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        window.open(file.s3Url || "", "_blank")
+                                      }
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
                                   </div>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => window.open(file.s3Url || '', "_blank")}
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
                                 </div>
-                              </div>
-                            ))
+                              ))
                           ) : (
-                            <p className="text-sm text-muted-foreground italic">No files uploaded yet</p>
+                            <p className="text-sm text-muted-foreground italic">
+                              No files uploaded yet
+                            </p>
                           )}
                         </div>
 
                         {/* Action Buttons */}
                         {canUserApproveStage(stage) && (
                           <div className="mt-4">
-                            {(!files || files.filter(f => f.stageId === stage.id).length === 0) && (
+                            {(!files ||
+                              files.filter(f => f.stageId === stage.id)
+                                .length === 0) && (
                               <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                                  ℹ️ Please upload the required form before approving this stage.
+                                  ℹ️ Please upload the required form before
+                                  approving this stage.
                                 </p>
                               </div>
                             )}
@@ -480,7 +601,11 @@ export default function WorkflowDetail() {
                                 ) : (
                                   <Upload className="h-4 w-4 mr-1" />
                                 )}
-                                {files && files.filter(f => f.stageId === stage.id).length > 0 ? 'Add Another File' : 'Upload File'}
+                                {files &&
+                                files.filter(f => f.stageId === stage.id)
+                                  .length > 0
+                                  ? "Add Another File"
+                                  : "Upload File"}
                               </Button>
                               <Button
                                 size="sm"
@@ -498,14 +623,16 @@ export default function WorkflowDetail() {
                                 <XCircle className="h-4 w-4 mr-1" />
                                 Reject
                               </Button>
-                          </div>
+                            </div>
                           </div>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No stages defined</p>
+                  <p className="text-sm text-muted-foreground">
+                    No stages defined
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -524,33 +651,40 @@ export default function WorkflowDetail() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Approve Stage</DialogTitle>
-            <DialogDescription>Add optional comments for this approval</DialogDescription>
+            <DialogDescription>
+              Add optional comments for this approval
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea
               placeholder="Comments (optional)"
               value={comments}
-              onChange={(e) => setComments(e.target.value)}
+              onChange={e => setComments(e.target.value)}
               rows={4}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setApproveDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               onClick={() => {
                 if (selectedStageId) {
-                  approveStage.mutate({ 
-                    stageId: selectedStageId, 
+                  approveStage.mutate({
+                    stageId: selectedStageId,
                     workflowId,
-                    comments: comments || undefined 
+                    comments: comments || undefined,
                   });
                 }
               }}
               disabled={approveStage.isPending}
             >
-              {approveStage.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {approveStage.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Approve
             </Button>
           </DialogFooter>
@@ -562,34 +696,41 @@ export default function WorkflowDetail() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject Stage</DialogTitle>
-            <DialogDescription>Please provide a reason for rejection</DialogDescription>
+            <DialogDescription>
+              Please provide a reason for rejection
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea
               placeholder="Reason for rejection (required)"
               value={comments}
-              onChange={(e) => setComments(e.target.value)}
+              onChange={e => setComments(e.target.value)}
               rows={4}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setRejectDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={() => {
                 if (selectedStageId && comments) {
-                  rejectStage.mutate({ 
-                    stageId: selectedStageId, 
+                  rejectStage.mutate({
+                    stageId: selectedStageId,
                     workflowId,
-                    comments 
+                    comments,
                   });
                 }
               }}
               disabled={!comments || rejectStage.isPending}
             >
-              {rejectStage.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {rejectStage.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Reject
             </Button>
           </DialogFooter>
@@ -601,12 +742,12 @@ export default function WorkflowDetail() {
         type="file"
         ref={fileInputRef}
         className="hidden"
-        onChange={(e) => {
+        onChange={e => {
           const file = e.target.files?.[0];
           if (file && uploadingStageId) {
             handleFileUpload(uploadingStageId, file);
           }
-          e.target.value = '';
+          e.target.value = "";
         }}
         accept=".xlsx,.xls,.pdf,.doc,.docx,.png,.jpg,.jpeg"
       />

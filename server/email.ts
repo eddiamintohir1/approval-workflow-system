@@ -1,48 +1,20 @@
-/**
- * Email Service - WorkMail SMTP Integration
- * 
- * Sends emails via AWS WorkMail SMTP using nodemailer
- * Each email is sent from the logged-in user's WorkMail address
- */
+/** Email notifications delivered through Microsoft Graph. */
 
-import nodemailer from 'nodemailer';
-import { randomUUID } from 'crypto';
-import { db } from './db';
-import { emailLogs } from '../drizzle/schema';
-import { getWorkmailPassword } from './secrets';
-
-// WorkMail SMTP Configuration
-const WORKMAIL_SMTP_HOST = 'smtp.mail.us-west-2.awsapps.com';
-const WORKMAIL_SMTP_PORT = 465;
-const WORKMAIL_SMTP_SECURE = true; // Use TLS
+import { randomUUID } from "crypto";
+import { db } from "./db";
+import { emailLogs } from "../drizzle/schema";
+import { sendGraphEmail } from "./microsoft-graph";
 
 // Email template types
-type EmailTemplate = 'milestone_completion' | 'workflow_rejection' | 'workflow_completion' | 'deadline_reminder';
-
-/**
- * Create SMTP transporter for a specific user
- * @param userEmail User's WorkMail email address
- * @param userPassword User's WorkMail password (from Secrets Manager)
- */
-function createUserTransporter(userEmail: string, userPassword: string) {
-  return nodemailer.createTransport({
-    host: WORKMAIL_SMTP_HOST,
-    port: WORKMAIL_SMTP_PORT,
-    secure: WORKMAIL_SMTP_SECURE,
-    auth: {
-      user: userEmail,
-      pass: userPassword,
-    },
-    // Connection timeout and retry settings
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-  });
-}
+type EmailTemplate =
+  | "milestone_completion"
+  | "workflow_rejection"
+  | "workflow_completion"
+  | "deadline_reminder";
 
 /**
  * Send email and log to database
- * @param fromEmail Sender's email (logged-in user)
- * @param fromPassword Sender's WorkMail password
+ * @param fromEmail Reply-To address for the workflow actor
  * @param toEmail Recipient's email
  * @param subject Email subject
  * @param html Email HTML content
@@ -51,7 +23,6 @@ function createUserTransporter(userEmail: string, userPassword: string) {
  */
 async function sendEmail(
   fromEmail: string,
-  fromPassword: string,
   toEmail: string,
   subject: string,
   html: string,
@@ -59,15 +30,13 @@ async function sendEmail(
   workflowId?: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const logId = randomUUID();
-  
+
   try {
-    const transporter = createUserTransporter(fromEmail, fromPassword);
-    
-    const info = await transporter.sendMail({
-      from: fromEmail, // Email sent from logged-in user's address
-      to: toEmail,
+    await sendGraphEmail({
+      replyTo: fromEmail,
+      to: [toEmail],
       subject,
-      html,
+      htmlBody: html,
     });
 
     // Log successful email
@@ -77,13 +46,13 @@ async function sendEmail(
       subject,
       template,
       workflowId: workflowId || null,
-      status: 'sent',
-      messageId: info.messageId,
+      status: "sent",
+      messageId: null,
       sentAt: new Date(),
     });
 
-    console.log(`✅ Email sent from ${fromEmail} to ${toEmail} (Message ID: ${info.messageId})`);
-    return { success: true, messageId: info.messageId };
+    console.log(`✅ Microsoft Graph email accepted for ${toEmail}`);
+    return { success: true };
   } catch (error: any) {
     // Log failed email
     await db.insert(emailLogs).values({
@@ -92,12 +61,15 @@ async function sendEmail(
       subject,
       template,
       workflowId: workflowId || null,
-      status: 'failed',
+      status: "failed",
       errorMessage: error.message,
       sentAt: new Date(),
     });
 
-    console.error(`❌ Failed to send email from ${fromEmail} to ${toEmail}:`, error.message);
+    console.error(
+      `❌ Failed to send email from ${fromEmail} to ${toEmail}:`,
+      error.message
+    );
     return { success: false, error: error.message };
   }
 }
@@ -119,10 +91,8 @@ export async function sendMilestoneCompletionEmail(
   workflowId: string,
   senderEmail: string // Logged-in user's email
 ): Promise<void> {
-  const senderPassword = await getWorkmailPassword(senderEmail);
-  
   const subject = `[Action Required] ${data.workflowNumber}: ${data.milestoneName}`;
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -196,8 +166,15 @@ export async function sendMilestoneCompletionEmail(
 </body>
 </html>
   `;
-  
-  await sendEmail(senderEmail, senderPassword, data.approverEmail, subject, html, 'milestone_completion', workflowId);
+
+  await sendEmail(
+    senderEmail,
+    data.approverEmail,
+    subject,
+    html,
+    "milestone_completion",
+    workflowId
+  );
 }
 
 /**
@@ -218,10 +195,8 @@ export async function sendRejectionEmail(
   workflowId: string,
   senderEmail: string // Logged-in user's email (rejector)
 ): Promise<void> {
-  const senderPassword = await getWorkmailPassword(senderEmail);
-  
   const subject = `[Rejected] ${data.workflowNumber}: ${data.workflowTitle}`;
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -297,8 +272,15 @@ export async function sendRejectionEmail(
 </body>
 </html>
   `;
-  
-  await sendEmail(senderEmail, senderPassword, data.creatorEmail, subject, html, 'workflow_rejection', workflowId);
+
+  await sendEmail(
+    senderEmail,
+    data.creatorEmail,
+    subject,
+    html,
+    "workflow_rejection",
+    workflowId
+  );
 }
 
 /**
@@ -317,10 +299,8 @@ export async function sendCompletionEmail(
   workflowId: string,
   senderEmail: string // Logged-in user's email (final approver)
 ): Promise<void> {
-  const senderPassword = await getWorkmailPassword(senderEmail);
-  
   const subject = `[Completed] ${data.workflowNumber}: ${data.workflowTitle}`;
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -394,8 +374,15 @@ export async function sendCompletionEmail(
 </body>
 </html>
   `;
-  
-  await sendEmail(senderEmail, senderPassword, data.recipientEmail, subject, html, 'workflow_completion', workflowId);
+
+  await sendEmail(
+    senderEmail,
+    data.recipientEmail,
+    subject,
+    html,
+    "workflow_completion",
+    workflowId
+  );
 }
 
 /**
@@ -416,10 +403,8 @@ export async function sendDeadlineReminderEmail(
   workflowId: string,
   senderEmail: string // System email or workflow creator
 ): Promise<void> {
-  const senderPassword = await getWorkmailPassword(senderEmail);
-  
   const subject = `[Reminder] ${data.workflowNumber}: Deadline Approaching (${data.hoursRemaining}h remaining)`;
-  
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -495,30 +480,34 @@ export async function sendDeadlineReminderEmail(
 </body>
 </html>
   `;
-  
-  await sendEmail(senderEmail, senderPassword, data.approverEmail, subject, html, 'deadline_reminder', workflowId);
-}
 
+  await sendEmail(
+    senderEmail,
+    data.approverEmail,
+    subject,
+    html,
+    "deadline_reminder",
+    workflowId
+  );
+}
 
 /**
  * Send email with signed document
  * @param toEmail Recipient email (signer)
  * @param toName Recipient name
  * @param documentName Name of the signed document
- * @param s3Url S3 URL to download the signed document
+ * @param documentUrl Azure Blob URL to download the signed document
  * @param workflowId Related workflow ID
  */
 export async function sendSignedDocumentEmail(
   toEmail: string,
   toName: string,
   documentName: string,
-  s3Url: string,
+  documentUrl: string,
   workflowId: string
 ) {
   // Get system/admin email for sending
-  const systemEmail = process.env.SYSTEM_EMAIL || 'noreply@compawnion.co';
-  const systemPassword = await getWorkmailPassword(systemEmail);
-  
+  const systemEmail = process.env.SYSTEM_EMAIL || "noreply@compawnion.co";
   const subject = `Document Signed: ${documentName}`;
   const html = `
     <!DOCTYPE html>
@@ -553,16 +542,19 @@ export async function sendSignedDocumentEmail(
           
           <p><strong>Document Name:</strong> ${documentName}</p>
           <p><strong>Workflow ID:</strong> ${workflowId}</p>
-          <p><strong>Signed Date:</strong> ${new Date().toLocaleString('en-US', { 
-            timeZone: 'Asia/Jakarta',
-            dateStyle: 'long',
-            timeStyle: 'short'
-          })}</p>
+          <p><strong>Signed Date:</strong> ${new Date().toLocaleString(
+            "en-US",
+            {
+              timeZone: "Asia/Jakarta",
+              dateStyle: "long",
+              timeStyle: "short",
+            }
+          )}</p>
           
           <p>The signed document has been securely stored and is available for download:</p>
           
           <div style="text-align: center;">
-            <a href="${s3Url}" class="button">Download Signed Document</a>
+            <a href="${documentUrl}" class="button">Download Signed Document</a>
           </div>
           
           <p style="margin-top: 30px; font-size: 14px; color: #666;">
@@ -579,14 +571,13 @@ export async function sendSignedDocumentEmail(
     </body>
     </html>
   `;
-  
+
   await sendEmail(
     systemEmail,
-    systemPassword,
     toEmail,
     subject,
     html,
-    'signed_document',
+    "workflow_completion",
     workflowId
   );
 }
