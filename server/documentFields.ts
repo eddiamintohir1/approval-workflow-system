@@ -1,8 +1,8 @@
 import { db } from "./db";
-import { formTemplateDocuments, formSubmissionDocuments } from "@/drizzle/schema";
+import { formTemplateDocuments, formSubmissionDocuments } from "../drizzle/schema";
 import { v4 as uuidv4 } from "uuid";
-import type { DocumentField, FormTemplateDocument, FormSubmissionDocument } from "@shared/documentFieldMapping";
-import { validateFormSubmissionDocument } from "@shared/documentFieldMapping";
+import type { DocumentField, FormTemplateDocument, FormSubmissionDocument } from "../shared/documentFieldMapping";
+import { validateFormSubmissionDocument } from "../shared/documentFieldMapping";
 
 /**
  * Create a new form template document
