@@ -5,7 +5,12 @@ import { systemRouter } from "./_core/systemRouter";
 import * as db from "./db";
 import * as schema from "../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { storagePut, storageGet, storageDownload } from "./storage";
+import {
+  storagePut,
+  storageGet,
+  storageDownload,
+  storageKeyFromUrl,
+} from "./storage";
 import { randomUUID } from "crypto";
 import {
   withCache,
@@ -36,6 +41,46 @@ import {
 const APP_BASE_URL = (
   process.env.VITE_APP_URL || "https://approval-workflow-system-nine.vercel.app"
 ).replace(/\/$/, "");
+
+async function freshStorageUrl(key: string | null | undefined, legacyUrl?: string | null) {
+  const legacyKey = legacyUrl ? storageKeyFromUrl(legacyUrl) : null;
+  // Older records stored only the file name in s3Key. Prefer the complete key
+  // recoverable from their legacy URL, while using the persisted key for all
+  // current records.
+  const resolvedKey = key?.includes("/") ? key : legacyKey || key;
+  if (!resolvedKey) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "This file does not have a valid Azure Blob storage key.",
+    });
+  }
+  return (await storageGet(resolvedKey, 3600)).url;
+}
+
+async function withFreshS3Url<T extends { s3Key?: string | null; s3Url?: string | null }>(
+  record: T
+): Promise<T> {
+  if (!record.s3Key && !record.s3Url) return record;
+  try {
+    return { ...record, s3Url: await freshStorageUrl(record.s3Key, record.s3Url) };
+  } catch (error) {
+    // Keep unrelated legacy records from preventing the whole list from loading.
+    console.warn("Unable to refresh Azure Blob URL for record", error);
+    return record;
+  }
+}
+
+async function withFreshFileUrl<T extends { fileKey?: string | null; fileUrl?: string | null }>(
+  record: T
+): Promise<T> {
+  if (!record.fileKey && !record.fileUrl) return record;
+  try {
+    return { ...record, fileUrl: await freshStorageUrl(record.fileKey, record.fileUrl) };
+  } catch (error) {
+    console.warn("Unable to refresh Azure Blob URL for template", error);
+    return record;
+  }
+}
 
 function validateFieldMappings(
   fields: Array<{ mappingKey?: string; showInTable?: boolean }>
@@ -1026,7 +1071,7 @@ export const appRouter = router({
     getFiles: protectedProcedure
       .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
-        return await db.getFilesByWorkflow(input.workflowId);
+        return await Promise.all((await db.getFilesByWorkflow(input.workflowId)).map(withFreshS3Url));
       }),
 
     deleteFile: protectedProcedure
@@ -1393,13 +1438,13 @@ export const appRouter = router({
     getByWorkflow: protectedProcedure
       .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
-        return await db.getFilesByWorkflow(input.workflowId);
+        return await Promise.all((await db.getFilesByWorkflow(input.workflowId)).map(withFreshS3Url));
       }),
 
     getByStage: protectedProcedure
       .input(z.object({ stageId: z.string() }))
       .query(async ({ input }) => {
-        return await db.getFilesByStage(input.stageId);
+        return await Promise.all((await db.getFilesByStage(input.stageId)).map(withFreshS3Url));
       }),
   }),
 
@@ -2130,7 +2175,7 @@ export const appRouter = router({
 
     getAll: adminProcedure.query(async () => {
       await db.ensureExcelMappingSchema();
-      return await db.getAllExcelTemplates();
+      return await Promise.all((await db.getAllExcelTemplates()).map(withFreshFileUrl));
     }),
 
     getActive: protectedProcedure.query(async () => {
@@ -2774,17 +2819,25 @@ export const appRouter = router({
           workflowId: z.string().optional(),
           documentName: z.string(),
           documentUrl: z.string(),
+          documentKey: z.string().optional(),
           signerEmail: z.string().email(),
           signerName: z.string(),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        const documentKey = input.documentKey || storageKeyFromUrl(input.documentUrl);
+        if (!documentKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "The uploaded document is missing its Azure Blob storage key.",
+          });
+        }
         const docId = await db.createSignedDocument({
           workflowId: input.workflowId || "standalone",
           documentName: input.documentName,
           s3Key: null,
           s3Url: null,
-          uploadedS3Key: input.documentUrl.split("?")[0].split("/").pop() || "",
+          uploadedS3Key: documentKey,
           uploadedS3Url: input.documentUrl,
           helloDocDocumentId: null,
           signerId: ctx.user.id,
@@ -2817,14 +2870,17 @@ export const appRouter = router({
           workflowId: z.string().optional(), // Optional for standalone usage
           documentName: z.string(),
           documentUrl: z.string(),
+          documentKey: z.string().optional(),
           signerEmail: z.string().email(),
           signerName: z.string(),
         })
       )
       .mutation(async ({ ctx, input }) => {
         const { sendDocumentForSignature } = await import("./hellodoc");
+        const documentKey = input.documentKey || storageKeyFromUrl(input.documentUrl);
+        const documentUrl = await freshStorageUrl(documentKey, input.documentUrl);
         const result = await sendDocumentForSignature({
-          documentUrl: input.documentUrl,
+          documentUrl,
           documentName: input.documentName,
           signerEmail: input.signerEmail,
           signerName: input.signerName,
@@ -2835,8 +2891,8 @@ export const appRouter = router({
           documentName: input.documentName,
           s3Key: null,
           s3Url: null,
-          uploadedS3Key: input.documentUrl.split("?")[0].split("/").pop() || "",
-          uploadedS3Url: input.documentUrl,
+          uploadedS3Key: documentKey || "",
+          uploadedS3Url: documentUrl,
           helloDocDocumentId: result.documentId,
           signerId: ctx.user.id,
           signerEmail: input.signerEmail,
@@ -2859,7 +2915,7 @@ export const appRouter = router({
     getByWorkflow: protectedProcedure
       .input(z.object({ workflowId: z.string() }))
       .query(async ({ input }) => {
-        return await db.getSignedDocumentsByWorkflow(input.workflowId);
+        return await Promise.all((await db.getSignedDocumentsByWorkflow(input.workflowId)).map(withFreshS3Url));
       }),
 
     // Get all signed documents (for standalone e-signature page)
@@ -2873,16 +2929,16 @@ export const appRouter = router({
         })
       )
       .query(async ({ ctx, input }) => {
-        return await db.getAllSignedDocuments(
+        return await Promise.all((await db.getAllSignedDocuments(
           ctx.user.id,
           input.status,
           input.search
-        );
+        )).map(withFreshS3Url));
       }),
 
     // Get documents sent by current user
     getBySender: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getSignedDocumentsBySender(ctx.user.id);
+      return await Promise.all((await db.getSignedDocumentsBySender(ctx.user.id)).map(withFreshS3Url));
     }),
 
     handleSignedDocument: protectedProcedure
@@ -2910,9 +2966,9 @@ export const appRouter = router({
             message: "Document not found",
           });
         }
-        const s3Key = `signed-docs/${doc.workflowId}/${Date.now()}-${doc.documentName}`;
-        const { url: s3Url } = await storagePut(
-          s3Key,
+        const signedStorageKey = `signed-docs/${doc.workflowId}/${Date.now()}-${doc.documentName}`;
+        const { key: s3Key, url: s3Url } = await storagePut(
+          signedStorageKey,
           signedPdfBuffer,
           "application/pdf"
         );
@@ -2973,17 +3029,25 @@ export const appRouter = router({
           description: z.string().optional(),
           category: z.string().optional(),
           fileUrl: z.string(),
+          fileKey: z.string().optional(),
           fileType: z.string(),
         })
       )
       .mutation(async ({ ctx, input }) => {
         const templateId = randomUUID();
+        const fileKey = input.fileKey || storageKeyFromUrl(input.fileUrl);
+        if (!fileKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "The uploaded template is missing its Azure Blob storage key.",
+          });
+        }
         await db.createDocumentTemplate({
           id: templateId,
           name: input.name,
           description: input.description,
           category: input.category,
-          s3Key: input.fileUrl.split("?")[0].split("/").pop() || "",
+          s3Key: fileKey,
           s3Url: input.fileUrl,
           fileType: input.fileType,
           createdBy: ctx.user.id,
@@ -2993,14 +3057,15 @@ export const appRouter = router({
 
     // Get all templates
     getAll: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getAllDocumentTemplates();
+      return await Promise.all((await db.getAllDocumentTemplates()).map(withFreshS3Url));
     }),
 
     // Get template by ID
     getById: protectedProcedure
       .input(z.object({ id: z.string() }))
       .query(async ({ input }) => {
-        return await db.getDocumentTemplateById(input.id);
+        const template = await db.getDocumentTemplateById(input.id);
+        return template ? await withFreshS3Url(template) : template;
       }),
 
     // Update template

@@ -3458,8 +3458,19 @@ import { eq as eq4 } from "drizzle-orm";
 // server/storage.ts
 import { BlobSASPermissions, BlobServiceClient } from "@azure/storage-blob";
 var containerName = process.env.AZURE_STORAGE_CONTAINER || "finance-attachments";
+var SAS_CLOCK_SKEW_MS = 5 * 60 * 1e3;
 function normalizeKey(relKey) {
   return relKey.replace(/^\/+/, "");
+}
+function storageKeyFromUrl(url) {
+  try {
+    const path = new URL(url).pathname;
+    const prefix = `/${encodeURIComponent(containerName)}/`;
+    if (!path.startsWith(prefix)) return null;
+    return normalizeKey(decodeURIComponent(path.slice(prefix.length)));
+  } catch {
+    return null;
+  }
 }
 function getContainerClient() {
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
@@ -3473,10 +3484,17 @@ function getContainerClient() {
   ).getContainerClient(containerName);
 }
 async function signedReadUrl(key, expiresIn) {
+  if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new Error("Azure Blob SAS expiry must be a positive number of seconds.");
+  }
   const blob = getContainerClient().getBlobClient(key);
+  const now = Date.now();
   return blob.generateSasUrl({
     permissions: BlobSASPermissions.parse("r"),
-    expiresOn: new Date(Date.now() + expiresIn * 1e3)
+    // Allow a small clock-skew window between Vercel and Azure. Without it,
+    // Azure can reject a freshly issued SAS when their clocks differ slightly.
+    startsOn: new Date(now - SAS_CLOCK_SKEW_MS),
+    expiresOn: new Date(now + expiresIn * 1e3)
   });
 }
 async function storagePut(relKey, data, contentType = "application/octet-stream") {
@@ -4449,6 +4467,35 @@ function deriveProcessingStatus(input) {
 // server/routers.ts
 init_excelMapping();
 var APP_BASE_URL = (process.env.VITE_APP_URL || "https://approval-workflow-system-nine.vercel.app").replace(/\/$/, "");
+async function freshStorageUrl(key, legacyUrl) {
+  const legacyKey = legacyUrl ? storageKeyFromUrl(legacyUrl) : null;
+  const resolvedKey = key?.includes("/") ? key : legacyKey || key;
+  if (!resolvedKey) {
+    throw new TRPCError3({
+      code: "BAD_REQUEST",
+      message: "This file does not have a valid Azure Blob storage key."
+    });
+  }
+  return (await storageGet(resolvedKey, 3600)).url;
+}
+async function withFreshS3Url(record) {
+  if (!record.s3Key && !record.s3Url) return record;
+  try {
+    return { ...record, s3Url: await freshStorageUrl(record.s3Key, record.s3Url) };
+  } catch (error) {
+    console.warn("Unable to refresh Azure Blob URL for record", error);
+    return record;
+  }
+}
+async function withFreshFileUrl(record) {
+  if (!record.fileKey && !record.fileUrl) return record;
+  try {
+    return { ...record, fileUrl: await freshStorageUrl(record.fileKey, record.fileUrl) };
+  } catch (error) {
+    console.warn("Unable to refresh Azure Blob URL for template", error);
+    return record;
+  }
+}
 function validateFieldMappings(fields) {
   const mappingKeys = fields.map((field) => field.mappingKey?.trim()).filter((key) => Boolean(key));
   if (new Set(mappingKeys).size !== mappingKeys.length) {
@@ -5203,7 +5250,7 @@ var appRouter = router({
       return { success: true, url };
     }),
     getFiles: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
-      return await getFilesByWorkflow(input.workflowId);
+      return await Promise.all((await getFilesByWorkflow(input.workflowId)).map(withFreshS3Url));
     }),
     deleteFile: protectedProcedure.input(z5.object({ fileId: z5.string() })).mutation(async ({ input, ctx }) => {
       const file = await getWorkflowFileById(input.fileId);
@@ -5484,10 +5531,10 @@ var appRouter = router({
       return file;
     }),
     getByWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
-      return await getFilesByWorkflow(input.workflowId);
+      return await Promise.all((await getFilesByWorkflow(input.workflowId)).map(withFreshS3Url));
     }),
     getByStage: protectedProcedure.input(z5.object({ stageId: z5.string() })).query(async ({ input }) => {
-      return await getFilesByStage(input.stageId);
+      return await Promise.all((await getFilesByStage(input.stageId)).map(withFreshS3Url));
     })
   }),
   // ============================================
@@ -6084,7 +6131,7 @@ var appRouter = router({
     }),
     getAll: adminProcedure2.query(async () => {
       await ensureExcelMappingSchema();
-      return await getAllExcelTemplates();
+      return await Promise.all((await getAllExcelTemplates()).map(withFreshFileUrl));
     }),
     getActive: protectedProcedure.query(async () => {
       await ensureExcelMappingSchema();
@@ -6583,16 +6630,24 @@ var appRouter = router({
         workflowId: z5.string().optional(),
         documentName: z5.string(),
         documentUrl: z5.string(),
+        documentKey: z5.string().optional(),
         signerEmail: z5.string().email(),
         signerName: z5.string()
       })
     ).mutation(async ({ ctx, input }) => {
+      const documentKey = input.documentKey || storageKeyFromUrl(input.documentUrl);
+      if (!documentKey) {
+        throw new TRPCError3({
+          code: "BAD_REQUEST",
+          message: "The uploaded document is missing its Azure Blob storage key."
+        });
+      }
       const docId = await createSignedDocument({
         workflowId: input.workflowId || "standalone",
         documentName: input.documentName,
         s3Key: null,
         s3Url: null,
-        uploadedS3Key: input.documentUrl.split("?")[0].split("/").pop() || "",
+        uploadedS3Key: documentKey,
         uploadedS3Url: input.documentUrl,
         helloDocDocumentId: null,
         signerId: ctx.user.id,
@@ -6621,13 +6676,16 @@ var appRouter = router({
         // Optional for standalone usage
         documentName: z5.string(),
         documentUrl: z5.string(),
+        documentKey: z5.string().optional(),
         signerEmail: z5.string().email(),
         signerName: z5.string()
       })
     ).mutation(async ({ ctx, input }) => {
       const { sendDocumentForSignature } = await Promise.resolve().then(() => (init_hellodoc(), hellodoc_exports));
+      const documentKey = input.documentKey || storageKeyFromUrl(input.documentUrl);
+      const documentUrl = await freshStorageUrl(documentKey, input.documentUrl);
       const result = await sendDocumentForSignature({
-        documentUrl: input.documentUrl,
+        documentUrl,
         documentName: input.documentName,
         signerEmail: input.signerEmail,
         signerName: input.signerName,
@@ -6638,8 +6696,8 @@ var appRouter = router({
         documentName: input.documentName,
         s3Key: null,
         s3Url: null,
-        uploadedS3Key: input.documentUrl.split("?")[0].split("/").pop() || "",
-        uploadedS3Url: input.documentUrl,
+        uploadedS3Key: documentKey || "",
+        uploadedS3Url: documentUrl,
         helloDocDocumentId: result.documentId,
         signerId: ctx.user.id,
         signerEmail: input.signerEmail,
@@ -6656,7 +6714,7 @@ var appRouter = router({
       return await checkSignatureStatus2(input.helloDocDocumentId);
     }),
     getByWorkflow: protectedProcedure.input(z5.object({ workflowId: z5.string() })).query(async ({ input }) => {
-      return await getSignedDocumentsByWorkflow(input.workflowId);
+      return await Promise.all((await getSignedDocumentsByWorkflow(input.workflowId)).map(withFreshS3Url));
     }),
     // Get all signed documents (for standalone e-signature page)
     getAll: protectedProcedure.input(
@@ -6665,15 +6723,15 @@ var appRouter = router({
         search: z5.string().optional()
       })
     ).query(async ({ ctx, input }) => {
-      return await getAllSignedDocuments(
+      return await Promise.all((await getAllSignedDocuments(
         ctx.user.id,
         input.status,
         input.search
-      );
+      )).map(withFreshS3Url));
     }),
     // Get documents sent by current user
     getBySender: protectedProcedure.query(async ({ ctx }) => {
-      return await getSignedDocumentsBySender(ctx.user.id);
+      return await Promise.all((await getSignedDocumentsBySender(ctx.user.id)).map(withFreshS3Url));
     }),
     handleSignedDocument: protectedProcedure.input(z5.object({ helloDocDocumentId: z5.string() })).mutation(async ({ input }) => {
       const { checkSignatureStatus: checkSignatureStatus2, downloadSignedDocument: downloadSignedDocument2 } = await Promise.resolve().then(() => (init_hellodoc(), hellodoc_exports));
@@ -6696,9 +6754,9 @@ var appRouter = router({
           message: "Document not found"
         });
       }
-      const s3Key = `signed-docs/${doc.workflowId}/${Date.now()}-${doc.documentName}`;
-      const { url: s3Url } = await storagePut(
-        s3Key,
+      const signedStorageKey = `signed-docs/${doc.workflowId}/${Date.now()}-${doc.documentName}`;
+      const { key: s3Key, url: s3Url } = await storagePut(
+        signedStorageKey,
         signedPdfBuffer,
         "application/pdf"
       );
@@ -6749,16 +6807,24 @@ var appRouter = router({
         description: z5.string().optional(),
         category: z5.string().optional(),
         fileUrl: z5.string(),
+        fileKey: z5.string().optional(),
         fileType: z5.string()
       })
     ).mutation(async ({ ctx, input }) => {
       const templateId = randomUUID3();
+      const fileKey = input.fileKey || storageKeyFromUrl(input.fileUrl);
+      if (!fileKey) {
+        throw new TRPCError3({
+          code: "BAD_REQUEST",
+          message: "The uploaded template is missing its Azure Blob storage key."
+        });
+      }
       await createDocumentTemplate({
         id: templateId,
         name: input.name,
         description: input.description,
         category: input.category,
-        s3Key: input.fileUrl.split("?")[0].split("/").pop() || "",
+        s3Key: fileKey,
         s3Url: input.fileUrl,
         fileType: input.fileType,
         createdBy: ctx.user.id
@@ -6767,11 +6833,12 @@ var appRouter = router({
     }),
     // Get all templates
     getAll: protectedProcedure.query(async ({ ctx }) => {
-      return await getAllDocumentTemplates();
+      return await Promise.all((await getAllDocumentTemplates()).map(withFreshS3Url));
     }),
     // Get template by ID
     getById: protectedProcedure.input(z5.object({ id: z5.string() })).query(async ({ input }) => {
-      return await getDocumentTemplateById(input.id);
+      const template = await getDocumentTemplateById(input.id);
+      return template ? await withFreshS3Url(template) : template;
     }),
     // Update template
     update: protectedProcedure.input(
@@ -7051,12 +7118,12 @@ function createApiApp() {
       }
       const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "-");
       const fileKey = `esignature-uploads/${Date.now()}-${safeName}`;
-      const { url } = await storagePut(
+      const { key, url } = await storagePut(
         fileKey,
         req.file.buffer,
         req.file.mimetype
       );
-      return res.json({ url });
+      return res.json({ key, url });
     } catch (error) {
       console.error("File upload error:", error);
       return res.status(500).json({
