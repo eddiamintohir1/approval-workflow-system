@@ -1,20 +1,30 @@
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Trash2, Home } from "lucide-react";
+import { Plus, FileText, Trash2, Home, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 export default function FormTemplateList() {
-  const { data: templates, isLoading, refetch } = trpc.formTemplates.getAll.useQuery();
-  
+  const {
+    data: templates,
+    isLoading,
+    refetch,
+  } = trpc.formTemplates.getAll.useQuery();
+
   const deleteTemplate = trpc.formTemplates.delete.useMutation({
     onSuccess: () => {
       toast.success("Template deleted successfully");
       refetch();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message);
     },
   });
@@ -62,7 +72,9 @@ export default function FormTemplateList() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No form templates yet</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              No form templates yet
+            </h3>
             <p className="text-muted-foreground text-center mb-4">
               Create your first form template to get started
             </p>
@@ -76,14 +88,15 @@ export default function FormTemplateList() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {templates.map((template) => (
+          {templates.map(template => (
             <Card key={template.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle>{template.templateName}</CardTitle>
                     <CardDescription className="mt-2">
-                      Code: <span className="font-mono">{template.templateCode}</span>
+                      Code:{" "}
+                      <span className="font-mono">{template.templateCode}</span>
                     </CardDescription>
                     {template.description && (
                       <p className="text-sm text-muted-foreground mt-2">
@@ -92,13 +105,25 @@ export default function FormTemplateList() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={template.isActive ? "default" : "secondary"}>
+                    <Badge
+                      variant={template.isActive ? "default" : "secondary"}
+                    >
                       {template.isActive ? "Active" : "Inactive"}
                     </Badge>
+                    <Button asChild variant="ghost" size="icon">
+                      <Link
+                        href={`/admin/form-templates/${template.id}/edit`}
+                        aria-label={`Edit ${template.templateName}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(template.id, template.templateName)}
+                      onClick={() =>
+                        handleDelete(template.id, template.templateName)
+                      }
                       disabled={deleteTemplate.isPending}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -112,7 +137,9 @@ export default function FormTemplateList() {
                   <span>•</span>
                   <span>Version {template.version}</span>
                   <span>•</span>
-                  <span>Created {new Date(template.createdAt).toLocaleDateString()}</span>
+                  <span>
+                    Created {new Date(template.createdAt).toLocaleDateString()}
+                  </span>
                 </div>
               </CardContent>
             </Card>

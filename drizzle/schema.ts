@@ -476,6 +476,10 @@ export const formTemplates = mysqlTable("form_templates", {
           message?: string;
         };
         defaultValue?: any;
+        mappingKey?: string;
+        showInTable?: boolean;
+        tableLabel?: string;
+        tableOrder?: number;
       }>
     >()
     .notNull(),

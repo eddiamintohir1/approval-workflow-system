@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { WorkflowDetailSkeleton } from "@/components/WorkflowDetailSkeleton";
 import { ContingencyWorkflowsDisplay } from "@/components/ContingencyWorkflowsDisplay";
+import { FormSubmissionDisplay } from "@/components/FormSubmissionDisplay";
 import { useState, useRef } from "react";
 import { Link, useParams } from "wouter";
 import { toast } from "sonner";
@@ -476,6 +477,8 @@ export default function WorkflowDetail() {
                 )}
               </CardContent>
             </Card>
+
+            <FormSubmissionDisplay workflowId={workflowId} />
 
             {/* Progress Trail */}
             {visibleStages && visibleStages.length > 0 && (

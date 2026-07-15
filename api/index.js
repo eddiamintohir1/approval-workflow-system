@@ -731,7 +731,7 @@ var init_schema = __esm({
 // server/db.ts
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 async function upsertUser(user) {
   const [existingUser] = await db.select().from(users).where(eq(users.cognitoSub, user.cognitoSub)).limit(1);
@@ -1114,6 +1114,30 @@ async function getFormSubmissionById(id) {
 }
 async function getFormSubmissionsByWorkflow(workflowId) {
   return await db.select().from(formSubmissions2).where(eq(formSubmissions2.workflowId, workflowId)).orderBy(desc(formSubmissions2.createdAt));
+}
+async function getFormSubmissionsForProcessing() {
+  return await db.select({
+    submission: formSubmissions2,
+    template: formTemplates,
+    workflow: workflows,
+    submitter: users
+  }).from(formSubmissions2).innerJoin(
+    formTemplates,
+    eq(formSubmissions2.templateId, formTemplates.id)
+  ).leftJoin(
+    workflows,
+    eq(formSubmissions2.workflowId, workflows.id)
+  ).leftJoin(
+    users,
+    eq(formSubmissions2.submittedBy, users.id)
+  ).orderBy(desc(formSubmissions2.updatedAt));
+}
+async function getStagesByWorkflowIds(workflowIds) {
+  if (workflowIds.length === 0) return [];
+  return await db.select().from(workflowStages).where(inArray(workflowStages.workflowId, workflowIds)).orderBy(
+    workflowStages.workflowId,
+    workflowStages.stageOrder
+  );
 }
 async function updateFormSubmission(id, updates) {
   await db.update(formSubmissions2).set(updates).where(eq(formSubmissions2.id, id));
@@ -2773,6 +2797,7 @@ var ENV = {
 };
 var env = {
   VITE_API_URL: process.env.VITE_API_URL,
+  VITE_APP_URL: process.env.VITE_APP_URL,
   VITE_ENTRA_TENANT_ID: process.env.VITE_ENTRA_TENANT_ID,
   VITE_ENTRA_CLIENT_ID: process.env.VITE_ENTRA_CLIENT_ID
 };
@@ -3833,6 +3858,46 @@ function getSessionCookieOptions(req) {
 
 // server/routers.ts
 init_microsoft_graph();
+
+// server/formProcessing.ts
+function isMissingFormValue(value) {
+  return value === void 0 || value === null || value === "" || Array.isArray(value) && value.length === 0;
+}
+function buildProcessingFields(fields, formData) {
+  const missingFields = fields.filter((field) => field.required && isMissingFormValue(formData[field.id])).map((field) => ({ id: field.id, label: field.label }));
+  const mappedFields = fields.filter((field) => field.mappingKey && field.showInTable).map((field) => ({
+    key: field.mappingKey,
+    label: field.tableLabel || field.label,
+    order: field.tableOrder ?? 0,
+    value: formData[field.id]
+  })).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+  return { missingFields, mappedFields };
+}
+function deriveProcessingStatus(input) {
+  if (input.workflowCompleted) return "completed";
+  if (input.submissionIsDraft) return "draft";
+  if (input.missingFieldCount > 0) return "missing_info";
+  if (input.hasWorkflowProgress) return "in_progress";
+  return "ready";
+}
+
+// server/routers.ts
+var APP_BASE_URL = (process.env.VITE_APP_URL || "https://approval-workflow-system-nine.vercel.app").replace(/\/$/, "");
+function validateFieldMappings(fields) {
+  const mappingKeys = fields.map((field) => field.mappingKey?.trim()).filter((key) => Boolean(key));
+  if (new Set(mappingKeys).size !== mappingKeys.length) {
+    throw new TRPCError3({
+      code: "BAD_REQUEST",
+      message: "Mapping keys must be unique within a form template"
+    });
+  }
+  if (fields.some((field) => field.showInTable && !field.mappingKey?.trim())) {
+    throw new TRPCError3({
+      code: "BAD_REQUEST",
+      message: "Fields shown in the processing inbox require a mapping key"
+    });
+  }
+}
 var adminProcedure2 = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== "admin") {
     throw new TRPCError3({
@@ -4665,7 +4730,7 @@ var appRouter = router({
                   milestoneName: nextStage.stageName,
                   approverName: approver.fullName,
                   approverEmail: approver.email,
-                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                  workflowUrl: `${APP_BASE_URL}/workflows/${workflow.id}`,
                   completedBy: ctx.user.fullName
                 },
                 workflow.id,
@@ -4711,7 +4776,7 @@ var appRouter = router({
                 }),
                 recipientName: creator.fullName,
                 recipientEmail: creator.email,
-                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow2.id}`
+                workflowUrl: `${APP_BASE_URL}/workflows/${workflow2.id}`
               },
               workflow2.id,
               ctx.user.email
@@ -4779,7 +4844,7 @@ var appRouter = router({
                 rejectionReason: input.comments,
                 creatorName: creator.fullName,
                 creatorEmail: creator.email,
-                workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`
+                workflowUrl: `${APP_BASE_URL}/workflows/${workflow.id}`
               },
               workflow.id,
               ctx.user.email
@@ -4950,11 +5015,16 @@ var appRouter = router({
               pattern: z4.string().optional(),
               message: z4.string().optional()
             }).optional(),
-            defaultValue: z4.any().optional()
+            defaultValue: z4.any().optional(),
+            mappingKey: z4.string().optional(),
+            showInTable: z4.boolean().optional(),
+            tableLabel: z4.string().optional(),
+            tableOrder: z4.number().int().optional()
           })
         )
       })
     ).mutation(async ({ input, ctx }) => {
+      validateFieldMappings(input.fields);
       const template = await createFormTemplate({
         templateName: input.templateName,
         templateCode: input.templateCode,
@@ -5017,17 +5087,30 @@ var appRouter = router({
               pattern: z4.string().optional(),
               message: z4.string().optional()
             }).optional(),
-            defaultValue: z4.any().optional()
+            defaultValue: z4.any().optional(),
+            mappingKey: z4.string().optional(),
+            showInTable: z4.boolean().optional(),
+            tableLabel: z4.string().optional(),
+            tableOrder: z4.number().int().optional()
           })
         ).optional(),
         isActive: z4.boolean().optional()
       })
     ).mutation(async ({ input, ctx }) => {
+      if (input.fields) validateFieldMappings(input.fields);
+      const existingTemplate = await getFormTemplateById(input.id);
+      if (!existingTemplate) {
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Form template not found"
+        });
+      }
       await updateFormTemplate(input.id, {
         templateName: input.templateName,
         description: input.description,
         fields: input.fields,
-        isActive: input.isActive
+        isActive: input.isActive,
+        version: existingTemplate.version + 1
       });
       await createAuditLog({
         entityType: "form_template",
@@ -5114,6 +5197,61 @@ var appRouter = router({
       );
       return submissionsWithTemplates;
     }),
+    getProcessingInbox: adminProcedure2.query(async () => {
+      const rows = await getFormSubmissionsForProcessing();
+      const workflowIds = rows.flatMap(
+        (row) => row.workflow ? [row.workflow.id] : []
+      );
+      const allStages = await getStagesByWorkflowIds(workflowIds);
+      const stagesByWorkflow = /* @__PURE__ */ new Map();
+      allStages.forEach((stage) => {
+        const stages = stagesByWorkflow.get(stage.workflowId) || [];
+        stages.push(stage);
+        stagesByWorkflow.set(stage.workflowId, stages);
+      });
+      return rows.map(({ submission, template, workflow, submitter }) => {
+        const fields = template.fields || [];
+        const { missingFields, mappedFields } = buildProcessingFields(
+          fields,
+          submission.formData
+        );
+        const stages = workflow ? stagesByWorkflow.get(workflow.id) || [] : [];
+        const activeStage = stages.find(
+          (stage) => ["pending", "in_progress"].includes(stage.status)
+        );
+        const hasProgress = stages.some(
+          (stage) => ["in_progress", "completed"].includes(stage.status)
+        );
+        const processingStatus = deriveProcessingStatus({
+          workflowCompleted: workflow?.overallStatus === "completed",
+          missingFieldCount: missingFields.length,
+          submissionIsDraft: submission.submissionStatus === "draft",
+          hasWorkflowProgress: hasProgress
+        });
+        return {
+          submissionId: submission.id,
+          workflowId: workflow?.id || null,
+          workflowNumber: workflow?.workflowNumber || null,
+          workflowTitle: workflow?.title || null,
+          templateId: template.id,
+          templateName: template.templateName,
+          submitterName: submitter?.fullName || "Unknown user",
+          submitterEmail: submitter?.email || null,
+          processingStatus,
+          missingFields,
+          mappedFields,
+          activeStage: activeStage ? {
+            id: activeStage.id,
+            name: activeStage.stageName,
+            requiredRole: activeStage.requiredRole,
+            isFinal: stages.at(-1)?.id === activeStage.id
+          } : null,
+          createdAt: submission.createdAt,
+          updatedAt: submission.updatedAt,
+          completedAt: workflow?.completedAt || null
+        };
+      });
+    }),
     update: protectedProcedure.input(
       z4.object({
         id: z4.string(),
@@ -5121,6 +5259,19 @@ var appRouter = router({
         submissionStatus: z4.enum(["draft", "submitted", "approved", "rejected"]).optional()
       })
     ).mutation(async ({ input, ctx }) => {
+      const submission = await getFormSubmissionById(input.id);
+      if (!submission) {
+        throw new TRPCError3({
+          code: "NOT_FOUND",
+          message: "Form submission not found"
+        });
+      }
+      if (submission.submittedBy !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new TRPCError3({
+          code: "FORBIDDEN",
+          message: "You can only update your own form submissions"
+        });
+      }
       await updateFormSubmission(input.id, {
         formData: input.formData,
         submissionStatus: input.submissionStatus,

@@ -23,6 +23,34 @@ import { skuGeneratorRouter } from "./routers/skuGenerator";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { listMicrosoftDirectoryUsers } from "./microsoft-graph";
+import {
+  buildProcessingFields,
+  deriveProcessingStatus,
+} from "./formProcessing";
+
+const APP_BASE_URL = (
+  process.env.VITE_APP_URL || "https://approval-workflow-system-nine.vercel.app"
+).replace(/\/$/, "");
+
+function validateFieldMappings(
+  fields: Array<{ mappingKey?: string; showInTable?: boolean }>
+): void {
+  const mappingKeys = fields
+    .map(field => field.mappingKey?.trim())
+    .filter((key): key is string => Boolean(key));
+  if (new Set(mappingKeys).size !== mappingKeys.length) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Mapping keys must be unique within a form template",
+    });
+  }
+  if (fields.some(field => field.showInTable && !field.mappingKey?.trim())) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Fields shown in the processing inbox require a mapping key",
+    });
+  }
+}
 
 // Admin-only procedure
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -1123,7 +1151,7 @@ export const appRouter = router({
                     milestoneName: nextStage.stageName,
                     approverName: approver.fullName,
                     approverEmail: approver.email,
-                    workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                    workflowUrl: `${APP_BASE_URL}/workflows/${workflow.id}`,
                     completedBy: ctx.user.fullName,
                   },
                   workflow.id,
@@ -1184,7 +1212,7 @@ export const appRouter = router({
                   }),
                   recipientName: creator.fullName,
                   recipientEmail: creator.email,
-                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                  workflowUrl: `${APP_BASE_URL}/workflows/${workflow.id}`,
                 },
                 workflow.id,
                 ctx.user.email
@@ -1270,7 +1298,7 @@ export const appRouter = router({
                   rejectionReason: input.comments,
                   creatorName: creator.fullName,
                   creatorEmail: creator.email,
-                  workflowUrl: `https://3000-i82ie2btik6j7qeajcyrt-1a70e8cb.sg1.manus.computer/workflows/${workflow.id}`,
+                  workflowUrl: `${APP_BASE_URL}/workflows/${workflow.id}`,
                 },
                 workflow.id,
                 ctx.user.email
@@ -1483,11 +1511,16 @@ export const appRouter = router({
                 })
                 .optional(),
               defaultValue: z.any().optional(),
+              mappingKey: z.string().optional(),
+              showInTable: z.boolean().optional(),
+              tableLabel: z.string().optional(),
+              tableOrder: z.number().int().optional(),
             })
           ),
         })
       )
       .mutation(async ({ input, ctx }) => {
+        validateFieldMappings(input.fields);
         const template = await db.createFormTemplate({
           templateName: input.templateName,
           templateCode: input.templateCode,
@@ -1563,6 +1596,10 @@ export const appRouter = router({
                   })
                   .optional(),
                 defaultValue: z.any().optional(),
+                mappingKey: z.string().optional(),
+                showInTable: z.boolean().optional(),
+                tableLabel: z.string().optional(),
+                tableOrder: z.number().int().optional(),
               })
             )
             .optional(),
@@ -1570,11 +1607,20 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        if (input.fields) validateFieldMappings(input.fields);
+        const existingTemplate = await db.getFormTemplateById(input.id);
+        if (!existingTemplate) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Form template not found",
+          });
+        }
         await db.updateFormTemplate(input.id, {
           templateName: input.templateName,
           description: input.description,
           fields: input.fields,
           isActive: input.isActive,
+          version: existingTemplate.version + 1,
         });
 
         await db.createAuditLog({
@@ -1688,6 +1734,68 @@ export const appRouter = router({
         return submissionsWithTemplates;
       }),
 
+    getProcessingInbox: adminProcedure.query(async () => {
+      const rows = await db.getFormSubmissionsForProcessing();
+      const workflowIds = rows.flatMap(row =>
+        row.workflow ? [row.workflow.id] : []
+      );
+      const allStages = await db.getStagesByWorkflowIds(workflowIds);
+      const stagesByWorkflow = new Map<string, typeof allStages>();
+      allStages.forEach(stage => {
+        const stages = stagesByWorkflow.get(stage.workflowId) || [];
+        stages.push(stage);
+        stagesByWorkflow.set(stage.workflowId, stages);
+      });
+
+      return rows.map(({ submission, template, workflow, submitter }) => {
+        const fields = template.fields || [];
+        const { missingFields, mappedFields } = buildProcessingFields(
+          fields,
+          submission.formData
+        );
+
+        const stages = workflow ? stagesByWorkflow.get(workflow.id) || [] : [];
+        const activeStage = stages.find(stage =>
+          ["pending", "in_progress"].includes(stage.status)
+        );
+        const hasProgress = stages.some(stage =>
+          ["in_progress", "completed"].includes(stage.status)
+        );
+
+        const processingStatus = deriveProcessingStatus({
+          workflowCompleted: workflow?.overallStatus === "completed",
+          missingFieldCount: missingFields.length,
+          submissionIsDraft: submission.submissionStatus === "draft",
+          hasWorkflowProgress: hasProgress,
+        });
+
+        return {
+          submissionId: submission.id,
+          workflowId: workflow?.id || null,
+          workflowNumber: workflow?.workflowNumber || null,
+          workflowTitle: workflow?.title || null,
+          templateId: template.id,
+          templateName: template.templateName,
+          submitterName: submitter?.fullName || "Unknown user",
+          submitterEmail: submitter?.email || null,
+          processingStatus,
+          missingFields,
+          mappedFields,
+          activeStage: activeStage
+            ? {
+                id: activeStage.id,
+                name: activeStage.stageName,
+                requiredRole: activeStage.requiredRole,
+                isFinal: stages.at(-1)?.id === activeStage.id,
+              }
+            : null,
+          createdAt: submission.createdAt,
+          updatedAt: submission.updatedAt,
+          completedAt: workflow?.completedAt || null,
+        };
+      });
+    }),
+
     update: protectedProcedure
       .input(
         z.object({
@@ -1699,6 +1807,22 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        const submission = await db.getFormSubmissionById(input.id);
+        if (!submission) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Form submission not found",
+          });
+        }
+        if (
+          submission.submittedBy !== ctx.user.id &&
+          ctx.user.role !== "admin"
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You can only update your own form submissions",
+          });
+        }
         await db.updateFormSubmission(input.id, {
           formData: input.formData,
           submissionStatus: input.submissionStatus,

@@ -136,6 +136,12 @@ const getAdminMenuItems = (t: (key: string) => string) => [
     section: "admin",
   },
   {
+    icon: Inbox,
+    label: t("common.processingInbox"),
+    path: "/admin/processing-inbox",
+    section: "admin",
+  },
+  {
     icon: Upload,
     label: t("common.excelTemplates"),
     path: "/admin/excel-templates",
