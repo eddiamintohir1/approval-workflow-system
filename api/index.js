@@ -13,6 +13,8 @@ var schema_exports = {};
 __export(schema_exports, {
   auditLogs: () => auditLogs,
   departmentBudgets: () => departmentBudgets2,
+  documentSequenceCounters: () => documentSequenceCounters,
+  documentSequences: () => documentSequences,
   documentTemplates: () => documentTemplates,
   emailLogs: () => emailLogs,
   emailRecipients: () => emailRecipients,
@@ -38,14 +40,28 @@ __export(schema_exports, {
   workflowTemplates: () => workflowTemplates,
   workflows: () => workflows
 });
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, decimal, bigint, index, date } from "drizzle-orm/mysql-core";
-var users, workflows, workflowStages, workflowApprovals, workflowFiles, workflowComments, auditLogs, emailRecipients, sequenceCounters, formTemplates, formSubmissions2, workflowTemplates, templateStages, departmentBudgets2, excelTemplates, taskAssignments, userPerformanceMetrics, salaryCache, emailLogs, recurringWorkflows, recurringWorkflowHistory, signedDocuments, documentTemplates, skuCategories, skuCounters, skus;
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  boolean,
+  json,
+  decimal,
+  bigint,
+  index,
+  date
+} from "drizzle-orm/mysql-core";
+var users, workflows, workflowStages, workflowApprovals, workflowFiles, workflowComments, auditLogs, emailRecipients, sequenceCounters, documentSequenceCounters, documentSequences, formTemplates, formSubmissions2, workflowTemplates, templateStages, departmentBudgets2, excelTemplates, taskAssignments, userPerformanceMetrics, salaryCache, emailLogs, recurringWorkflows, recurringWorkflowHistory, signedDocuments, documentTemplates, skuCategories, skuCounters, skus;
 var init_schema = __esm({
   "drizzle/schema.ts"() {
     "use strict";
     users = mysqlTable("users", {
       id: int("id").autoincrement().primaryKey(),
-      // Cognito integration
+      // Legacy identity column names retained for database compatibility. Values
+      // are populated from Microsoft Entra object identifiers and claims.
       cognitoSub: varchar("cognito_sub", { length: 255 }).notNull().unique(),
       openId: varchar("open_id", { length: 64 }).notNull().unique(),
       // For Manus compatibility
@@ -71,7 +87,7 @@ var init_schema = __esm({
         "Staff",
         "admin"
       ]).default("Staff").notNull(),
-      // Cognito groups stored as JSON array
+      // Microsoft Entra roles/groups stored as a JSON array
       cognitoGroups: json("cognito_groups").$type(),
       // Signature for CEO/CFO approval
       signatureUrl: text("signature_url"),
@@ -256,7 +272,13 @@ var init_schema = __esm({
     sequenceCounters = mysqlTable("sequence_counters", {
       id: varchar("id", { length: 36 }).primaryKey(),
       // Sequence identification
-      sequenceType: mysqlEnum("sequence_type", ["MAF", "PR", "CATTO", "SKU", "PAF"]).notNull(),
+      sequenceType: mysqlEnum("sequence_type", [
+        "MAF",
+        "PR",
+        "CATTO",
+        "SKU",
+        "PAF"
+      ]).notNull(),
       sequenceDate: varchar("sequence_date", { length: 10 }).notNull(),
       // YYYY-MM-DD format
       // Counter
@@ -265,6 +287,51 @@ var init_schema = __esm({
       createdAt: timestamp("created_at").defaultNow().notNull(),
       updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
     });
+    documentSequenceCounters = mysqlTable(
+      "document_sequence_counters",
+      {
+        id: varchar("id", { length: 100 }).primaryKey(),
+        prefix: varchar("prefix", { length: 100 }).notNull(),
+        department: varchar("department", { length: 20 }).notNull(),
+        documentType: varchar("document_type", { length: 20 }).notNull(),
+        currentValue: int("current_value").default(0).notNull(),
+        formatPattern: varchar("format_pattern", { length: 255 }),
+        resetPeriod: varchar("reset_period", { length: 20 }).default("monthly"),
+        lastResetAt: timestamp("last_reset_at"),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
+      }
+    );
+    documentSequences = mysqlTable(
+      "document_sequences",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        documentNumber: varchar("document_number", { length: 100 }).notNull().unique(),
+        sequenceCounter: int("sequence_counter").notNull(),
+        documentType: varchar("document_type", { length: 20 }).notNull(),
+        company: varchar("company", { length: 20 }).notNull(),
+        division: varchar("division", { length: 20 }).notNull(),
+        monthRoman: varchar("month_roman", { length: 10 }).notNull(),
+        monthNumeric: int("month_numeric").notNull(),
+        year: int("year").notNull(),
+        revisionNumber: int("revision_number").default(0).notNull(),
+        documentTitle: varchar("document_title", { length: 255 }).notNull(),
+        documentDescription: text("document_description"),
+        status: varchar("status", { length: 20 }).default("draft").notNull(),
+        createdBy: varchar("created_by", { length: 36 }).notNull(),
+        updatedBy: varchar("updated_by", { length: 36 }),
+        changeHistory: json("change_history").$type().default([]),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
+      },
+      (table) => ({
+        companyIdx: index("document_sequences_company_idx").on(table.company),
+        divisionIdx: index("document_sequences_division_idx").on(table.division),
+        typeIdx: index("document_sequences_type_idx").on(table.documentType),
+        statusIdx: index("document_sequences_status_idx").on(table.status),
+        yearIdx: index("document_sequences_year_idx").on(table.year)
+      })
+    );
     formTemplates = mysqlTable("form_templates", {
       id: varchar("id", { length: 36 }).primaryKey(),
       // Template information
@@ -367,7 +434,10 @@ var init_schema = __esm({
       month: int("month"),
       // 1-12, null for quarterly/annual budget
       // Budget amounts
-      allocatedBudget: decimal("allocated_budget", { precision: 15, scale: 2 }).notNull(),
+      allocatedBudget: decimal("allocated_budget", {
+        precision: 15,
+        scale: 2
+      }).notNull(),
       currency: varchar("currency", { length: 3 }).default("IDR"),
       // Metadata
       notes: text("notes"),
@@ -390,126 +460,167 @@ var init_schema = __esm({
       uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
       isActive: boolean("is_active").default(true).notNull()
     });
-    taskAssignments = mysqlTable("task_assignments", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      workflowId: varchar("workflow_id", { length: 36 }).notNull(),
-      assignedTo: int("assigned_to").notNull(),
-      // user.id (Staff)
-      assignedBy: int("assigned_by").notNull(),
-      // user.id (Manager/Dept Head)
-      assignedAt: timestamp("assigned_at").defaultNow().notNull()
-    }, (table) => ({
-      workflowIdx: index("idx_workflow_id").on(table.workflowId),
-      assignedToIdx: index("idx_assigned_to").on(table.assignedTo),
-      assignedByIdx: index("idx_assigned_by").on(table.assignedBy)
-    }));
-    userPerformanceMetrics = mysqlTable("user_performance_metrics", {
-      userId: int("user_id").primaryKey(),
-      avgCompletionHours: decimal("avg_completion_hours", { precision: 10, scale: 2 }),
-      tasksCompletedThisMonth: int("tasks_completed_this_month").default(0).notNull(),
-      longestStuckHours: decimal("longest_stuck_hours", { precision: 10, scale: 2 }),
-      longestStuckWorkflowId: varchar("longest_stuck_workflow_id", { length: 36 }),
-      rejectedCount: int("rejected_count").default(0).notNull(),
-      lastCalculated: timestamp("last_calculated").defaultNow().notNull()
-    }, (table) => ({
-      lastCalculatedIdx: index("idx_last_calculated").on(table.lastCalculated)
-    }));
+    taskAssignments = mysqlTable(
+      "task_assignments",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        workflowId: varchar("workflow_id", { length: 36 }).notNull(),
+        assignedTo: int("assigned_to").notNull(),
+        // user.id (Staff)
+        assignedBy: int("assigned_by").notNull(),
+        // user.id (Manager/Dept Head)
+        assignedAt: timestamp("assigned_at").defaultNow().notNull()
+      },
+      (table) => ({
+        workflowIdx: index("idx_workflow_id").on(table.workflowId),
+        assignedToIdx: index("idx_assigned_to").on(table.assignedTo),
+        assignedByIdx: index("idx_assigned_by").on(table.assignedBy)
+      })
+    );
+    userPerformanceMetrics = mysqlTable(
+      "user_performance_metrics",
+      {
+        userId: int("user_id").primaryKey(),
+        avgCompletionHours: decimal("avg_completion_hours", {
+          precision: 10,
+          scale: 2
+        }),
+        tasksCompletedThisMonth: int("tasks_completed_this_month").default(0).notNull(),
+        longestStuckHours: decimal("longest_stuck_hours", {
+          precision: 10,
+          scale: 2
+        }),
+        longestStuckWorkflowId: varchar("longest_stuck_workflow_id", {
+          length: 36
+        }),
+        rejectedCount: int("rejected_count").default(0).notNull(),
+        lastCalculated: timestamp("last_calculated").defaultNow().notNull()
+      },
+      (table) => ({
+        lastCalculatedIdx: index("idx_last_calculated").on(table.lastCalculated)
+      })
+    );
     salaryCache = mysqlTable("salary_cache", {
       userId: int("user_id").primaryKey(),
       salaryAmount: decimal("salary_amount", { precision: 12, scale: 2 }),
       currency: varchar("currency", { length: 3 }).default("IDR").notNull(),
       lastSynced: timestamp("last_synced").defaultNow().notNull()
     });
-    emailLogs = mysqlTable("email_logs", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      // Recipient
-      recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
-      // Email details
-      subject: text("subject").notNull(),
-      template: mysqlEnum("template", [
-        "milestone_completion",
-        "workflow_rejection",
-        "workflow_completion",
-        "deadline_reminder"
-      ]).notNull(),
-      // Related workflow
-      workflowId: varchar("workflow_id", { length: 36 }),
-      // Delivery status
-      status: mysqlEnum("status", ["sent", "failed"]).notNull(),
-      messageId: varchar("message_id", { length: 255 }),
-      // AWS SES Message ID
-      errorMessage: text("error_message"),
-      // Timestamps
-      sentAt: timestamp("sent_at").defaultNow().notNull()
-    }, (table) => ({
-      workflowIdx: index("idx_workflow_id").on(table.workflowId),
-      recipientIdx: index("idx_recipient_email").on(table.recipientEmail),
-      sentAtIdx: index("idx_sent_at").on(table.sentAt)
-    }));
-    recurringWorkflows = mysqlTable("recurring_workflows", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      // UUID
-      // Template reference
-      templateId: varchar("template_id", { length: 36 }).notNull(),
-      // Workflow details (pre-filled values)
-      title: varchar("title", { length: 500 }).notNull(),
-      description: text("description"),
-      department: varchar("department", { length: 100 }).notNull(),
-      // Recurrence configuration
-      frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly"]).notNull(),
-      dayOfMonth: int("day_of_month"),
-      // 1-31 for monthly recurrence
-      dayOfWeek: int("day_of_week"),
-      // 0-6 (0=Sunday) for weekly recurrence
-      // Schedule dates
-      startDate: date("start_date").notNull(),
-      endDate: date("end_date"),
-      // Optional end date
-      // Next scheduled generation
-      nextScheduledDate: date("next_scheduled_date").notNull(),
-      // Status
-      isActive: boolean("is_active").default(true).notNull(),
-      isPaused: boolean("is_paused").default(false).notNull(),
-      // Owner information
-      createdBy: int("created_by").notNull(),
-      assignedTo: json("assigned_to").$type(),
-      // User IDs who should be assigned
-      // Assignee presets for each approval stage
-      // Format: { "stage_name": [userId1, userId2, ...] }
-      assigneePresets: json("assignee_presets").$type(),
-      // Pre-filled form data (optional)
-      formTemplateId: varchar("form_template_id", { length: 36 }),
-      formData: json("form_data").$type(),
-      // Contingency workflows (optional)
-      contingencyWorkflowIds: json("contingency_workflow_ids").$type(),
-      // Timestamps
-      lastGeneratedAt: timestamp("last_generated_at"),
-      createdAt: timestamp("created_at").defaultNow().notNull(),
-      updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-      // Metadata
-      metadata: json("metadata").$type()
-    }, (table) => ({
-      createdByIdx: index("idx_created_by").on(table.createdBy),
-      nextScheduledIdx: index("idx_next_scheduled_date").on(table.nextScheduledDate),
-      isActiveIdx: index("idx_is_active").on(table.isActive)
-    }));
-    recurringWorkflowHistory = mysqlTable("recurring_workflow_history", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      // References
-      recurringWorkflowId: varchar("recurring_workflow_id", { length: 36 }).notNull(),
-      generatedWorkflowId: varchar("generated_workflow_id", { length: 36 }).notNull(),
-      // Generation details
-      scheduledDate: date("scheduled_date").notNull(),
-      generatedAt: timestamp("generated_at").defaultNow().notNull(),
-      generationStatus: mysqlEnum("generation_status", ["success", "failed"]).notNull(),
-      errorMessage: text("error_message"),
-      // Metadata
-      metadata: json("metadata").$type()
-    }, (table) => ({
-      recurringWorkflowIdx: index("idx_recurring_workflow_id").on(table.recurringWorkflowId),
-      generatedWorkflowIdx: index("idx_generated_workflow_id").on(table.generatedWorkflowId),
-      scheduledDateIdx: index("idx_scheduled_date").on(table.scheduledDate)
-    }));
+    emailLogs = mysqlTable(
+      "email_logs",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        // Recipient
+        recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
+        // Email details
+        subject: text("subject").notNull(),
+        template: mysqlEnum("template", [
+          "milestone_completion",
+          "workflow_rejection",
+          "workflow_completion",
+          "deadline_reminder"
+        ]).notNull(),
+        // Related workflow
+        workflowId: varchar("workflow_id", { length: 36 }),
+        // Delivery status
+        status: mysqlEnum("status", ["sent", "failed"]).notNull(),
+        messageId: varchar("message_id", { length: 255 }),
+        // AWS SES Message ID
+        errorMessage: text("error_message"),
+        // Timestamps
+        sentAt: timestamp("sent_at").defaultNow().notNull()
+      },
+      (table) => ({
+        workflowIdx: index("idx_workflow_id").on(table.workflowId),
+        recipientIdx: index("idx_recipient_email").on(table.recipientEmail),
+        sentAtIdx: index("idx_sent_at").on(table.sentAt)
+      })
+    );
+    recurringWorkflows = mysqlTable(
+      "recurring_workflows",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        // UUID
+        // Template reference
+        templateId: varchar("template_id", { length: 36 }).notNull(),
+        // Workflow details (pre-filled values)
+        title: varchar("title", { length: 500 }).notNull(),
+        description: text("description"),
+        department: varchar("department", { length: 100 }).notNull(),
+        // Recurrence configuration
+        frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly"]).notNull(),
+        dayOfMonth: int("day_of_month"),
+        // 1-31 for monthly recurrence
+        dayOfWeek: int("day_of_week"),
+        // 0-6 (0=Sunday) for weekly recurrence
+        // Schedule dates
+        startDate: date("start_date").notNull(),
+        endDate: date("end_date"),
+        // Optional end date
+        // Next scheduled generation
+        nextScheduledDate: date("next_scheduled_date").notNull(),
+        // Status
+        isActive: boolean("is_active").default(true).notNull(),
+        isPaused: boolean("is_paused").default(false).notNull(),
+        // Owner information
+        createdBy: int("created_by").notNull(),
+        assignedTo: json("assigned_to").$type(),
+        // User IDs who should be assigned
+        // Assignee presets for each approval stage
+        // Format: { "stage_name": [userId1, userId2, ...] }
+        assigneePresets: json("assignee_presets").$type(),
+        // Pre-filled form data (optional)
+        formTemplateId: varchar("form_template_id", { length: 36 }),
+        formData: json("form_data").$type(),
+        // Contingency workflows (optional)
+        contingencyWorkflowIds: json("contingency_workflow_ids").$type(),
+        // Timestamps
+        lastGeneratedAt: timestamp("last_generated_at"),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+        // Metadata
+        metadata: json("metadata").$type()
+      },
+      (table) => ({
+        createdByIdx: index("idx_created_by").on(table.createdBy),
+        nextScheduledIdx: index("idx_next_scheduled_date").on(
+          table.nextScheduledDate
+        ),
+        isActiveIdx: index("idx_is_active").on(table.isActive)
+      })
+    );
+    recurringWorkflowHistory = mysqlTable(
+      "recurring_workflow_history",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        // References
+        recurringWorkflowId: varchar("recurring_workflow_id", {
+          length: 36
+        }).notNull(),
+        generatedWorkflowId: varchar("generated_workflow_id", {
+          length: 36
+        }).notNull(),
+        // Generation details
+        scheduledDate: date("scheduled_date").notNull(),
+        generatedAt: timestamp("generated_at").defaultNow().notNull(),
+        generationStatus: mysqlEnum("generation_status", [
+          "success",
+          "failed"
+        ]).notNull(),
+        errorMessage: text("error_message"),
+        // Metadata
+        metadata: json("metadata").$type()
+      },
+      (table) => ({
+        recurringWorkflowIdx: index("idx_recurring_workflow_id").on(
+          table.recurringWorkflowId
+        ),
+        generatedWorkflowIdx: index("idx_generated_workflow_id").on(
+          table.generatedWorkflowId
+        ),
+        scheduledDateIdx: index("idx_scheduled_date").on(table.scheduledDate)
+      })
+    );
     signedDocuments = mysqlTable("signed_documents", {
       id: varchar("id", { length: 36 }).primaryKey(),
       workflowId: varchar("workflow_id", { length: 36 }).notNull(),
@@ -527,7 +638,13 @@ var init_schema = __esm({
       signerId: int("signer_id").notNull(),
       signerEmail: varchar("signer_email", { length: 255 }).notNull(),
       signerName: varchar("signer_name", { length: 255 }).notNull(),
-      status: mysqlEnum("status", ["pending", "awaiting_hellodoc_id", "signed", "rejected", "expired"]).notNull().default("awaiting_hellodoc_id"),
+      status: mysqlEnum("status", [
+        "pending",
+        "awaiting_hellodoc_id",
+        "signed",
+        "rejected",
+        "expired"
+      ]).notNull().default("awaiting_hellodoc_id"),
       signedAt: timestamp("signed_at"),
       sentAt: timestamp("sent_at"),
       // When sent from HelloDoc (nullable)
@@ -552,48 +669,62 @@ var init_schema = __esm({
       createdAt: timestamp("created_at").notNull().defaultNow(),
       updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    skuCategories = mysqlTable("sku_categories", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      prefix: varchar("prefix", { length: 10 }).notNull().unique(),
-      name: varchar("name", { length: 100 }).notNull(),
-      description: text("description"),
-      isActive: boolean("is_active").default(true).notNull(),
-      createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
-    }, (table) => ({
-      prefixIdx: index("idx_prefix").on(table.prefix),
-      isActiveIdx: index("idx_is_active").on(table.isActive)
-    }));
-    skuCounters = mysqlTable("sku_counters", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      categoryId: varchar("category_id", { length: 36 }).notNull(),
-      currentCounter: int("current_counter").default(0).notNull(),
-      resetDate: date("reset_date"),
-      createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
-    }, (table) => ({
-      categoryIdIdx: index("idx_category_id").on(table.categoryId),
-      uniqueCategoryCounter: index("unique_category_counter").on(table.categoryId)
-    }));
-    skus = mysqlTable("skus", {
-      id: varchar("id", { length: 36 }).primaryKey(),
-      skuCode: varchar("sku_code", { length: 50 }).notNull().unique(),
-      categoryId: varchar("category_id", { length: 36 }).notNull(),
-      prefix: varchar("prefix", { length: 10 }).notNull(),
-      sequenceNumber: int("sequence_number").notNull(),
-      productName: varchar("product_name", { length: 500 }),
-      description: text("description"),
-      status: varchar("status", { length: 50 }).default("active").notNull(),
-      createdBy: int("created_by").notNull(),
-      createdAt: timestamp("created_at").notNull().defaultNow(),
-      updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
-    }, (table) => ({
-      skuCodeIdx: index("idx_sku_code").on(table.skuCode),
-      categoryIdIdx: index("idx_category_id").on(table.categoryId),
-      prefixIdx: index("idx_prefix").on(table.prefix),
-      statusIdx: index("idx_status").on(table.status),
-      createdAtIdx: index("idx_created_at").on(table.createdAt)
-    }));
+    skuCategories = mysqlTable(
+      "sku_categories",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        prefix: varchar("prefix", { length: 10 }).notNull().unique(),
+        name: varchar("name", { length: 100 }).notNull(),
+        description: text("description"),
+        isActive: boolean("is_active").default(true).notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
+      },
+      (table) => ({
+        prefixIdx: index("idx_prefix").on(table.prefix),
+        isActiveIdx: index("idx_is_active").on(table.isActive)
+      })
+    );
+    skuCounters = mysqlTable(
+      "sku_counters",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        categoryId: varchar("category_id", { length: 36 }).notNull(),
+        currentCounter: int("current_counter").default(0).notNull(),
+        resetDate: date("reset_date"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
+      },
+      (table) => ({
+        categoryIdIdx: index("idx_category_id").on(table.categoryId),
+        uniqueCategoryCounter: index("unique_category_counter").on(
+          table.categoryId
+        )
+      })
+    );
+    skus = mysqlTable(
+      "skus",
+      {
+        id: varchar("id", { length: 36 }).primaryKey(),
+        skuCode: varchar("sku_code", { length: 50 }).notNull().unique(),
+        categoryId: varchar("category_id", { length: 36 }).notNull(),
+        prefix: varchar("prefix", { length: 10 }).notNull(),
+        sequenceNumber: int("sequence_number").notNull(),
+        productName: varchar("product_name", { length: 500 }),
+        description: text("description"),
+        status: varchar("status", { length: 50 }).default("active").notNull(),
+        createdBy: int("created_by").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow()
+      },
+      (table) => ({
+        skuCodeIdx: index("idx_sku_code").on(table.skuCode),
+        categoryIdIdx: index("idx_category_id").on(table.categoryId),
+        prefixIdx: index("idx_prefix").on(table.prefix),
+        statusIdx: index("idx_status").on(table.status),
+        createdAtIdx: index("idx_created_at").on(table.createdAt)
+      })
+    );
   }
 });
 
@@ -2752,7 +2883,7 @@ var systemRouter = router({
 // server/routers.ts
 init_db();
 init_schema();
-import { eq as eq3 } from "drizzle-orm";
+import { eq as eq4 } from "drizzle-orm";
 
 // server/storage.ts
 import { BlobSASPermissions, BlobServiceClient } from "@azure/storage-blob";
@@ -3180,14 +3311,11 @@ async function triggerRemindersNow() {
 init_email();
 
 // server/routers/documentSequence.ts
-import { z as z2 } from "zod";
-import { Pool } from "pg";
+init_schema();
+init_db();
+import { and as and2, desc as desc2, eq as eq2, like, or, sql as sql2 } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-var pgPool = new Pool({
-  connectionString: process.env.CUSTOM_DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 5
-});
+import { z as z2 } from "zod";
 var DOCUMENT_TYPES = [
   "SOP",
   "IK",
@@ -3217,6 +3345,14 @@ var DIVISIONS = [
   "ITS",
   "PRC"
 ];
+var DOCUMENT_STATUSES = [
+  "draft",
+  "review",
+  "approved",
+  "effective",
+  "superseded",
+  "obsolete"
+];
 var MONTHS_ROMAN = [
   "I",
   "II",
@@ -3237,23 +3373,27 @@ function getMonthRoman(monthNum) {
 }
 async function getNextSequenceNumber(documentType, company, division, year, monthNumeric) {
   const counterId = `${documentType}-${company}-${division}-${year}-${monthNumeric}`;
-  const client = await pgPool.connect();
+  const connection2 = await mysqlPool.getConnection();
   try {
-    const existing = await client.query(
-      "SELECT current_value FROM sequence_counters WHERE id = $1",
+    await connection2.beginTransaction();
+    const [rows] = await connection2.execute(
+      "SELECT current_value FROM document_sequence_counters WHERE id = ? FOR UPDATE",
       [counterId]
     );
-    if (existing.rows.length > 0) {
-      const nextValue = (existing.rows[0].current_value || 0) + 1;
-      await client.query(
-        "UPDATE sequence_counters SET current_value = $1, updated_at = NOW() WHERE id = $2",
+    let nextValue;
+    if (rows.length > 0) {
+      nextValue = Number(rows[0].current_value) + 1;
+      await connection2.execute(
+        "UPDATE document_sequence_counters SET current_value = ?, updated_at = NOW() WHERE id = ?",
         [nextValue, counterId]
       );
-      return nextValue;
     } else {
-      await client.query(
-        `INSERT INTO sequence_counters (id, prefix, department, document_type, current_value, format_pattern, reset_period, last_reset_at, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 1, $5, 'monthly', NOW(), NOW(), NOW())`,
+      nextValue = 1;
+      await connection2.execute(
+        `INSERT INTO document_sequence_counters
+          (id, prefix, department, document_type, current_value, format_pattern,
+           reset_period, last_reset_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, 'monthly', NOW(), NOW(), NOW())`,
         [
           counterId,
           `${company}-${division}`,
@@ -3262,18 +3402,20 @@ async function getNextSequenceNumber(documentType, company, division, year, mont
           `XXXX.${documentType}/${company}/${division}/MM/YYYY`
         ]
       );
-      return 1;
     }
+    await connection2.commit();
+    return nextValue;
+  } catch (error) {
+    await connection2.rollback();
+    throw error;
   } finally {
-    client.release();
+    connection2.release();
   }
 }
 function formatDocumentNumber(sequenceNum, documentType, company, division, monthRoman, year) {
-  const paddedSeq = String(sequenceNum).padStart(4, "0");
-  return `${paddedSeq}.${documentType}/${company}/${division}/${monthRoman}/${year}`;
+  return `${String(sequenceNum).padStart(4, "0")}.${documentType}/${company}/${division}/${monthRoman}/${year}`;
 }
 var documentSequenceRouter = router({
-  // Generate a new document sequence number
   generateDocumentNumber: protectedProcedure.input(
     z2.object({
       documentType: z2.enum(DOCUMENT_TYPES),
@@ -3287,7 +3429,7 @@ var documentSequenceRouter = router({
     const year = now.getFullYear();
     const monthNumeric = now.getMonth() + 1;
     const monthRoman = getMonthRoman(monthNumeric);
-    const sequenceNum = await getNextSequenceNumber(
+    const sequenceCounter = await getNextSequenceNumber(
       input.documentType,
       input.company,
       input.division,
@@ -3295,7 +3437,7 @@ var documentSequenceRouter = router({
       monthNumeric
     );
     const documentNumber = formatDocumentNumber(
-      sequenceNum,
+      sequenceCounter,
       input.documentType,
       input.company,
       input.division,
@@ -3304,46 +3446,34 @@ var documentSequenceRouter = router({
     );
     const id = uuidv4();
     const userId = ctx.user.id.toString();
-    const changeHistory = JSON.stringify([
-      {
-        action: "created",
-        timestamp: now.toISOString(),
-        userId,
-        changes: "Document sequence generated"
-      }
-    ]);
-    const client = await pgPool.connect();
-    try {
-      await client.query(
-        `INSERT INTO document_sequences
-            (id, document_number, sequence_counter, document_type, company, division,
-             month_roman, month_numeric, year, revision_number, document_title,
-             document_description, status, created_by, created_at, change_history)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,'draft',$12,$13,$14::jsonb)`,
-        [
-          id,
-          documentNumber,
-          sequenceNum,
-          input.documentType,
-          input.company,
-          input.division,
-          monthRoman,
-          monthNumeric,
-          year,
-          input.documentTitle,
-          input.documentDescription || null,
+    await db.insert(documentSequences).values({
+      id,
+      documentNumber,
+      sequenceCounter,
+      documentType: input.documentType,
+      company: input.company,
+      division: input.division,
+      monthRoman,
+      monthNumeric,
+      year,
+      revisionNumber: 0,
+      documentTitle: input.documentTitle,
+      documentDescription: input.documentDescription || null,
+      status: "draft",
+      createdBy: userId,
+      changeHistory: [
+        {
+          action: "created",
+          timestamp: now.toISOString(),
           userId,
-          now,
-          changeHistory
-        ]
-      );
-    } finally {
-      client.release();
-    }
+          changes: "Document sequence generated"
+        }
+      ]
+    });
     return {
       id,
       documentNumber,
-      sequenceCounter: sequenceNum,
+      sequenceCounter,
       documentType: input.documentType,
       company: input.company,
       division: input.division,
@@ -3355,155 +3485,85 @@ var documentSequenceRouter = router({
       createdAt: now
     };
   }),
-  // List all document sequences with filters
   listDocumentSequences: protectedProcedure.input(
     z2.object({
       company: z2.enum(COMPANIES).optional(),
       division: z2.enum(DIVISIONS).optional(),
       documentType: z2.enum(DOCUMENT_TYPES).optional(),
-      status: z2.enum([
-        "draft",
-        "review",
-        "approved",
-        "effective",
-        "superseded",
-        "obsolete"
-      ]).optional(),
+      status: z2.enum(DOCUMENT_STATUSES).optional(),
       year: z2.number().optional(),
-      limit: z2.number().default(50),
-      offset: z2.number().default(0)
+      limit: z2.number().min(1).max(100).default(50),
+      offset: z2.number().min(0).default(0)
     })
   ).query(async ({ input }) => {
-    const conditions = [];
-    const params = [];
-    let paramIdx = 1;
-    if (input.company) {
-      conditions.push(`company = $${paramIdx++}`);
-      params.push(input.company);
-    }
-    if (input.division) {
-      conditions.push(`division = $${paramIdx++}`);
-      params.push(input.division);
-    }
-    if (input.documentType) {
-      conditions.push(`document_type = $${paramIdx++}`);
-      params.push(input.documentType);
-    }
-    if (input.status) {
-      conditions.push(`status = $${paramIdx++}`);
-      params.push(input.status);
-    }
-    if (input.year) {
-      conditions.push(`year = $${paramIdx++}`);
-      params.push(input.year);
-    }
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const client = await pgPool.connect();
-    try {
-      const countResult = await client.query(
-        `SELECT COUNT(*) as total FROM document_sequences ${whereClause}`,
-        params
-      );
-      const total = parseInt(countResult.rows[0].total, 10);
-      const dataParams = [...params, input.limit, input.offset];
-      const results = await client.query(
-        `SELECT * FROM document_sequences ${whereClause}
-           ORDER BY created_at DESC
-           LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-        dataParams
-      );
-      return {
-        data: results.rows,
-        total,
-        limit: input.limit,
-        offset: input.offset
-      };
-    } finally {
-      client.release();
-    }
+    const conditions = [
+      input.company ? eq2(documentSequences.company, input.company) : void 0,
+      input.division ? eq2(documentSequences.division, input.division) : void 0,
+      input.documentType ? eq2(documentSequences.documentType, input.documentType) : void 0,
+      input.status ? eq2(documentSequences.status, input.status) : void 0,
+      input.year ? eq2(documentSequences.year, input.year) : void 0
+    ].filter(
+      (condition) => Boolean(condition)
+    );
+    const where = conditions.length > 0 ? and2(...conditions) : void 0;
+    const [countRows, data] = await Promise.all([
+      db.select({ total: sql2`count(*)` }).from(documentSequences).where(where),
+      db.select().from(documentSequences).where(where).orderBy(desc2(documentSequences.createdAt)).limit(input.limit).offset(input.offset)
+    ]);
+    return {
+      data,
+      total: Number(countRows[0]?.total ?? 0),
+      limit: input.limit,
+      offset: input.offset
+    };
   }),
-  // Search document sequences
   searchDocumentSequences: protectedProcedure.input(
-    z2.object({ query: z2.string().min(1), limit: z2.number().default(20) })
+    z2.object({
+      query: z2.string().min(1),
+      limit: z2.number().min(1).max(100).default(20)
+    })
   ).query(async ({ input }) => {
-    const client = await pgPool.connect();
-    try {
-      const results = await client.query(
-        `SELECT * FROM document_sequences
-           WHERE document_number ILIKE $1 OR document_title ILIKE $1
-           ORDER BY created_at DESC
-           LIMIT $2`,
-        [`%${input.query}%`, input.limit]
-      );
-      return results.rows;
-    } finally {
-      client.release();
-    }
+    const pattern = `%${input.query}%`;
+    return db.select().from(documentSequences).where(
+      or(
+        like(documentSequences.documentNumber, pattern),
+        like(documentSequences.documentTitle, pattern)
+      )
+    ).orderBy(desc2(documentSequences.createdAt)).limit(input.limit);
   }),
-  // Get document sequence by ID
   getDocumentSequence: protectedProcedure.input(z2.object({ id: z2.string() })).query(async ({ input }) => {
-    const client = await pgPool.connect();
-    try {
-      const result = await client.query(
-        "SELECT * FROM document_sequences WHERE id = $1",
-        [input.id]
-      );
-      if (result.rows.length === 0)
-        throw new Error("Document sequence not found");
-      return result.rows[0];
-    } finally {
-      client.release();
-    }
+    const [document] = await db.select().from(documentSequences).where(eq2(documentSequences.id, input.id)).limit(1);
+    if (!document) throw new Error("Document sequence not found");
+    return document;
   }),
-  // Update document sequence status
   updateDocumentStatus: protectedProcedure.input(
     z2.object({
       id: z2.string(),
-      status: z2.enum([
-        "draft",
-        "review",
-        "approved",
-        "effective",
-        "superseded",
-        "obsolete"
-      ]),
+      status: z2.enum(DOCUMENT_STATUSES),
       notes: z2.string().optional()
     })
   ).mutation(async ({ input, ctx }) => {
+    const [existing] = await db.select().from(documentSequences).where(eq2(documentSequences.id, input.id)).limit(1);
+    if (!existing) throw new Error("Document sequence not found");
     const now = /* @__PURE__ */ new Date();
     const userId = ctx.user.id.toString();
-    const client = await pgPool.connect();
-    try {
-      const existing = await client.query(
-        "SELECT * FROM document_sequences WHERE id = $1",
-        [input.id]
-      );
-      if (existing.rows.length === 0)
-        throw new Error("Document sequence not found");
-      const oldHistory = existing.rows[0].change_history || [];
-      const newHistory = JSON.stringify([
-        ...oldHistory,
+    await db.update(documentSequences).set({
+      status: input.status,
+      updatedBy: userId,
+      changeHistory: [
+        ...existing.changeHistory ?? [],
         {
           action: "status_updated",
           timestamp: now.toISOString(),
           userId,
-          oldStatus: existing.rows[0].status,
+          oldStatus: existing.status,
           newStatus: input.status,
           notes: input.notes
         }
-      ]);
-      await client.query(
-        `UPDATE document_sequences
-           SET status = $1, updated_by = $2, updated_at = $3, change_history = $4::jsonb
-           WHERE id = $5`,
-        [input.status, userId, now, newHistory, input.id]
-      );
-      return { success: true };
-    } finally {
-      client.release();
-    }
+      ]
+    }).where(eq2(documentSequences.id, input.id));
+    return { success: true };
   }),
-  // Get sequence counter statistics
   getCounterStats: protectedProcedure.input(
     z2.object({
       company: z2.enum(COMPANIES).optional(),
@@ -3511,42 +3571,28 @@ var documentSequenceRouter = router({
       year: z2.number().optional()
     })
   ).query(async ({ input }) => {
-    const client = await pgPool.connect();
-    try {
-      const result = await client.query(
-        "SELECT * FROM sequence_counters ORDER BY created_at DESC"
-      );
-      const filtered = result.rows.filter((counter) => {
-        if (input.company && !counter.prefix?.includes(input.company))
-          return false;
-        if (input.division && !counter.prefix?.includes(input.division))
-          return false;
-        return true;
-      });
-      return filtered.map((c) => ({
-        id: c.id,
-        prefix: c.prefix,
-        documentType: c.document_type,
-        currentValue: c.current_value,
-        lastReset: c.last_reset_at
-      }));
-    } finally {
-      client.release();
-    }
+    const counters = await db.select().from(documentSequenceCounters).orderBy(desc2(documentSequenceCounters.createdAt));
+    return counters.filter((counter) => {
+      if (input.company && !counter.prefix.includes(input.company))
+        return false;
+      if (input.division && !counter.prefix.includes(input.division))
+        return false;
+      if (input.year && !counter.id.includes(`-${input.year}-`))
+        return false;
+      return true;
+    }).map((counter) => ({
+      id: counter.id,
+      prefix: counter.prefix,
+      documentType: counter.documentType,
+      currentValue: counter.currentValue,
+      lastReset: counter.lastResetAt
+    }));
   }),
-  // Get constants for UI
   getConstants: protectedProcedure.query(() => ({
     documentTypes: DOCUMENT_TYPES,
     companies: COMPANIES,
     divisions: DIVISIONS,
-    documentStatuses: [
-      "draft",
-      "review",
-      "approved",
-      "effective",
-      "superseded",
-      "obsolete"
-    ],
+    documentStatuses: DOCUMENT_STATUSES,
     monthsRoman: MONTHS_ROMAN
   }))
 });
@@ -3556,14 +3602,14 @@ init_db();
 init_schema();
 import { z as z3 } from "zod";
 import { v4 as uuidv42 } from "uuid";
-import { eq as eq2, and as and2, like, desc as desc2 } from "drizzle-orm";
+import { eq as eq3, and as and3, like as like2, desc as desc3 } from "drizzle-orm";
 var skuGeneratorRouter = router({
   /**
    * Get all SKU categories
    */
   getCategories: publicProcedure.query(async () => {
     try {
-      const categories = await db.select().from(skuCategories).where(eq2(skuCategories.isActive, true)).orderBy(skuCategories.prefix);
+      const categories = await db.select().from(skuCategories).where(eq3(skuCategories.isActive, true)).orderBy(skuCategories.prefix);
       return categories;
     } catch (error) {
       console.error("Error fetching SKU categories:", error);
@@ -3582,12 +3628,12 @@ var skuGeneratorRouter = router({
     })
   ).mutation(async ({ input }) => {
     try {
-      const category = await db.select().from(skuCategories).where(eq2(skuCategories.id, input.categoryId)).limit(1);
+      const category = await db.select().from(skuCategories).where(eq3(skuCategories.id, input.categoryId)).limit(1);
       if (!category || category.length === 0) {
         throw new Error("Category not found");
       }
       const categoryData = category[0];
-      const counterResult = await db.select().from(skuCounters).where(eq2(skuCounters.categoryId, input.categoryId)).limit(1);
+      const counterResult = await db.select().from(skuCounters).where(eq3(skuCounters.categoryId, input.categoryId)).limit(1);
       if (!counterResult || counterResult.length === 0) {
         throw new Error("Counter not initialized for this category");
       }
@@ -3613,7 +3659,7 @@ var skuGeneratorRouter = router({
       await db.update(skuCounters).set({
         currentCounter: nextSequence,
         updatedAt: now
-      }).where(eq2(skuCounters.id, counter.id));
+      }).where(eq3(skuCounters.id, counter.id));
       return {
         success: true,
         skuId,
@@ -3646,21 +3692,21 @@ var skuGeneratorRouter = router({
       const conditions = [];
       if (input.query) {
         conditions.push(
-          like(skus.skuCode, `%${input.query}%`)
+          like2(skus.skuCode, `%${input.query}%`)
         );
       }
       if (input.categoryId) {
-        conditions.push(eq2(skus.categoryId, input.categoryId));
+        conditions.push(eq3(skus.categoryId, input.categoryId));
       }
       if (input.status) {
-        conditions.push(eq2(skus.status, input.status));
+        conditions.push(eq3(skus.status, input.status));
       }
       if (conditions.length > 0) {
-        query = query.where(and2(...conditions));
+        query = query.where(and3(...conditions));
       }
-      const countResult = await db.select({ count: skus.id }).from(skus).where(conditions.length > 0 ? and2(...conditions) : void 0);
+      const countResult = await db.select({ count: skus.id }).from(skus).where(conditions.length > 0 ? and3(...conditions) : void 0);
       const total = countResult.length > 0 ? 1 : 0;
-      const results = await query.orderBy(desc2(skus.createdAt)).limit(input.limit).offset(input.offset);
+      const results = await query.orderBy(desc3(skus.createdAt)).limit(input.limit).offset(input.offset);
       return {
         data: results,
         total: results.length,
@@ -3677,11 +3723,11 @@ var skuGeneratorRouter = router({
    */
   getSkuDetails: publicProcedure.input(z3.object({ skuId: z3.string() })).query(async ({ input }) => {
     try {
-      const sku = await db.select().from(skus).where(eq2(skus.id, input.skuId)).limit(1);
+      const sku = await db.select().from(skus).where(eq3(skus.id, input.skuId)).limit(1);
       if (!sku || sku.length === 0) {
         throw new Error("SKU not found");
       }
-      const category = await db.select().from(skuCategories).where(eq2(skuCategories.id, sku[0].categoryId)).limit(1);
+      const category = await db.select().from(skuCategories).where(eq3(skuCategories.id, sku[0].categoryId)).limit(1);
       return {
         sku: sku[0],
         category: category?.[0] || null
@@ -3702,7 +3748,7 @@ var skuGeneratorRouter = router({
     })
   ).query(async ({ input }) => {
     try {
-      const results = await db.select().from(skus).where(eq2(skus.categoryId, input.categoryId)).orderBy(desc2(skus.sequenceNumber)).limit(input.limit).offset(input.offset);
+      const results = await db.select().from(skus).where(eq3(skus.categoryId, input.categoryId)).orderBy(desc3(skus.sequenceNumber)).limit(input.limit).offset(input.offset);
       return {
         data: results,
         total: results.length,
@@ -3719,7 +3765,7 @@ var skuGeneratorRouter = router({
    */
   getCategoryCounter: publicProcedure.input(z3.object({ categoryId: z3.string() })).query(async ({ input }) => {
     try {
-      const counter = await db.select().from(skuCounters).where(eq2(skuCounters.categoryId, input.categoryId)).limit(1);
+      const counter = await db.select().from(skuCounters).where(eq3(skuCounters.categoryId, input.categoryId)).limit(1);
       if (!counter || counter.length === 0) {
         throw new Error("Counter not found");
       }
@@ -3742,15 +3788,15 @@ var skuGeneratorRouter = router({
       let query = db.select().from(skus);
       const conditions = [];
       if (input.categoryId) {
-        conditions.push(eq2(skus.categoryId, input.categoryId));
+        conditions.push(eq3(skus.categoryId, input.categoryId));
       }
       if (input.status) {
-        conditions.push(eq2(skus.status, input.status));
+        conditions.push(eq3(skus.status, input.status));
       }
       if (conditions.length > 0) {
-        query = query.where(and2(...conditions));
+        query = query.where(and3(...conditions));
       }
-      const results = await query.orderBy(desc2(skus.createdAt));
+      const results = await query.orderBy(desc3(skus.createdAt));
       const csvData = results.map((sku) => ({
         "SKU Code": sku.skuCode,
         "Product Name": sku.productName || "-",
@@ -5731,7 +5777,7 @@ var appRouter = router({
         "signed",
         status.signedAt || void 0
       );
-      await db.update(signedDocuments).set({ s3Key, s3Url }).where(eq3(signedDocuments.id, doc.id));
+      await db.update(signedDocuments).set({ s3Key, s3Url }).where(eq4(signedDocuments.id, doc.id));
       const { sendSignedDocumentEmail: sendSignedDocumentEmail2 } = await Promise.resolve().then(() => (init_email(), email_exports));
       await sendSignedDocumentEmail2(
         doc.signerEmail,
