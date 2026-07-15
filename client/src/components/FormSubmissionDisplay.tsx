@@ -8,7 +8,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Calendar, DollarSign, Package, User } from "lucide-react";
+import {
+  FileText,
+  Calendar,
+  DollarSign,
+  Package,
+  User,
+  FileSpreadsheet,
+} from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
@@ -29,6 +36,14 @@ export function FormSubmissionDisplay({
     refetch,
   } = trpc.formSubmissions.getByWorkflow.useQuery({ workflowId });
   const submission = submissions?.[0];
+  const { data: excelTemplates = [] } =
+    trpc.excelTemplates.getForFormTemplate.useQuery(
+      {
+        formTemplateId:
+          submission?.template?.id || "00000000-0000-0000-0000-000000000000",
+      },
+      { enabled: Boolean(submission?.template?.id) }
+    );
 
   useEffect(() => {
     if (submission) setDraftData(submission.formData);
@@ -37,6 +52,19 @@ export function FormSubmissionDisplay({
   const updateSubmission = trpc.formSubmissions.update.useMutation({
     onSuccess: async () => {
       await refetch();
+    },
+    onError: error => toast.error(error.message),
+  });
+  const generateExcel = trpc.excelTemplates.generateForSubmission.useMutation({
+    onSuccess: ({ url, filename }) => {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Excel workbook generated");
     },
     onError: error => toast.error(error.message),
   });
@@ -218,6 +246,26 @@ export function FormSubmissionDisplay({
             );
           })}
         </div>
+        {excelTemplates.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-2 border-t pt-4">
+            {excelTemplates.map(excelTemplate => (
+              <Button
+                key={excelTemplate.id}
+                variant="outline"
+                disabled={generateExcel.isPending}
+                onClick={() =>
+                  generateExcel.mutate({
+                    excelTemplateId: excelTemplate.id,
+                    submissionId: submission.id,
+                  })
+                }
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Generate {excelTemplate.templateName}
+              </Button>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

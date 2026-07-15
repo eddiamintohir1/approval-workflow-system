@@ -34,17 +34,14 @@ describe("Excel Workbook Service", () => {
     worksheet.getCell("B3").value = 15000;
     worksheet.getCell("B3").numFmt = "#,##0.00";
 
-    worksheet.getCell("B4").value = "=B3*1.1";
+    worksheet.getCell("B4").value = { formula: "B3*1.1", result: 16500 };
+    workbook.definedNames.add("'Payment Request'!$B$2", "AccountName");
 
     worksheet.addTable({
       name: "InvoiceItems",
       ref: "A6:C8",
       headerRow: true,
-      columns: [
-        { name: "Item" },
-        { name: "Quantity" },
-        { name: "Amount" },
-      ],
+      columns: [{ name: "Item" }, { name: "Quantity" }, { name: "Amount" }],
       rows: [
         ["Item 1", 5, 1000],
         ["Item 2", 3, 500],
@@ -65,11 +62,22 @@ describe("Excel Workbook Service", () => {
     it("should extract worksheet metadata", async () => {
       const metadata = await inspectWorkbook(testWorkbookBuffer);
 
-      expect(metadata).toBeDefined();
-      expect(metadata.worksheetNames).toBeDefined();
-      expect(metadata.worksheetDimensions).toBeDefined();
-      expect(metadata.tables).toBeDefined();
-      expect(metadata.sampleCells).toBeDefined();
+      expect(metadata.worksheetNames).toContain("Payment Request");
+      expect(
+        metadata.worksheetDimensions["Payment Request"].rows
+      ).toBeGreaterThan(0);
+      expect(metadata.definedNames).toContainEqual(
+        expect.objectContaining({ name: "AccountName" })
+      );
+      expect(metadata.tables).toContainEqual(
+        expect.objectContaining({
+          tableName: "InvoiceItems",
+          columns: ["Item", "Quantity", "Amount"],
+        })
+      );
+      expect(metadata.sampleCells).toContainEqual(
+        expect.objectContaining({ cellAddress: "A1" })
+      );
     });
   });
 
@@ -86,8 +94,7 @@ describe("Excel Workbook Service", () => {
       ];
 
       const result = await validateMappings(testWorkbookBuffer, mappings);
-      expect(typeof result.valid).toBe("boolean");
-      expect(Array.isArray(result.errors)).toBe(true);
+      expect(result).toEqual({ valid: true, errors: [] });
     });
 
     it("should reject invalid sheet names", async () => {
@@ -189,8 +196,79 @@ describe("Excel Workbook Service", () => {
       await generatedWorkbook.xlsx.load(generatedBuffer);
       const generatedSheet = generatedWorkbook.getWorksheet("Payment Request");
 
-      const cellValue = generatedSheet?.getCell("B2").value;
-      expect(cellValue).toBeDefined();
+      expect(generatedSheet?.getCell("B2").value).toBe("'=1+1");
+    });
+
+    it("writes named ranges, built-ins, and repeating table rows", async () => {
+      const mappings: ExcelWorkbookMapping[] = [
+        {
+          mappingKey: "account_name",
+          targetType: "named_range",
+          namedRange: "AccountName",
+          valueType: "text",
+        } as NamedRangeMapping,
+        {
+          mappingKey: "workflow_number",
+          targetType: "cell",
+          sheetName: "Payment Request",
+          cellAddress: "B5",
+          valueType: "text",
+        } as CellMapping,
+        {
+          mappingKey: "items",
+          targetType: "table_column",
+          sheetName: "Payment Request",
+          tableName: "InvoiceItems",
+          columnName: "Item",
+          sourcePath: "name",
+        } as TableColumnMapping,
+        {
+          mappingKey: "items",
+          targetType: "table_column",
+          sheetName: "Payment Request",
+          tableName: "InvoiceItems",
+          columnName: "Quantity",
+          sourcePath: "quantity",
+          valueType: "number",
+        } as TableColumnMapping,
+      ];
+      const generatedBuffer = await generateMappedWorkbook({
+        templateBuffer: testWorkbookBuffer,
+        mappings,
+        formTemplate: {
+          fields: [
+            { id: "name", mappingKey: "account_name" },
+            { id: "items", mappingKey: "items" },
+          ],
+        },
+        submission: {
+          formData: {
+            name: "Compawnion",
+            items: [
+              { name: "Service", quantity: 2 },
+              { name: "Material", quantity: 4 },
+            ],
+          },
+        },
+        workflow: { workflowNumber: "WF-009" },
+      });
+
+      const generated = new ExcelJS.Workbook();
+      await generated.xlsx.load(generatedBuffer);
+      const sheet = generated.getWorksheet("Payment Request")!;
+      expect(sheet.getCell("B2").value).toBe("Compawnion");
+      expect(sheet.getCell("B5").value).toBe("WF-009");
+      expect(sheet.getCell("A9").value).toBe("Service");
+      expect(sheet.getCell("B9").value).toBe(2);
+      expect(sheet.getCell("A10").value).toBe("Material");
+      expect(sheet.getCell("B10").value).toBe(4);
+      expect((sheet.getTable("InvoiceItems") as any).table.tableRef).toBe(
+        "A6:C10"
+      );
+      expect(sheet.getCell("B4").value).toEqual(
+        expect.objectContaining({ formula: "B3*1.1" })
+      );
+      expect(sheet.getCell("A1").font.bold).toBe(true);
     });
   });
 
@@ -243,10 +321,13 @@ describe("Excel Workbook Service", () => {
 
     describe("generateOutputFilename", () => {
       it("should generate valid filename", () => {
-        const filename = generateOutputFilename("{templateName}_{workflowNumber}.xlsx", {
-          templateName: "Payment Request",
-          workflowNumber: "WF-001",
-        });
+        const filename = generateOutputFilename(
+          "{templateName}_{workflowNumber}.xlsx",
+          {
+            templateName: "Payment Request",
+            workflowNumber: "WF-001",
+          }
+        );
 
         expect(filename).toMatch(/\.xlsx$/);
         expect(filename.length).toBeGreaterThan(0);
