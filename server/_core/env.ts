@@ -9,6 +9,7 @@ export const ENV = {
 // Frontend environment variables (VITE_ prefix)
 export const env = {
   VITE_API_URL: process.env.VITE_API_URL,
+  VITE_APP_URL: process.env.VITE_APP_URL,
   VITE_ENTRA_TENANT_ID: process.env.VITE_ENTRA_TENANT_ID,
   VITE_ENTRA_CLIENT_ID: process.env.VITE_ENTRA_CLIENT_ID,
 };

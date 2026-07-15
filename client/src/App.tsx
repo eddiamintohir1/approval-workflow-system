@@ -14,6 +14,7 @@ import WorkflowCreate from "./pages/workflows/WorkflowCreate";
 import WorkflowDetail from "./pages/workflows/WorkflowDetail";
 import FormTemplateList from "./pages/admin/FormTemplateList";
 import FormTemplateBuilder from "./pages/admin/FormTemplateBuilder";
+import ProcessingInbox from "./pages/admin/ProcessingInbox";
 import SequenceGenerator from "./pages/admin/SequenceGenerator";
 import Analytics from "./pages/Analytics";
 import TemplateBuilder from "./pages/templates/TemplateBuilder";
@@ -100,6 +101,18 @@ function Router() {
         <ProtectedRoute
           component={FormTemplateBuilder}
           path="/admin/form-templates/new"
+        />
+      </Route>
+      <Route path="/admin/form-templates/:id/edit">
+        <ProtectedRoute
+          component={FormTemplateBuilder}
+          path="/admin/form-templates/:id/edit"
+        />
+      </Route>
+      <Route path="/admin/processing-inbox">
+        <ProtectedRoute
+          component={ProcessingInbox}
+          path="/admin/processing-inbox"
         />
       </Route>
       <Route

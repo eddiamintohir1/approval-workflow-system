@@ -3,11 +3,23 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, ArrowLeft, Download, FileText, Eye } from "lucide-react";
 import { toast } from "sonner";
@@ -19,38 +31,43 @@ import { ContingencyWorkflowSelector } from "@/components/ContingencyWorkflowSel
 export default function WorkflowCreate() {
   const [, setLocation] = useLocation();
   const { user } = useUserRole();
-  
+
   const [workflowType, setWorkflowType] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [selectedFormTemplateId, setSelectedFormTemplateId] = useState<string>("");
+  const [selectedFormTemplateId, setSelectedFormTemplateId] =
+    useState<string>("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [department, setDepartment] = useState("");
   const [hasContingency, setHasContingency] = useState(false);
-  const [contingencyWorkflowIds, setContingencyWorkflowIds] = useState<string[]>([]);
+  const [contingencyWorkflowIds, setContingencyWorkflowIds] = useState<
+    string[]
+  >([]);
   const [contingencySearch, setContingencySearch] = useState("");
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [previewOpen, setPreviewOpen] = useState(false);
 
   // Fetch active form templates
-  const { data: formTemplates, isLoading: formTemplatesLoading } = trpc.formTemplates.getActive.useQuery();
-  
+  const { data: formTemplates, isLoading: formTemplatesLoading } =
+    trpc.formTemplates.getActive.useQuery();
+
   // Fetch workflow templates
-  const { data: workflowTemplates, isLoading: workflowTemplatesLoading } = trpc.templates.getAll.useQuery({ isActive: true });
-  
+  const { data: workflowTemplates, isLoading: workflowTemplatesLoading } =
+    trpc.templates.getAll.useQuery({ isActive: true });
+
   // Get selected workflow template
-  const selectedWorkflowTemplate = workflowTemplates?.find(t => t.id === selectedTemplateId);
+  const selectedWorkflowTemplate = workflowTemplates?.find(
+    t => t.id === selectedTemplateId
+  );
 
   // Get form template by selected ID
-  const selectedFormTemplate = formTemplates?.find(t => String(t.id) === selectedFormTemplateId);
+  const selectedFormTemplate = formTemplates?.find(
+    t => String(t.id) === selectedFormTemplateId
+  );
 
   const createWorkflow = trpc.workflows.create.useMutation({
-    onSuccess: (data) => {
-      toast.success("Workflow created successfully");
-      setLocation(`/workflows/${data.id}`);
-    },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message || "Failed to create workflow");
     },
   });
@@ -73,17 +90,17 @@ export default function WorkflowCreate() {
     if (!selectedFormTemplate) return true; // No template selected, skip validation
 
     const errors: Record<string, string> = {};
-    
+
     for (const field of selectedFormTemplate.fields) {
       const value = formData[field.id];
-      
+
       if (field.required && !value) {
         errors[field.id] = `${field.label} is required`;
       }
-      
+
       if (field.validation) {
         const { min, max, pattern } = field.validation;
-        
+
         if (field.type === "number" && value !== undefined && value !== "") {
           const numValue = Number(value);
           if (min !== undefined && numValue < min) {
@@ -93,7 +110,7 @@ export default function WorkflowCreate() {
             errors[field.id] = `Maximum value is ${max}`;
           }
         }
-        
+
         if (field.type === "text" && pattern && value) {
           const regex = new RegExp(pattern);
           if (!regex.test(value)) {
@@ -102,26 +119,30 @@ export default function WorkflowCreate() {
         }
       }
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const createWorkflowWithSubmission = async (
+    submissionStatus: "draft" | "submitted"
+  ) => {
     if (!title.trim()) {
       toast.error("Please enter a workflow title");
       return;
     }
-    
+
     if (!department.trim()) {
       toast.error("Please select a department");
       return;
     }
 
     // Validate form if form template is selected
-    if (selectedFormTemplate && !validateForm()) {
+    if (
+      submissionStatus === "submitted" &&
+      selectedFormTemplate &&
+      !validateForm()
+    ) {
       toast.error("Please fill in all required fields correctly");
       return;
     }
@@ -133,26 +154,36 @@ export default function WorkflowCreate() {
         title: title.trim(),
         description: description.trim() || undefined,
         department: department.trim(),
-        contingencyWorkflowIds: hasContingency ? contingencyWorkflowIds : undefined,
+        contingencyWorkflowIds: hasContingency
+          ? contingencyWorkflowIds
+          : undefined,
         templateId: selectedTemplateId || undefined,
       });
 
       // If form template was used, save form submission
       if (selectedFormTemplate && selectedFormTemplate.id) {
-        console.log('Creating form submission with data:', formData);
         await createFormSubmission.mutateAsync({
           workflowId: workflow.id,
           templateId: String(selectedFormTemplate.id),
           formData: formData || {},
-          submissionStatus: 'submitted',
+          submissionStatus,
         });
       }
 
-      // Toast and navigation handled by mutation onSuccess
-      // setLocation(`/workflows/${workflow.id}`); // Removed: handled in onSuccess
+      toast.success(
+        submissionStatus === "draft"
+          ? "Workflow draft saved"
+          : "Workflow created successfully"
+      );
+      setLocation(`/workflows/${workflow.id}`);
     } catch (error: any) {
       toast.error(error.message || "Failed to create workflow");
     }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await createWorkflowWithSubmission("submitted");
   };
 
   return (
@@ -174,7 +205,8 @@ export default function WorkflowCreate() {
           <CardHeader>
             <CardTitle>Create New Workflow</CardTitle>
             <CardDescription>
-              Select a workflow type and fill in the form to create a new approval workflow
+              Select a workflow type and fill in the form to create a new
+              approval workflow
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -184,9 +216,11 @@ export default function WorkflowCreate() {
                 <Label htmlFor="templateId">Workflow Template *</Label>
                 <Select
                   value={selectedTemplateId}
-                  onValueChange={(value) => {
+                  onValueChange={value => {
                     setSelectedTemplateId(value);
-                    const template = workflowTemplates?.find(t => t.id === value);
+                    const template = workflowTemplates?.find(
+                      t => t.id === value
+                    );
                     if (template) {
                       setWorkflowType(template.workflowType);
                     }
@@ -199,15 +233,19 @@ export default function WorkflowCreate() {
                   </SelectTrigger>
                   <SelectContent>
                     {workflowTemplatesLoading ? (
-                      <div className="p-2 text-sm text-muted-foreground">Loading templates...</div>
+                      <div className="p-2 text-sm text-muted-foreground">
+                        Loading templates...
+                      </div>
                     ) : workflowTemplates && workflowTemplates.length > 0 ? (
-                      workflowTemplates.map((template) => (
+                      workflowTemplates.map(template => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name} ({template.workflowType})
                         </SelectItem>
                       ))
                     ) : (
-                      <div className="p-2 text-sm text-muted-foreground">No templates available</div>
+                      <div className="p-2 text-sm text-muted-foreground">
+                        No templates available
+                      </div>
                     )}
                   </SelectContent>
                 </Select>
@@ -215,8 +253,12 @@ export default function WorkflowCreate() {
                   <div className="flex items-center gap-2 mt-2 p-3 bg-muted rounded-md">
                     <FileText className="h-4 w-4 text-muted-foreground" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{selectedWorkflowTemplate.name}</p>
-                      <p className="text-xs text-muted-foreground">{selectedWorkflowTemplate.description}</p>
+                      <p className="text-sm font-medium">
+                        {selectedWorkflowTemplate.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedWorkflowTemplate.description}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {selectedWorkflowTemplate.stages?.length || 0} stages
                       </p>
@@ -226,7 +268,7 @@ export default function WorkflowCreate() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        console.log('Preview button clicked, opening dialog');
+                        console.log("Preview button clicked, opening dialog");
                         setPreviewOpen(true);
                       }}
                     >
@@ -244,7 +286,7 @@ export default function WorkflowCreate() {
                   id="title"
                   placeholder="Enter a descriptive title for this workflow"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={e => setTitle(e.target.value)}
                   required
                 />
               </div>
@@ -256,7 +298,7 @@ export default function WorkflowCreate() {
                   id="description"
                   placeholder="Add any additional notes or context"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={e => setDescription(e.target.value)}
                   rows={3}
                 />
               </div>
@@ -264,10 +306,12 @@ export default function WorkflowCreate() {
               {/* Form Template Selection */}
               {selectedTemplateId && (
                 <div className="space-y-2">
-                  <Label htmlFor="formTemplateId">Form Template (Optional)</Label>
+                  <Label htmlFor="formTemplateId">
+                    Form Template (Optional)
+                  </Label>
                   <Select
                     value={selectedFormTemplateId}
-                    onValueChange={(value) => {
+                    onValueChange={value => {
                       setSelectedFormTemplateId(value);
                       setFormData({});
                       setFormErrors({});
@@ -278,21 +322,28 @@ export default function WorkflowCreate() {
                     </SelectTrigger>
                     <SelectContent>
                       {formTemplatesLoading ? (
-                        <div className="p-2 text-sm text-muted-foreground">Loading templates...</div>
+                        <div className="p-2 text-sm text-muted-foreground">
+                          Loading templates...
+                        </div>
                       ) : formTemplates && formTemplates.length > 0 ? (
-                        formTemplates.map((template) => (
-                          <SelectItem key={template.id} value={String(template.id)}>
+                        formTemplates.map(template => (
+                          <SelectItem
+                            key={template.id}
+                            value={String(template.id)}
+                          >
                             {template.templateName} ({template.templateCode})
                           </SelectItem>
                         ))
                       ) : (
-                        <div className="p-2 text-sm text-muted-foreground">No form templates available</div>
+                        <div className="p-2 text-sm text-muted-foreground">
+                          No form templates available
+                        </div>
                       )}
                     </SelectContent>
                   </Select>
                   {selectedFormTemplate && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {selectedFormTemplate.description || 'No description'}
+                      {selectedFormTemplate.description || "No description"}
                     </p>
                   )}
                 </div>
@@ -342,9 +393,12 @@ export default function WorkflowCreate() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="hasContingency">Pre-completion Contingency</Label>
+                    <Label htmlFor="hasContingency">
+                      Pre-completion Contingency
+                    </Label>
                     <p className="text-sm text-muted-foreground">
-                      This workflow cannot be completed unless other workflows are completed first
+                      This workflow cannot be completed unless other workflows
+                      are completed first
                     </p>
                   </div>
                   <Switch
@@ -357,7 +411,7 @@ export default function WorkflowCreate() {
                 {hasContingency && (
                   <ContingencyWorkflowSelector
                     selectedIds={contingencyWorkflowIds}
-                    onSelect={(ids) => setContingencyWorkflowIds(ids)}
+                    onSelect={ids => setContingencyWorkflowIds(ids)}
                     currentWorkflowId={null}
                   />
                 )}
@@ -370,12 +424,28 @@ export default function WorkflowCreate() {
                     Cancel
                   </Button>
                 </Link>
+                {selectedFormTemplate && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="flex-1"
+                    disabled={
+                      createWorkflow.isPending || createFormSubmission.isPending
+                    }
+                    onClick={() => createWorkflowWithSubmission("draft")}
+                  >
+                    Save Draft
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={createWorkflow.isPending || createFormSubmission.isPending}
+                  disabled={
+                    createWorkflow.isPending || createFormSubmission.isPending
+                  }
                 >
-                  {(createWorkflow.isPending || createFormSubmission.isPending) && (
+                  {(createWorkflow.isPending ||
+                    createFormSubmission.isPending) && (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   )}
                   Create Workflow

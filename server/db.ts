@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import * as schema from "../drizzle/schema";
 import { randomUUID } from "crypto";
 
@@ -987,6 +987,44 @@ export async function getFormSubmissionsByStage(
     .from(schema.formSubmissions)
     .where(eq(schema.formSubmissions.stageId, stageId))
     .orderBy(desc(schema.formSubmissions.createdAt));
+}
+
+export async function getFormSubmissionsForProcessing() {
+  return await db
+    .select({
+      submission: schema.formSubmissions,
+      template: schema.formTemplates,
+      workflow: schema.workflows,
+      submitter: schema.users,
+    })
+    .from(schema.formSubmissions)
+    .innerJoin(
+      schema.formTemplates,
+      eq(schema.formSubmissions.templateId, schema.formTemplates.id)
+    )
+    .leftJoin(
+      schema.workflows,
+      eq(schema.formSubmissions.workflowId, schema.workflows.id)
+    )
+    .leftJoin(
+      schema.users,
+      eq(schema.formSubmissions.submittedBy, schema.users.id)
+    )
+    .orderBy(desc(schema.formSubmissions.updatedAt));
+}
+
+export async function getStagesByWorkflowIds(
+  workflowIds: string[]
+): Promise<schema.WorkflowStage[]> {
+  if (workflowIds.length === 0) return [];
+  return await db
+    .select()
+    .from(schema.workflowStages)
+    .where(inArray(schema.workflowStages.workflowId, workflowIds))
+    .orderBy(
+      schema.workflowStages.workflowId,
+      schema.workflowStages.stageOrder
+    );
 }
 
 export async function updateFormSubmission(
